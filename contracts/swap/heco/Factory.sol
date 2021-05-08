@@ -18,6 +18,9 @@ import "../interface/IERC20.sol";
 import "../interface/IMdexFactory.sol";
 import "../interface/IMdexPair.sol";
 
+import "../../common/ComptrollerInterface.sol";
+import "../../common/CTokenInterfaces.sol";
+
 interface IHswapV2Callee {
     function hswapV2Call(address sender, uint amount0, uint amount1, bytes calldata data) external;
 }
@@ -157,14 +160,16 @@ contract MdexPair is IMdexERC20, IMdexPair {
     address public override token0;
     address public override token1;
 
+    // 存到lend池中的 ctoken0 amount
     uint112 private reserve0;           // uses single storage slot, accessible via getReserves
+    // 存到lend池中的 ctoken1 amount
     uint112 private reserve1;           // uses single storage slot, accessible via getReserves
     uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves
 
     address public cToken0;              // 对应 token0 在 lend 池中的 cToken
     address public cToken1;              // 对应 token1 在 lend 池中的 cToken
-    uint112 private _cReserve0;           // 存到lend池中的ctoken0 amount
-    uint112 private _cReserve1;           // 存到lend池中的ctoken1 amount
+    uint112 public vReserve0;           // 虚拟的 token0 数量, 因为实际上 token0 已经存入 ctoken 合约中
+    uint112 public vReserve1;           // 虚拟的 token1 数量, 因为实际上 token1 已经存入 ctoken 合约中
 
     uint public override price0CumulativeLast;
     uint public override price1CumulativeLast;
@@ -179,7 +184,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
     }
     // using SafeMath for uint;
 
-    string public constant override(IMdexERC20, IMdexPair) name = 'HSwap LP Token';
+    string public constant override(IMdexERC20, IMdexPair) name = 'LP Token';
     string public constant override(IMdexERC20, IMdexPair) symbol = 'HMDX';
     uint8 public constant override(IMdexERC20, IMdexPair) decimals = 18;
     uint  public override(IMdexERC20, IMdexPair) totalSupply;
@@ -328,6 +333,31 @@ contract MdexPair is IMdexERC20, IMdexPair {
         emit Sync(reserve0, reserve1);
     }
 
+    // update reserves and, on the first call per block, price accumulators
+    function _addVreserve(uint balance0, uint balance1) private {
+        require(balance0 <= uint112(- 1) && balance1 <= uint112(- 1), 'MdexSwap: OVERFLOW');
+        // uint32 blockTimestamp = uint32(block.timestamp % 2 ** 32);
+        // uint32 timeElapsed = blockTimestamp - blockTimestampLast;
+        // // overflow is desired
+        // if (timeElapsed > 0 && _reserve0 != 0 && _reserve1 != 0) {
+        //     // * never overflows, and + overflow is desired
+        //     price0CumulativeLast += uint(UQ112x112.encode(_reserve1).uqdiv(_reserve0)) * timeElapsed;
+        //     price1CumulativeLast += uint(UQ112x112.encode(_reserve0).uqdiv(_reserve1)) * timeElapsed;
+        // }
+        vReserve0 += uint112(balance0);
+        vReserve1 += uint112(balance1);
+        // blockTimestampLast = blockTimestamp;
+        // emit Sync(reserve0, reserve1);
+    }
+
+    function _delVreserve(uint balance0, uint balance1) private {
+        require(balance0 <= vReserve0, "Swap: NOT ENOUGHT");
+        require(balance1 <= vReserve1, "Swap: NOT ENOUGHT");
+        
+        vReserve0 -= uint112(balance0);
+        vReserve1 -= uint112(balance1);
+    }
+
     // if fee is on, mint liquidity equivalent to 1/6th of the growth in sqrt(k)
     function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
         address feeTo = IMdexFactory(factory).feeTo();
@@ -350,14 +380,41 @@ contract MdexPair is IMdexERC20, IMdexPair {
         }
     }
 
+    function mintCToken(address to) override external lock returns (uint liquidity) {
+
+    }
+
+    // ETH/HT/BNB 不能直接 mint
+    // 存入的是 token 而不是 ctoken; 如果存入的是 ctoken 或不确定, 调用 mintCToken
     // this low-level function should be called from a contract which performs important safety checks
     function mint(address to) override external lock returns (uint liquidity) {
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         // gas savings
         uint balance0 = IERC20(token0).balanceOf(address(this));
         uint balance1 = IERC20(token1).balanceOf(address(this));
-        uint amount0 = balance0.sub(_reserve0);
-        uint amount1 = balance1.sub(_reserve1);
+        // uint amount0 = balance0.sub(_reserve0);
+        // uint amount1 = balance1.sub(_reserve1);
+
+        // guotie
+        // 分别将 token0 token1 transer 到 lend 池, 获取 ctoken0 ctoken1 的 amount0 amount1
+        //
+        uint cBalanceBefore0 = IERC20(cToken0).balanceOf(address(this));
+        uint cBalanceBefore1 = IERC20(cToken1).balanceOf(address(this));
+        // approve, mint ctoken0
+        IERC20(cToken0).approve(cToken0, balance0);
+        CErc20Interface(cToken0).mint(balance0);
+        IERC20(cToken0).approve(cToken0, 0);
+
+        // approve, mint ctoken1
+        IERC20(cToken1).approve(cToken1, balance1);
+        CErc20Interface(cToken1).mint(balance1);
+        IERC20(cToken1).approve(cToken1, 0);
+        uint cBalanceAfter0 = IERC20(cToken0).balanceOf(address(this));
+        uint cBalanceAfter1 = IERC20(cToken1).balanceOf(address(this));
+
+        // amount0 amount1 均为存入 lend 池后得到的 ctoken 的数量
+        uint amount0 = cBalanceBefore0.sub(cBalanceAfter0); // .sub(_reserve0);
+        uint amount1 = cBalanceBefore1.sub(cBalanceAfter1); // .sub(_reserve1);
 
         bool feeOn = _mintFee(_reserve0, _reserve1);
         uint _totalSupply = totalSupply;
@@ -372,7 +429,8 @@ contract MdexPair is IMdexERC20, IMdexPair {
         require(liquidity > 0, 'MdexSwap: INSUFFICIENT_LIQUIDITY_MINTED');
         _mint(to, liquidity);
 
-        _update(balance0, balance1, _reserve0, _reserve1);
+        _update(cBalanceAfter0, cBalanceAfter1, _reserve0, _reserve1);
+        // _addVreserve(balance0, balance1);
         if (feeOn) kLast = uint(reserve0).mul(reserve1);
         // reserve0 and reserve1 are up-to-date
         emit Mint(msg.sender, amount0, amount1);
@@ -382,37 +440,80 @@ contract MdexPair is IMdexERC20, IMdexPair {
     function burn(address to) override external lock returns (uint amount0, uint amount1) {
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         // gas savings
-        address _token0 = token0;
+        // address _token0 = token0;
         // gas savings
-        address _token1 = token1;
+        // address _token1 = token1;
         // gas savings
-        uint balance0 = IERC20(_token0).balanceOf(address(this));
-        uint balance1 = IERC20(_token1).balanceOf(address(this));
-        uint liquidity = balanceOf[address(this)];
+        address _ctoken0 = cToken0;
+        // gas savings
+        address _ctoken1 = cToken1;
+        // gas savings
+        // uint balance0 = IERC20(_token0).balanceOf(address(this));  // 应该是0 因为token 都存在 lend 池中
+        // uint balance1 = IERC20(_token1).balanceOf(address(this));  // 应该是0 因为token 都存在 lend 池中
+        uint cbalance0 = IERC20(_ctoken0).balanceOf(address(this));  // ctoken0 数量
+        uint cbalance1 = IERC20(_ctoken1).balanceOf(address(this));  // ctoken1 数量
+        uint liquidity = balanceOf[address(this)];  // 用户操作 burn 之前转入的 LP 代币数量
 
         bool feeOn = _mintFee(_reserve0, _reserve1);
         uint _totalSupply = totalSupply;
         // gas savings, must be defined here since totalSupply can update in _mintFee
-        amount0 = liquidity.mul(balance0) / _totalSupply;
+        uint camount0 = liquidity.mul(cbalance0) / _totalSupply;
         // using balances ensures pro-rata distribution
-        amount1 = liquidity.mul(balance1) / _totalSupply;
+        uint camount1 = liquidity.mul(cbalance1) / _totalSupply;
         // using balances ensures pro-rata distribution
-        require(amount0 > 0 && amount1 > 0, 'MdexSwap: INSUFFICIENT_LIQUIDITY_BURNED');
+        require(camount0 > 0 && camount1 > 0, 'MdexSwap: INSUFFICIENT_LIQUIDITY_BURNED');
         _burn(address(this), liquidity);
-        _safeTransfer(_token0, to, amount0);
-        _safeTransfer(_token1, to, amount1);
-        balance0 = IERC20(_token0).balanceOf(address(this));
-        balance1 = IERC20(_token1).balanceOf(address(this));
 
-        _update(balance0, balance1, _reserve0, _reserve1);
+        // 先把 ctoken 转给 pair
+        _redeemOrTransfer(to, _ctoken0, token0, camount0);
+        _redeemOrTransfer(to, _ctoken1, token1, camount1);
+        // _safeTransfer(_ctoken0, address(this), camount0);
+        // _safeTransfer(_ctoken1, address(this), camount1);
+        cbalance0 = IERC20(_ctoken0).balanceOf(address(this));
+        cbalance1 = IERC20(_ctoken1).balanceOf(address(this));
+
+        _update(cbalance0, cbalance1, _reserve0, _reserve1);
         if (feeOn) kLast = uint(reserve0).mul(reserve1);
         // reserve0 and reserve1 are up-to-date
         emit Burn(msg.sender, amount0, amount1, to);
     }
 
+    // 从 lend 池中把 token 赎回, camount 为 ctoken 数量
+    // 赎回 token, 如果赎回成功, 将 token 转给 to; 否则, 将 ctoken 转给 to
+    function _redeemOrTransfer(address to, address ctoken, address token, uint camount) private {
+        uint ret;
+
+        ret = CErc20Interface(ctoken).redeem(camount);
+        if (ret == 0) {
+            // success
+            // 将赎回的 token 全部转给 to
+            _safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
+        } else {
+            // failed
+            IERC20(ctoken).transfer(to, camount);
+        }
+    }
+
+    // 从 lend 池中把 token 赎回, amount 为待赎回的 token 数量
+    // 赎回 token, 如果赎回成功, 将 token 转给 to; 否则, 将 ctoken 转给 to
+    function _redeemUnderlyingOrTransfer(address to, address ctoken, address token, uint amount) private {
+        uint ret;
+
+        ret = CErc20Interface(ctoken).redeemUnderlying(amount);
+        if (ret == 0) {
+            // success
+            // 将赎回的 token 全部转给 to
+            _safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
+        } else {
+            // failed
+            // 转多少呢? todo
+            IERC20(ctoken).transfer(to, camount);
+        }
+    }
+
     // this low-level function should be called from a contract which performs important safety checks
     function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) override external lock {
-        require(amount0Out > 0 || amount1Out > 0, 'Swap: INSUFFICIENT_OUTPUT_AMOUNT');
+        require(amount0Out > 0 || amount1Out > 0, 'Swap: INVALID_AMOUNT');
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         // gas savings
         require(amount0Out < _reserve0 && amount1Out < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
@@ -423,6 +524,45 @@ contract MdexPair is IMdexERC20, IMdexPair {
             address _token0 = token0;
             address _token1 = token1;
             require(to != _token0 && to != _token1, 'Swap: INVALID_TO');
+            require(to != cToken0 && to != cToken1, 'Swap: INVALID_TO');
+            if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
+            // optimistically transfer tokens
+            if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
+            // optimistically transfer tokens
+            if (data.length > 0) IHswapV2Callee(to).hswapV2Call(msg.sender, amount0Out, amount1Out, data);
+            balance0 = IERC20(_token0).balanceOf(address(this));
+            balance1 = IERC20(_token1).balanceOf(address(this));
+        }
+        uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
+        uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
+        require(amount0In > 0 || amount1In > 0, 'Swap: INSUFFICIENT_INPUT_AMOUNT');
+        {// scope for reserve{0,1}Adjusted, avoids stack too deep errors
+            uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
+            uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
+            require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000 ** 2), 'Swap: K');
+        }
+
+        _update(balance0, balance1, _reserve0, _reserve1);
+        emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
+    }
+
+    // amount0Out: 预计得到的 token0 的数量, 在外围合约中计算好
+    // amount1Out: 预计得到的 token1 的数量, 在外围合约中计算好
+    // 转入的币应该是 token 而不是 ctoken
+    function swap2(uint amount0Out, uint amount1Out, address to, bytes calldata data) external lock {
+        require(amount0Out > 0 || amount1Out > 0, 'Swap: INVALID_AMOUNT');
+        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
+        // gas savings
+        // 不能比较 因为 _reserve0 是 ctoken0 的数量
+        require(amount0Out < _reserve0 && amount1Out < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
+
+        uint balance0;
+        uint balance1;
+        {// scope for _token{0,1}, avoids stack too deep errors
+            address _token0 = token0;
+            address _token1 = token1;
+            require(to != _token0 && to != _token1, 'Swap: INVALID_TO');
+            require(to != cToken0 && to != cToken1, 'Swap: INVALID_TO');
             if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
             // optimistically transfer tokens
             if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
@@ -478,13 +618,18 @@ contract MdexFactory is IMdexFactory {
     uint256 public override feeToRate;
     bytes32 public initCodeHash;
 
+    // lend controller address. should be unitroller address, which is proxy of comptroller
+    ComptrollerInterface public comptroller;
+
     mapping(address => mapping(address => address)) public override getPair;
     address[] public override allPairs;
 
     // event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
-    constructor(address _feeToSetter) {
+    // 创建时需要设置 comptroller 地址
+    constructor(address _feeToSetter, address _comptroller) {
         feeToSetter = _feeToSetter;
+        comptroller = ComptrollerInterface(_comptroller);
         initCodeHash = keccak256(abi.encodePacked(type(MdexPair).creationCode));
     }
 
@@ -492,11 +637,18 @@ contract MdexFactory is IMdexFactory {
         return allPairs.length;
     }
 
+    // 创建交易对
+    // tokenA tokenB 都不能是 cToken
     function createPair(address tokenA, address tokenB) external override returns (address pair) {
         require(tokenA != tokenB, 'SwapFactory: IDENTICAL_ADDRESSES');
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         require(token0 != address(0), 'SwapFactory: ZERO_ADDRESS');
         require(getPair[token0][token1] == address(0), 'SwapFactory: PAIR_EXISTS');
+        
+        // guotie
+        // token0 token1 不能是 cToken
+        (address ctoken0, address ctoken1) = _checkTokenIsNotCToken(token0, token1);
+
         // single check is sufficient
         bytes memory bytecode = type(MdexPair).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(token0, token1));
@@ -504,6 +656,11 @@ contract MdexFactory is IMdexFactory {
             pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
         IMdexPair(pair).initialize(token0, token1);
+
+        // guotie
+        // set compound ctoken address
+        IMdexPair(pair).initializeCTokenAddress(ctoken0, ctoken1);
+
         getPair[token0][token1] = pair;
         getPair[token1][token0] = pair;
         // populate mapping in the reverse direction
@@ -535,8 +692,20 @@ contract MdexFactory is IMdexFactory {
         require(token0 != address(0), 'SwapFactory: ZERO_ADDRESS');
     }
 
+    // guotie
+    // 检查 token 不是 cToken
+    function _checkTokenIsNotCToken(address token0, address token1) private view returns (address ctoken0, address ctoken1) {
+        ctoken0 = comptroller.getCTokenAddress(token0);
+        require(ctoken0 != token0, 'SwapFactory: cToken');
+        ctoken1 = comptroller.getCTokenAddress(token1);
+        require(ctoken1 != token1, 'SwapFactory: cToken');
+    }
+
     // calculates the CREATE2 address for a pair without making any external calls
     function pairFor(address tokenA, address tokenB) public view override returns (address pair) {
+        // guotie 这里不关心顺序
+        _checkTokenIsNotCToken(tokenA, tokenB);
+
         (address token0, address token1) = sortTokens(tokenA, tokenB);
         pair = address(uint(keccak256(abi.encodePacked(
                 hex'ff',
@@ -545,6 +714,7 @@ contract MdexFactory is IMdexFactory {
                 initCodeHash
             ))));
     }
+
     // fetches and sorts the reserves for a pair
     function getReserves(address tokenA, address tokenB) public view override returns (uint reserveA, uint reserveB) {
         (address token0,) = sortTokens(tokenA, tokenB);

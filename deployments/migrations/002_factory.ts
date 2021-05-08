@@ -14,7 +14,7 @@ export default async function (hre: HardhatRuntimeEnvironment): Promise<void> {
 
   await deploy('MdexFactory', {
     from: deployer,
-    args: [deployer],
+    args: [deployer, ''],
     log: true,
   });
 
@@ -29,3 +29,7 @@ export default async function (hre: HardhatRuntimeEnvironment): Promise<void> {
   // await unitroller.functions._setPendingImplementation(comp.address)
   // await unitroller.functions._acceptImplementation()
 }
+
+
+// verify
+// npx hardhat verify --network hecotest 0xE6bAb8701d48Fe85Ec5B8a0FCe45AF98b1442965 0x49d531908840FDDaC744543d57CB21B91c3D9094

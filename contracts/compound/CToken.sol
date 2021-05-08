@@ -395,6 +395,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @notice Applies accrued interest to total borrows and reserves
      * @dev This calculates interest accrued from the last checkpointed block
      *   up to the current block and writes new checkpoint to storage.
+     *   更新利息 每个块只计算一次利息
      */
     function accrueInterest() override public returns (uint) {
         /* Remember the initial block number */
@@ -407,7 +408,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         }
 
         /* Read the previous values out of storage */
-        uint cashPrior = getCashPrior();
+        uint cashPrior = getCashPrior();  // token 的数量
         uint borrowsPrior = totalBorrows;
         uint reservesPrior = totalReserves;
         uint borrowIndexPrior = borrowIndex;
