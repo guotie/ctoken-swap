@@ -14,7 +14,7 @@
 
 pragma solidity =0.7.6;
 
-import "./ComptrollerInterface.sol";
+import "../common/ComptrollerInterface.sol";
 import "./InterestRateModel.sol";
 
 contract CTokenStorage {

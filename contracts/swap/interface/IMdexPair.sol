@@ -84,4 +84,6 @@ interface IMdexPair {
     function price(address token, uint256 baseDecimal) external view returns (uint256);
 
     function initialize(address, address) external;
+    // initialize ctoken address
+    function initializeCTokenAddress(address, address) external;
 }

@@ -151,7 +151,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
     using UQ112x112 for uint224;
 
     uint public constant override MINIMUM_LIQUIDITY = 10 ** 3;
-    bytes4 private constant SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)')));
+    bytes4 private constant _SELECTOR = bytes4(keccak256(bytes('transfer(address,uint256)')));
 
     address public override factory;
     address public override token0;
@@ -161,8 +161,8 @@ contract MdexPair is IMdexERC20, IMdexPair {
     uint112 private reserve1;           // uses single storage slot, accessible via getReserves
     uint32  private blockTimestampLast; // uses single storage slot, accessible via getReserves
 
-    address public cToken0;
-    address public cToken1;
+    address public cToken0;              // 对应 token0 在 lend 池中的 cToken
+    address public cToken1;              // 对应 token1 在 lend 池中的 cToken
     uint112 private _cReserve0;           // 存到lend池中的ctoken0 amount
     uint112 private _cReserve1;           // 存到lend池中的ctoken1 amount
 
@@ -170,12 +170,12 @@ contract MdexPair is IMdexERC20, IMdexPair {
     uint public override price1CumulativeLast;
     uint public override kLast; // reserve0 * reserve1, as of immediately after the most recent liquidity event
 
-    uint private unlocked = 1;
+    uint private _unlocked = 1;
     modifier lock() {
-        require(unlocked == 1, 'MdexSwap: LOCKED');
-        unlocked = 0;
+        require(_unlocked == 1, 'MdexSwap: LOCKED');
+        _unlocked = 0;
         _;
-        unlocked = 1;
+        _unlocked = 1;
     }
     // using SafeMath for uint;
 
@@ -275,7 +275,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
     }
 
     function _safeTransfer(address token, address to, uint value) private {
-        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(SELECTOR, to, value));
+        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(_SELECTOR, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'Swap: TRANSFER_FAILED');
     }
 
@@ -301,6 +301,14 @@ contract MdexPair is IMdexERC20, IMdexPair {
         // sufficient check
         token0 = _token0;
         token1 = _token1;
+    }
+
+    // called once by the factory at time of deployment
+    function initializeCTokenAddress(address _token0, address _token1) override external {
+        require(msg.sender == factory, 'MdexSwap: FORBIDDEN');
+        // sufficient check
+        cToken0 = _token0;
+        cToken1 = _token1;
     }
 
     // update reserves and, on the first call per block, price accumulators

@@ -17,7 +17,7 @@ pragma solidity =0.7.6;
 import "./CToken.sol";
 import "./ErrorReporter.sol";
 import "./PriceOracle.sol";
-import "./ComptrollerInterface.sol";
+import "../common/ComptrollerInterface.sol";
 import "./ComptrollerStorage.sol";
 import "./Unitroller.sol";
 import "./Governance/LendHub.sol";
@@ -1391,6 +1391,17 @@ contract Comptroller is ComptrollerV4Storage, ComptrollerInterface, ComptrollerE
      * @return The address of LHB
      */
     function getCompAddress() public pure returns (address) {
+        return 0x8F67854497218043E1f72908FFE38D0Ed7F24721;
+    }
+    
+    /**
+     * @notice Return the cToken address of the token
+     * @param token The address of the token to be query
+     * @return The address of cToken
+     */
+    function getCTokenAddress(address token) override public pure returns (address) {
+        // todo
+        token;
         return 0x8F67854497218043E1f72908FFE38D0Ed7F24721;
     }
 }

@@ -82,4 +82,11 @@ abstract contract ComptrollerInterface {
         address cTokenBorrowed,
         address cTokenCollateral,
         uint repayAmount) virtual external view returns (uint, uint);
+
+
+    /**
+     * 根据 token 地址查找 cToken 地址
+     * 如果是ETH/HT/BNB, 应该先变成对应的 wrapped ETH/HT/BNB
+     */
+    function getCTokenAddress(address token) virtual external view returns (address);
 }
