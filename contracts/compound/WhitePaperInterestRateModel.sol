@@ -14,7 +14,7 @@
 
 pragma solidity =0.7.6;
 
-import "./InterestRateModel.sol";
+import "../common/InterestRateModel.sol";
 import "./SafeMath.sol";
 
 /**

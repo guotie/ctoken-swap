@@ -15,12 +15,13 @@
 pragma solidity =0.7.6;
 
 import "../common/ComptrollerInterface.sol";
-import "./CTokenInterfaces.sol";
+import "../common/CTokenInterfaces.sol";
+import "../common/InterestRateModel.sol";
+
 import "./ErrorReporter.sol";
 import "./Exponential.sol";
 import "./EIP20Interface.sol";
 import "./EIP20NonStandardInterface.sol";
-import "./InterestRateModel.sol";
 
 /**
  * @title LendHub's CToken Contract
