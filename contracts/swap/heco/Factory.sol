@@ -506,7 +506,9 @@ contract MdexPair is IMdexERC20, IMdexPair {
             _safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
         } else {
             // failed
-            // 转多少呢? todo
+            // 转多少呢? 这里需要获取 ctoken 和 token 的比例关系, 获取最新的 exchangeRate
+            //
+            uint camount = amount / CTokenInterface(ctoken).exchangeRateCurrent();
             IERC20(ctoken).transfer(to, camount);
         }
     }
@@ -546,42 +548,87 @@ contract MdexPair is IMdexERC20, IMdexPair {
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
-    // amount0Out: 预计得到的 token0 的数量, 在外围合约中计算好
-    // amount1Out: 预计得到的 token1 的数量, 在外围合约中计算好
+    struct TokenLocalVars {
+        uint balance;
+        // uint balance0Adjusted;  // cToken: x1 - 0.003xin
+        address token;
+        address ctoken;
+        uint amountIn;
+        uint cAmountIn;
+        uint cAmountOut;
+    }
+    // amount0Out: 预计得到的 token0 的数量, 在外围合约中计算好, 计算时需要考虑 exchangeRate 兑换比例
+    // amount1Out: 预计得到的 token1 的数量, 在外围合约中计算好, 计算时需要考虑 exchangeRate 兑换比例
     // 转入的币应该是 token 而不是 ctoken
-    function swap2(uint amount0Out, uint amount1Out, address to, bytes calldata data) external lock {
+    function swap2x(uint amount0Out, uint amount1Out, address to, bytes calldata data) external lock {
         require(amount0Out > 0 || amount1Out > 0, 'Swap: INVALID_AMOUNT');
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         // gas savings
         // 不能比较 因为 _reserve0 是 ctoken0 的数量
         require(amount0Out < _reserve0 && amount1Out < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
+        TokenLocalVars memory vars0;
+        TokenLocalVars memory vars1;
 
-        uint balance0;
-        uint balance1;
+        // 这里记录转入的 token 数量
+        vars0.token = token0;
+        vars1.token = token1;
+        vars0.ctoken = cToken0;
+        vars1.ctoken = cToken1;
+
+        // uint balance0;
+        // uint balance1;
+        // 这里记录转入的 token 数量
+        // uint amount0In; // = IERC20(_token0).balanceOf(address(this));
+        // uint amount1In; // = IERC20(_token1).balanceOf(address(this));
+
+        // uint camount0In; // = IERC20(_token0).balanceOf(address(this));
+        // uint camount1In; // = IERC20(_token1).balanceOf(address(this));
         {// scope for _token{0,1}, avoids stack too deep errors
-            address _token0 = token0;
-            address _token1 = token1;
-            require(to != _token0 && to != _token1, 'Swap: INVALID_TO');
-            require(to != cToken0 && to != cToken1, 'Swap: INVALID_TO');
-            if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
+            // address _ctoken0 = cToken0;
+            // address _ctoken1 = cToken1;
+            require(to != vars0.token && to != vars1.token, 'Swap: INVALID_TO');
+            require(to != vars0.ctoken && to != vars1.ctoken, 'Swap: INVALID_TO');
+            if (amount0Out > 0) {
+                vars0.cAmountOut = amount0Out / CTokenInterface(vars0.ctoken).exchangeRateCurrent();
+                _redeemUnderlyingOrTransfer(to, vars0.ctoken, vars0.token, amount0Out);
+            } // _safeTransfer(_token0, to, amount0Out);
             // optimistically transfer tokens
-            if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
+            if (amount1Out > 0) {
+                vars1.cAmountOut = amount1Out / CTokenInterface(vars1.ctoken).exchangeRateCurrent();
+                _redeemUnderlyingOrTransfer(to, vars1.ctoken, vars1.token, amount1Out);
+            } // _safeTransfer(_token1, to, amount1Out);
             // optimistically transfer tokens
             if (data.length > 0) IHswapV2Callee(to).hswapV2Call(msg.sender, amount0Out, amount1Out, data);
-            balance0 = IERC20(_token0).balanceOf(address(this));
-            balance1 = IERC20(_token1).balanceOf(address(this));
+
+            // 这里 mint cToken
+            // todo 收手续费
+            vars0.amountIn = IERC20(vars0.token).balanceOf(address(this));
+            vars1.amountIn = IERC20(vars1.token).balanceOf(address(this));
+            require(vars0.amountIn > 0 || vars1.amountIn > 0, 'Swap: INSUFFICIENT_INPUT_AMOUNT');
+            if (vars0.amountIn > 0) {
+                // 将转入的 token0 存入借贷池
+                CErc20Interface(vars0.ctoken).mint(vars0.amountIn);
+            }
+            if (vars1.amountIn > 0) {
+                // 将转入的 token1 存入借贷池
+                CErc20Interface(vars1.ctoken).mint(vars1.amountIn);
+            }
+
+            vars0.balance = IERC20(vars0.ctoken).balanceOf(address(this));
+            vars1.balance = IERC20(vars1.ctoken).balanceOf(address(this));
         }
-        uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
-        uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
-        require(amount0In > 0 || amount1In > 0, 'Swap: INSUFFICIENT_INPUT_AMOUNT');
+        // 注意: x * y = K 是两个 cToken 之间的关系
+        vars0.cAmountIn = vars0.balance > _reserve0 - vars0.cAmountOut ? vars0.balance - (_reserve0 - vars0.cAmountOut) : 0;
+        vars1.cAmountIn = vars1.balance > _reserve1 - vars1.cAmountOut ? vars1.balance - (_reserve1 - vars1.cAmountOut) : 0;
+        // uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
         {// scope for reserve{0,1}Adjusted, avoids stack too deep errors
-            uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
-            uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
+            uint balance0Adjusted = vars0.balance.mul(1000).sub(vars0.cAmountIn.mul(3));
+            uint balance1Adjusted = vars1.balance.mul(1000).sub(vars1.cAmountIn.mul(3));
             require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000 ** 2), 'Swap: K');
         }
 
-        _update(balance0, balance1, _reserve0, _reserve1);
-        emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
+        _update(vars0.balance, vars1.balance, _reserve0, _reserve1);
+        emit Swap(msg.sender, vars0.amountIn, vars1.amountIn, amount0Out, amount1Out, to);
     }
 
     // force balances to match reserves
