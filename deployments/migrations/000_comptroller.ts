@@ -28,4 +28,29 @@ export default async function (hre: HardhatRuntimeEnvironment): Promise<void> {
   let unitroller = new ethers.Contract(uni.address, uni.abi, namedSigners[0])
   await unitroller.functions._setPendingImplementation(comp.address)
   await unitroller.functions._acceptImplementation()
+
+  // 利率合约
+  await deploy('WhitePaperInterestRateModel', {
+    from: deployer,
+    // 10% 60%
+    args: ['10000000000000000000', '60000000000000000000'],
+    log: true,
+  });
+  
+  // 价格预言机
+  await deploy('SimplePriceOracle', {
+    from: deployer,
+    // 10% 60%
+    args: ['USDT'],
+    log: true,
+  });
+
+  // mdex pair
+  await deploy('MdexFactory', {
+    from: deployer,
+    // 10% 60%
+    args: [namedSigners[0].address, unitroller.address],
+    log: true,
+  });
+
 }

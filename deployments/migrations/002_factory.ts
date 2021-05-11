@@ -2,21 +2,21 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types';
 // import { ethers } from 'ethers'
 
 export default async function (hre: HardhatRuntimeEnvironment): Promise<void> {
-  const { deployments, getNamedAccounts } = hre;
-  // console.info('hre:', hre)
-  const { deploy } = deployments;
+  // const { deployments, getNamedAccounts } = hre;
+  // // console.info('hre:', hre)
+  // const { deploy } = deployments;
 
-  const namedAccounts = await getNamedAccounts();
-  const { deployer, admin } = namedAccounts
-  console.info('deployer admin:', deployer, admin)
+  // const namedAccounts = await getNamedAccounts();
+  // const { deployer, admin } = namedAccounts
+  // console.info('deployer admin:', deployer, admin)
   // const namedSigners = await ethers.getSigners()
   // console.info('deployer admin:', deployer, admin)
 
-  await deploy('MdexFactory', {
-    from: deployer,
-    args: [deployer, ''],
-    log: true,
-  });
+  // await deploy('MdexFactory', {
+  //   from: deployer,
+  //   args: [deployer, ''],
+  //   log: true,
+  // });
 
   // let uni = await deploy('Unitroller', {
   //   from: deployer,

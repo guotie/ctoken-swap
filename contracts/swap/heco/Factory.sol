@@ -746,6 +746,8 @@ contract MdexFactory is IMdexFactory {
         require(ctoken0 != token0, 'SwapFactory: cToken');
         ctoken1 = comptroller.getCTokenAddress(token1);
         require(ctoken1 != token1, 'SwapFactory: cToken');
+
+        require(ctoken0 != ctoken1, 'SwapFactory: Dup cToken');
     }
 
     // calculates the CREATE2 address for a pair without making any external calls
