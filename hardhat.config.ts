@@ -47,8 +47,8 @@ export default {
       saveDeployments: true,
       allowUnlimitedContractSize: true,
       mining: {
-        auto: false,
-        interval: 0   // 使用 evm_mine 来手动挖矿
+        auto: true,
+        // interval: 0   // 使用 evm_mine 来手动挖矿
       }
     },
     dockerParity: {

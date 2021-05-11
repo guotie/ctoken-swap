@@ -35,7 +35,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param implementation_ The address of the implementation the contract delegates to
      * @param becomeImplementationData The encoded args for becomeImplementation
      */
-    constructor(address underlying_,
+    function delegateToInitialize(address underlying_,
                 ComptrollerInterface comptroller_,
                 InterestRateModel interestRateModel_,
                 uint initialExchangeRateMantissa_,
@@ -44,7 +44,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
                 uint8 decimals_,
                 address payable admin_,
                 address implementation_,
-                bytes memory becomeImplementationData) {
+                bytes memory becomeImplementationData) public {
         // Creator of the contract is admin during initialization
         admin = msg.sender;
 
