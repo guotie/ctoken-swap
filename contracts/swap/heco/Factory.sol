@@ -18,7 +18,7 @@ import "../interface/IERC20.sol";
 import "../interface/IMdexFactory.sol";
 import "../interface/IMdexPair.sol";
 
-import "../../common/ComptrollerInterface.sol";
+import "../../common/LErc20DelegatorInterface.sol";
 import "../../common/CTokenInterfaces.sol";
 
 interface IHswapV2Callee {
@@ -666,17 +666,17 @@ contract MdexFactory is IMdexFactory {
     bytes32 public initCodeHash;
 
     // lend controller address. should be unitroller address, which is proxy of comptroller
-    ComptrollerInterface public comptroller;
+    LErc20DelegatorInterface public lErc20DelegatorFactory;
 
     mapping(address => mapping(address => address)) public override getPair;
     address[] public override allPairs;
 
     // event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
-    // 创建时需要设置 comptroller 地址
+    // 创建时需要设置 LERC20 factory 地址
     constructor(address _feeToSetter, address _comptroller) {
         feeToSetter = _feeToSetter;
-        comptroller = ComptrollerInterface(_comptroller);
+        lErc20DelegatorFactory = LErc20DelegatorInterface(_comptroller);
         initCodeHash = keccak256(abi.encodePacked(type(MdexPair).creationCode));
     }
 
@@ -694,7 +694,7 @@ contract MdexFactory is IMdexFactory {
         
         // guotie
         // token0 token1 不能是 cToken
-        (address ctoken0, address ctoken1) = _checkTokenIsNotCToken(token0, token1);
+        (address ctoken0, address ctoken1) = _checkOrCreateCToken(token0, token1);
 
         // single check is sufficient
         bytes memory bytecode = type(MdexPair).creationCode;
@@ -741,11 +741,28 @@ contract MdexFactory is IMdexFactory {
 
     // guotie
     // 检查 token 不是 cToken
-    function _checkTokenIsNotCToken(address token0, address token1) private view returns (address ctoken0, address ctoken1) {
-        ctoken0 = comptroller.getCTokenAddress(token0);
-        require(ctoken0 != token0, 'SwapFactory: cToken');
-        ctoken1 = comptroller.getCTokenAddress(token1);
-        require(ctoken1 != token1, 'SwapFactory: cToken');
+    function _checkTokenIsNotCToken(address token0, address token1) private view returns (uint) {
+        address ctoken0 = lErc20DelegatorFactory.getCTokenAddressPure(token0);
+        if (ctoken0 == address(0)) {
+            return 1;
+        }
+
+        address ctoken1 = lErc20DelegatorFactory.getCTokenAddressPure(token1);
+        if (ctoken1 == address(0)) {
+            return 2;
+        }
+
+        if(ctoken0 == ctoken1) {
+            return 3;
+        }
+        return 0;
+    }
+
+    function _checkOrCreateCToken(address token0, address token1) private returns (address ctoken0, address ctoken1) {
+        ctoken0 = lErc20DelegatorFactory.getCTokenAddress(token0);
+        require(ctoken0 != address(0), 'SwapFactory: cToken is 0');
+        ctoken1 = lErc20DelegatorFactory.getCTokenAddress(token1);
+        require(ctoken1 != address(0), 'SwapFactory: cToken is 0');
 
         require(ctoken0 != ctoken1, 'SwapFactory: Dup cToken');
     }
@@ -753,7 +770,8 @@ contract MdexFactory is IMdexFactory {
     // calculates the CREATE2 address for a pair without making any external calls
     function pairFor(address tokenA, address tokenB) public view override returns (address pair) {
         // guotie 这里不关心顺序
-        _checkTokenIsNotCToken(tokenA, tokenB);
+        uint err = _checkTokenIsNotCToken(tokenA, tokenB);
+        require(err == 0, "check token failed");
 
         (address token0, address token1) = sortTokens(tokenA, tokenB);
         pair = address(uint(keccak256(abi.encodePacked(

@@ -5,7 +5,7 @@ import contracts from '../utils/contracts'
 import sleep from '../utils/sleep';
 
 // 每次都部署一次合约
-describe("SimplePriceOracle", function() {
+// describe("SimplePriceOracle", function() {
   // it("Should return the new price which is set by setDirectPrice", async function() {
   //   // const Greeter = await ethers.getContractFactory("SimplePriceOracle");
   //   // const greeter = await Greeter.deploy("USDT");
@@ -30,4 +30,4 @@ describe("SimplePriceOracle", function() {
   //   // await greeter.setGreeting("Hola, mundo!");
   //   // expect(await greeter.greet()).to.equal("Hola, mundo!");
   // });
-});
+// });

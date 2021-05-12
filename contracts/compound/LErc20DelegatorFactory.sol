@@ -38,7 +38,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
      mapping (address => address) public cTokenKeyMapping;
     
     //根据 'token' 获得 'cToken'
-    function getCTokenAddress(address token) external returns (address cToken){
+    function getCTokenAddress(address token) override external returns (address cToken){
         //判断调用方这是否是swap pair 地址
         cToken =  tokenKeyMapping[token];
         //判断comptroller 中有没有 ctoken,有的话直接返回
@@ -49,7 +49,12 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
         return cToken;
     }
     
-    function getTokenAddress(address cToken) external view returns (address){
+    // 只读 如果不存在 返回 0
+    function getCTokenAddressPure(address cToken) override external view returns (address) {
+        return tokenKeyMapping[cToken];
+    }
+
+    function getTokenAddress(address cToken) override external view returns (address) {
         return cTokenKeyMapping[cToken];
     }
     
