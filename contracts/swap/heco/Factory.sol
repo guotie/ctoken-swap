@@ -15,8 +15,8 @@ pragma solidity =0.7.6;
 
 import "../library/SafeMath.sol";
 import "../interface/IERC20.sol";
-import "../interface/IMdexFactory.sol";
-import "../interface/IMdexPair.sol";
+import "../../common/IMdexFactory.sol";
+import "../../common/IMdexPair.sol";
 
 import "../../common/LErc20DelegatorInterface.sol";
 import "../../common/CTokenInterfaces.sol";

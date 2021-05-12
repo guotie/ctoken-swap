@@ -1,9 +1,10 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity >=0.5.0;
 
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
-import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol';
-import '@uniswap/lib/contracts/libraries/Babylonian.sol';
-import '@uniswap/lib/contracts/libraries/FullMath.sol';
+import '../../common/IMdexPair.sol';
+import '../../common/IMdexFactory.sol';
+import '../../common/libraries/Babylonian.sol';
+import '../../common/libraries/FullMath.sol';
 
 import './SafeMath.sol';
 import './UniswapV2Library.sol';
@@ -104,8 +105,8 @@ library UniswapV2LiquidityMathLibrary {
         uint256 liquidityAmount
     ) internal view returns (uint256 tokenAAmount, uint256 tokenBAmount) {
         (uint256 reservesA, uint256 reservesB) = UniswapV2Library.getReserves(factory, tokenA, tokenB);
-        IUniswapV2Pair pair = IUniswapV2Pair(UniswapV2Library.pairFor(factory, tokenA, tokenB));
-        bool feeOn = IUniswapV2Factory(factory).feeTo() != address(0);
+        IMdexPair pair = IMdexPair(UniswapV2Library.pairFor(factory, tokenA, tokenB));
+        bool feeOn = IMdexFactory(factory).feeTo() != address(0);
         uint kLast = feeOn ? pair.kLast() : 0;
         uint totalSupply = pair.totalSupply();
         return computeLiquidityValue(reservesA, reservesB, totalSupply, liquidityAmount, feeOn, kLast);
@@ -124,8 +125,8 @@ library UniswapV2LiquidityMathLibrary {
         uint256 tokenAAmount,
         uint256 tokenBAmount
     ) {
-        bool feeOn = IUniswapV2Factory(factory).feeTo() != address(0);
-        IUniswapV2Pair pair = IUniswapV2Pair(UniswapV2Library.pairFor(factory, tokenA, tokenB));
+        bool feeOn = IMdexFactory(factory).feeTo() != address(0);
+        IMdexPair pair = IMdexPair(UniswapV2Library.pairFor(factory, tokenA, tokenB));
         uint kLast = feeOn ? pair.kLast() : 0;
         uint totalSupply = pair.totalSupply();
 

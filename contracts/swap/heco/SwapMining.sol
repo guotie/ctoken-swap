@@ -5,8 +5,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "../interface/IERC20.sol";
 import "../library/SafeMath.sol";
-import "../interface/IMdexFactory.sol";
-import "../interface/IMdexPair.sol";
+
+import "../../common/IMdexFactory.sol";
+import "../../common/IMdexPair.sol";
+
 import "../interface/IMdx.sol";
 
 interface IOracle {

@@ -1,4 +1,5 @@
-pragma solidity =0.6.6;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity =0.7.6;
 
 import '../interfaces/IUniswapV2Router01.sol';
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity =0.7.6;
 
 import "../common/LErc20DelegatorInterface.sol";
@@ -29,7 +30,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     uint initialExchangeRateMantissa_ = 10000000000000000000000000;
     uint8 public decimals_ = 18;
     address payable admin_ = 0x78A3970a965d347AD83c8350ab49eBFa62aC2Dc5;
-    //dalegate 地址
+    // delegate 地址
     address implementation_; // = 0x98872083585Cd54f6dfc2dB9894C5C1B816C3A55;
     //comptroller_ 地址
     bytes  becomeImplementationData ;
