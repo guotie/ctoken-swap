@@ -10,5 +10,5 @@ export default async function createCToken(factory: ContractAddrAbi, token: stri
 
   // 设置 unitroller 的 implement 为 comp.address
   let c = new ethers.Contract(factory.address, factory.abi, namedSigners[0])
-  await c.getCTokenAddress(token)
+  return await c.getCTokenAddress(token)
 }

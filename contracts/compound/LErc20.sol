@@ -157,6 +157,10 @@ contract LErc20 is CToken, CErc20Interface {
     function doTransferIn(address from, uint amount) override internal returns (uint) {
         EIP20NonStandardInterface token = EIP20NonStandardInterface(underlying);
         uint balanceBefore = EIP20Interface(underlying).balanceOf(address(this));
+        console.log('balanceBefore:', balanceBefore);
+        console.log('spender:', address(this));
+        console.log('from:', from);
+        console.log('allowance:', transferAllowances[from][address(this)]);
         token.transferFrom(from, address(this), amount);
 
         bool success;

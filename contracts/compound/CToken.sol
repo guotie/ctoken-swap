@@ -23,6 +23,9 @@ import "./Exponential.sol";
 import "./EIP20Interface.sol";
 import "./EIP20NonStandardInterface.sol";
 
+// for debug
+import "hardhat/console.sol";
+
 /**
  * @title LendHub's CToken Contract
  * @notice Abstract base for CTokens
@@ -352,12 +355,15 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return (error code, calculated exchange rate scaled by 1e18)
      */
     function exchangeRateStoredInternal() internal view returns (MathError, uint) {
+        console.log('exchangeRateStoredInternal address: %s', address(this));
+
         uint _totalSupply = totalSupply;
         if (_totalSupply == 0) {
             /*
              * If there are no tokens minted:
              *  exchangeRate = initialExchangeRate
              */
+             console.log('initialExchangeRateMantissa: %d', initialExchangeRateMantissa);
             return (MathError.NO_ERROR, initialExchangeRateMantissa);
         } else {
             /*
@@ -379,6 +385,13 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
                 return (mathErr, 0);
             }
 
+            console.log("exchangeRateStoredInternal: totalCash: %d", totalCash);
+            console.log("exchangeRateStoredInternal: totalBorrows: %d", totalBorrows);
+            console.log("exchangeRateStoredInternal: totalReserves: %d", totalReserves);
+            console.log("exchangeRateStoredInternal: totalSupply: %d", totalSupply);
+            console.log("exchangeRateStoredInternal: exchangeRate: %d", exchangeRate.mantissa);
+            // console.log("exchangeRateStoredInternal: totalCash: %d totalBorrows: %d totalReserves: %d totalSupply: %d exchangeRate:",
+                // totalCash, totalBorrows, totalReserves, _totalSupply);
             return (MathError.NO_ERROR, exchangeRate.mantissa);
         }
     }
@@ -514,6 +527,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* Fail if mint not allowed */
         uint allowed = comptroller.mintAllowed(address(this), minter, mintAmount);
         if (allowed != 0) {
+            console.log("token not allowed");
             return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.MINT_COMPTROLLER_REJECTION, allowed), 0);
         }
 
@@ -547,8 +561,8 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          * We get the current exchange rate and calculate the number of cTokens to be minted:
          *  mintTokens = actualMintAmount / exchangeRate
          */
-
         (vars.mathErr, vars.mintTokens) = divScalarByExpTruncate(vars.actualMintAmount, Exp({mantissa: vars.exchangeRateMantissa}));
+        console.log("mintAount: %d exchangeRate: %d mintTokens: %d", vars.actualMintAmount, vars.exchangeRateMantissa, vars.mintTokens);
         require(vars.mathErr == MathError.NO_ERROR, "MINT_EXCHANGE_CALCULATION_FAILED");
 
         /*
@@ -634,6 +648,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* exchangeRate = invoke Exchange Rate Stored() */
         (vars.mathErr, vars.exchangeRateMantissa) = exchangeRateStoredInternal();
         if (vars.mathErr != MathError.NO_ERROR) {
+            console.log('redeemFresh: exchangeRateStoredInternal failed');
             return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr));
         }
 
@@ -648,6 +663,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
             (vars.mathErr, vars.redeemAmount) = mulScalarTruncate(Exp({mantissa: vars.exchangeRateMantissa}), redeemTokensIn);
             if (vars.mathErr != MathError.NO_ERROR) {
+                console.log('redeemFresh: mulScalarTruncate failed');
                 return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_TOKENS_CALCULATION_FAILED, uint(vars.mathErr));
             }
         } else {
@@ -659,6 +675,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
             (vars.mathErr, vars.redeemTokens) = divScalarByExpTruncate(redeemAmountIn, Exp({mantissa: vars.exchangeRateMantissa}));
             if (vars.mathErr != MathError.NO_ERROR) {
+                console.log('redeemFresh: divScalarByExpTruncate failed');
                 return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_AMOUNT_CALCULATION_FAILED, uint(vars.mathErr));
             }
 
@@ -668,11 +685,13 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* Fail if redeem not allowed */
         uint allowed = comptroller.redeemAllowed(address(this), redeemer, vars.redeemTokens);
         if (allowed != 0) {
+            console.log('redeemFresh: redeem not allowed');
             return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REDEEM_COMPTROLLER_REJECTION, allowed);
         }
 
         /* Verify market's block number equals current block number */
         if (accrualBlockNumber != getBlockNumber()) {
+            console.log('redeemFresh: MARKET_NOT_FRESH');
             return fail(Error.MARKET_NOT_FRESH, FailureInfo.REDEEM_FRESHNESS_CHECK);
         }
 
@@ -683,11 +702,13 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          */
         (vars.mathErr, vars.totalSupplyNew) = subUInt(totalSupply, vars.redeemTokens);
         if (vars.mathErr != MathError.NO_ERROR) {
+            console.log('redeemFresh: subUInt failed: totalSupply=%d redeemTokens=%d', totalSupply, vars.redeemTokens);
             return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_TOTAL_SUPPLY_CALCULATION_FAILED, uint(vars.mathErr));
         }
 
         (vars.mathErr, vars.accountTokensNew) = subUInt(accountTokens[redeemer], vars.redeemTokens);
         if (vars.mathErr != MathError.NO_ERROR) {
+            console.log('redeemFresh: subUInt failed: accountTokens[redeemer]=%d redeemTokens=%d', accountTokens[redeemer], vars.redeemTokens);
             return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
         }
 

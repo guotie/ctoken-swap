@@ -250,9 +250,10 @@ contract Comptroller is ComptrollerV4Storage, ComptrollerInterface, ComptrollerE
         minter;
         mintAmount;
 
-        if (!markets[cToken].isListed) {
-            return uint(Error.MARKET_NOT_LISTED);
-        }
+        // if (!markets[cToken].isListed) {
+            // console.log('ctoken %s is NOT listed', cToken);
+            // return uint(Error.MARKET_NOT_LISTED);
+        // }
 
         // Keep the flywheel moving
         updateCompSupplyIndex(cToken);
@@ -937,16 +938,21 @@ contract Comptroller is ComptrollerV4Storage, ComptrollerInterface, ComptrollerE
       * @param cToken The address of the market (token) to list
       * @return uint 0=success, otherwise a failure. (See enum Error for details)
       */
-    function _supportMarket(CToken cToken) external returns (uint) {
-        if (msg.sender != admin) {
-            return fail(Error.UNAUTHORIZED, FailureInfo.SUPPORT_MARKET_OWNER_CHECK);
-        }
+    function _supportMarket(address cToken) external override returns (uint) {
+        // if (msg.sender != admin) {
+        //     console.log('msg.sender %s is not admin %s', msg.sender, admin);
+        //     return fail(Error.UNAUTHORIZED, FailureInfo.SUPPORT_MARKET_OWNER_CHECK);
+        // }
 
+        // console.log('list ctoken %s to market ....', cToken);
         if (markets[address(cToken)].isListed) {
+            // console.log('token isListed');
             return fail(Error.MARKET_ALREADY_LISTED, FailureInfo.SUPPORT_MARKET_EXISTS);
         }
 
-        cToken.isCToken(); // Sanity check to make sure its really a CToken
+        CToken(cToken).isCToken(); // Sanity check to make sure its really a CToken
+
+        // console.log('ctoken is CToken verified');
 
         // markets[address(cToken)] = Market({isListed: true, isComped: false, collateralFactorMantissa: 0});
         Market storage m = markets[address(cToken)];
@@ -954,15 +960,21 @@ contract Comptroller is ComptrollerV4Storage, ComptrollerInterface, ComptrollerE
         m.isComped = false;
         m.collateralFactorMantissa = 0;
 
+        // console.log('before _addMarketInternal');
         _addMarketInternal(address(cToken));
+        // console.log('ctoken listed 1:', address(cToken));
 
-        emit MarketListed(cToken);
+        emit MarketListed(CToken(cToken));
 
+        // console.log('ctoken listed success');
         return uint(Error.NO_ERROR);
     }
 
     function _addMarketInternal(address cToken) internal {
         for (uint i = 0; i < allMarkets.length; i ++) {
+            // if (allMarkets[i] == CToken(cToken)) {
+            //     console.log('ctoken %s exist in market at %d', cToken, i);
+            // }
             require(allMarkets[i] != CToken(cToken), "market already added");
         }
         allMarkets.push(CToken(cToken));

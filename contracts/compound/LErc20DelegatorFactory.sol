@@ -27,7 +27,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     //可以设置
     InterestRateModel public interestRateModel_; // = InterestRateModel(0x5f75DEB780493f57A82283aDc1Def47de8873E50);
     //?根据小数位数  计算
-    uint initialExchangeRateMantissa_ = 10000000000000000000000000;
+    uint initialExchangeRateMantissa_ = 20000000000000000000;
     uint8 public decimals_ = 18;
     address payable admin_ = 0x78A3970a965d347AD83c8350ab49eBFa62aC2Dc5;
     // delegate 地址
@@ -45,6 +45,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
         //判断comptroller 中有没有 ctoken,有的话直接返回
         if(cToken == address(0)){
             cToken = newDelegator(token);
+            console.log('ctoken of %s not exist, create it: %s', token, cToken);
         }
         //没有 则创建并返回
         return cToken;
@@ -65,13 +66,13 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
        // require(getPair[token0][token1] == address(0), 'UniswapV2: PAIR_EXISTS'); // single check is sufficient
         bytes memory bytecode = type(LErc20Delegator).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(token_));
-        console.logBytes32(salt);
+        // console.logBytes32('salt:', salt);
         // console.logBytes(bytecode);
         assembly {
             delegator := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
 
-        console.log('delegator:', delegator);
+        // console.log('delegator:', delegator);
         //获得参数
         EIP20Interface hrc20 = EIP20Interface(token_);
         LErc20DelegatorInterface(delegator).delegateToInitialize(token_,
@@ -84,9 +85,11 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
                 admin_,
                 implementation_,
                 becomeImplementationData);
-            
-        addNewCToken(token_,delegator);        
-        emit NewDelegator(token_, delegator);
+
+        addNewCToken(token_, delegator);
+        // bytes4(keccak256(bytes('_supportMarket(address)')))
+        address(comptroller).call(abi.encodeWithSelector(bytes4(keccak256(bytes('_supportMarket(address)'))), delegator));
+        emit NewDelegator(token_, address(delegator));
         return delegator;
     }
     

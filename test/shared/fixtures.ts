@@ -1,4 +1,6 @@
 import { ethers } from 'hardhat'
+import { ContractAddrAbi } from '../../deployments/deploys'
+import { Contract } from 'ethers'
 
 const hre = require('hardhat')
 // 测试 token USDT, SEA, DOGE, SHIB
@@ -31,3 +33,14 @@ export async function deployTokens(): Promise<Tokens> {
     abi: tokenArt.abi
   }
 }
+
+// // 根据 ContractAddrAbi 来构建 Contract
+// export async function getContractAt(addrAbi: ContractAddrAbi): Promise<Contract> {
+//   const signer = await ethers.getSigners()
+//   return await ethers.getContractAt(addrAbi.abi, addrAbi.address, signer[0])
+// }
+
+// export async function getContractBy(addr: string, abi: any): Promise<Contract> {
+//   const signer = await ethers.getSigners()
+//   return await ethers.getContractAt(abi, addr, signer[0])
+// }

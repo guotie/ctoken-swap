@@ -1,12 +1,16 @@
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { ethers } from 'ethers'
 
-import { DeployParams, deployAll } from '../deploys'
+import { DeployParams, deployAll, deployTokens } from '../deploys'
+import { getContractAt, getContractBy } from '../../utils/contracts'
 
 export default async function (hre: HardhatRuntimeEnvironment): Promise<void> {
-  const { deployments } = hre;
+  const { deployments, getNamedAccounts } = hre;
   // console.info('hre:', hre)
   const { deploy } = deployments;
+
+  const namedAccounts = await getNamedAccounts();
+  const { deployer } = namedAccounts
 
   const param: DeployParams = {
     log: false,
@@ -15,7 +19,39 @@ export default async function (hre: HardhatRuntimeEnvironment): Promise<void> {
     baseSymbol: 'USDT',
   }
 
-  let result = await deployAll(deploy, param, false)
+  let result = await deployAll(param, false)
+  const tokens = await deployTokens()
+  const usdt = tokens.addresses.get('USDT')
+  console.log('deploy USDT at:', usdt)
+  
+  let lercFactory = await getContractAt(result.lErc20DelegatorFactory)
+
+  console.log('create cToken for usdt ...')
+  let tx = await lercFactory.getCTokenAddress(usdt)
+  let receipt = await tx.wait(1)
+  const events = receipt.events
+  let cUsdt
+  if (events[0]) {
+    // console.log('events: ', events
+    cUsdt = events[0].address
+    console.log('createCTokenAddress cUSDT:', cUsdt)
+  } else {
+    cUsdt = await lercFactory.getCTokenAddressPure(usdt)
+    console.info('getCTokenAddress cUSDT:', cUsdt)
+  }
+
+  const usdtToken = await getContractBy(tokens.abi, usdt!)
+  let ctoken = await getContractBy(result.lErc20Delegate.abi, cUsdt)
+  const total = await ctoken.totalSupply()
+  console.log('ctoken totalsupply:', total)
+  console.log('mint')
+  // evm_mine()
+  await usdtToken.approve(cUsdt, 100000)
+  tx = await ctoken.mint(100000)
+  // console.log('mint tx:', tx)
+  receipt = await tx.wait(1)
+  console.log(receipt.emit())
+
   /*
   const namedAccounts = await getNamedAccounts();
   const { deployer, admin } = namedAccounts
@@ -88,36 +124,36 @@ export default async function (hre: HardhatRuntimeEnvironment): Promise<void> {
   });
   */
 
-  let lercFactory = new ethers.Contract(lercFactoryDeployed.address, lercFactoryDeployed.abi, namedSigners[0])
+  // let lercFactory = await getContractAt(result.lErc20DelegatorFactory)
 
-  let usdt = await deploy('Token', {
-    from: deployer,
-    args: ['USDT', 'USDT', '100000000000000000000000000', deployer]
-  })
-  console.log('deploy USDT at:', usdt.address)
-  let tx = await lercFactory.getCTokenAddress(usdt.address)
-  let receipt = await tx.wait(1)
+  // let usdt = await deploy('Token', {
+  //   from: deployer,
+  //   args: ['USDT', 'USDT', '100000000000000000000000000', deployer]
+  // })
+  // console.log('deploy USDT at:', usdt.address)
+  // let tx = await lercFactory.getCTokenAddress(usdt.address)
+  // let receipt = await tx.wait(1)
   // 通过 event 来获取得到的地址, 这个只有在 js evm 中才能成功，因为此时每次都会创建, 有对应的evm事件
   // console.log('receipt', tx, receipt)
-  const events = receipt.events
-  let cUsdt
-  if (events[0]) {
-    // console.log('events: ', events
-    cUsdt = events[0].address
-    console.log('createCTokenAddress cUSDT:', cUsdt)
-  } else {
-    cUsdt = await lercFactory.getCTokenAddressPure(usdt.address)
-    console.info('getCTokenAddress cUSDT:', cUsdt)
-  }
+  // const events = receipt.events
+  // let cUsdt
+  // if (events[0]) {
+  //   // console.log('events: ', events
+  //   cUsdt = events[0].address
+  //   console.log('createCTokenAddress cUSDT:', cUsdt)
+  // } else {
+  //   cUsdt = await lercFactory.getCTokenAddressPure(usdt.address)
+  //   console.info('getCTokenAddress cUSDT:', cUsdt)
+  // }
 
-  let ctoken = await ethers.getContractAt(lerc20Implement.abi, cUsdt, namedSigners[0])
-  const total = await ctoken.totalSupply()
-  console.log('ctoken totalsupply:', total)
-  console.log('mint')
-  // evm_mine()
-  tx = await ctoken.mint(100000)
-  // console.log('mint tx:', tx)
-  await tx.wait(1)
+  // let ctoken = await getContractBy(result.lErc20Delegate.abi, cUsdt)
+  // const total = await ctoken.totalSupply()
+  // console.log('ctoken totalsupply:', total)
+  // console.log('mint')
+  // // evm_mine()
+  // tx = await ctoken.mint(100000)
+  // // console.log('mint tx:', tx)
+  // await tx.wait(1)
   
   // console.log('mint receipt:', receipt)
   // await lercFactory.functions.getCTokenAddress('0x592285ED98eE14F947A9f27C121c8c95897615e4')

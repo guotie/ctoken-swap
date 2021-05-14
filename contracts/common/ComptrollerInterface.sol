@@ -89,4 +89,5 @@ abstract contract ComptrollerInterface {
      * 如果是ETH/HT/BNB, 应该先变成对应的 wrapped ETH/HT/BNB
      */
     function getCTokenAddress(address token) virtual external view returns (address);
+    function _supportMarket(address cToken) virtual external returns (uint);
 }

@@ -21,6 +21,8 @@ import "../../common/IMdexPair.sol";
 import "../../common/LErc20DelegatorInterface.sol";
 import "../../common/CTokenInterfaces.sol";
 
+import "hardhat/console.sol";
+
 interface IHswapV2Callee {
     function hswapV2Call(address sender, uint amount0, uint amount1, bytes calldata data) external;
 }
@@ -384,37 +386,107 @@ contract MdexPair is IMdexERC20, IMdexPair {
 
     }
 
-    // ETH/HT/BNB 不能直接 mint
-    // 存入的是 token 而不是 ctoken; 如果存入的是 ctoken 或不确定, 调用 mintCToken
-    // this low-level function should be called from a contract which performs important safety checks
-    function mint(address to) override external lock returns (uint liquidity) {
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
+    struct MintLocalVars {
+        uint cBalanceAfter0;
+        uint cBalanceAfter1;
+        uint amount0;
+        uint amount1;
+    }
+
+    function _mintCTokens() private returns (MintLocalVars memory) {
         // gas savings
-        uint balance0 = IERC20(token0).balanceOf(address(this));
-        uint balance1 = IERC20(token1).balanceOf(address(this));
+        // gas savings
+        address _token0 = token0;
+        address _ctoken0 = cToken0;
+        // gas savings
+        address _token1 = token1;
+        address _ctoken1 = cToken1;
+
+        uint balance0 = IERC20(_token0).balanceOf(address(this));
+        uint balance1 = IERC20(_token1).balanceOf(address(this));
         // uint amount0 = balance0.sub(_reserve0);
         // uint amount1 = balance1.sub(_reserve1);
 
         // guotie
         // 分别将 token0 token1 transer 到 lend 池, 获取 ctoken0 ctoken1 的 amount0 amount1
         //
-        uint cBalanceBefore0 = IERC20(cToken0).balanceOf(address(this));
-        uint cBalanceBefore1 = IERC20(cToken1).balanceOf(address(this));
+        uint cBalanceBefore0 = IERC20(_ctoken0).balanceOf(address(this));
+        uint cBalanceBefore1 = IERC20(_ctoken1).balanceOf(address(this));
         // approve, mint ctoken0
-        IERC20(cToken0).approve(cToken0, balance0);
-        CErc20Interface(cToken0).mint(balance0);
-        IERC20(cToken0).approve(cToken0, 0);
+        // 允许 ctoken 合约 转移 我的 token
+        
+        console.log('mint ctoken0: %s %s', _ctoken0, balance0);
+        IERC20(_token0).approve(_ctoken0, balance0);
+        CErc20Interface(_ctoken0).mint(balance0);
+        // require(ret == 0, "mint error");
+        IERC20(_token0).approve(_ctoken0, 0);
 
         // approve, mint ctoken1
-        IERC20(cToken1).approve(cToken1, balance1);
-        CErc20Interface(cToken1).mint(balance1);
-        IERC20(cToken1).approve(cToken1, 0);
-        uint cBalanceAfter0 = IERC20(cToken0).balanceOf(address(this));
-        uint cBalanceAfter1 = IERC20(cToken1).balanceOf(address(this));
+        console.log('mint ctoken1: %s %s', cToken1, balance1);
+        IERC20(_token1).approve(_ctoken1, balance1);
+        CErc20Interface(_ctoken1).mint(balance1);
+        // require(ret == 0, "mint error");
+        IERC20(_token1).approve(_ctoken1, 0);
+
+        MintLocalVars memory localVars;
+        localVars.cBalanceAfter0 = IERC20(_ctoken0).balanceOf(address(this));
+        localVars.cBalanceAfter1 = IERC20(_ctoken1).balanceOf(address(this));
 
         // amount0 amount1 均为存入 lend 池后得到的 ctoken 的数量
-        uint amount0 = cBalanceBefore0.sub(cBalanceAfter0); // .sub(_reserve0);
-        uint amount1 = cBalanceBefore1.sub(cBalanceAfter1); // .sub(_reserve1);
+        localVars.amount0 = localVars.cBalanceAfter0.sub(cBalanceBefore0); // .sub(_reserve0);
+        localVars.amount1 = localVars.cBalanceAfter1.sub(cBalanceBefore1); // .sub(_reserve1);
+        console.log('minted ctoken: %d %d', localVars.amount0, localVars.amount1);
+        console.log('ctoken0 balance: %d', localVars.cBalanceAfter0);
+        console.log('ctoken1 balance: %d', localVars.cBalanceAfter1);
+        return localVars;
+    }
+
+    // ETH/HT/BNB 不能直接 mint
+    // 存入的是 token 而不是 ctoken; 如果存入的是 ctoken 或不确定, 调用 mintCToken
+    // this low-level function should be called from a contract which performs important safety checks
+    function mint(address to) override external lock returns (uint liquidity) {
+        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
+        // gas savings
+        // gas savings
+        // address _token0 = token0;
+        // address _ctoken0 = cToken0;
+        // // gas savings
+        // address _token1 = token1;
+        // address _ctoken1 = cToken1;
+
+        MintLocalVars memory localVars = _mintCTokens();
+        uint amount0 = localVars.amount0; // balance0.sub(_reserve0);
+        uint amount1 = localVars.amount1; // balance1.sub(_reserve1);
+        uint cBalanceAfter0 = localVars.cBalanceAfter0; // IERC20(cToken0).balanceOf(address(this));
+        uint cBalanceAfter1 = localVars.cBalanceAfter1; // IERC20(cToken1).balanceOf(address(this));
+        // uint balance0 = IERC20(_token0).balanceOf(address(this));
+        // uint balance1 = IERC20(_token1).balanceOf(address(this));
+        // // uint amount0 = balance0.sub(_reserve0);
+        // // uint amount1 = balance1.sub(_reserve1);
+
+        // // guotie
+        // // 分别将 token0 token1 transer 到 lend 池, 获取 ctoken0 ctoken1 的 amount0 amount1
+        // //
+        // uint cBalanceBefore0 = IERC20(_ctoken0).balanceOf(address(this));
+        // uint cBalanceBefore1 = IERC20(_ctoken1).balanceOf(address(this));
+        // // approve, mint ctoken0
+        // // 允许 ctoken 合约 转移 我的 token
+        // console.log('mint ctoken0: %s %s', _ctoken0, balance0);
+        // IERC20(_token0).approve(_ctoken0, balance0);
+        // CErc20Interface(_ctoken0).mint(balance0);
+        // IERC20(_token0).approve(_ctoken0, 0);
+
+        // // approve, mint ctoken1
+        // console.log('mint ctoken1: %s %s', cToken1, balance1);
+        // IERC20(_token1).approve(_ctoken1, balance1);
+        // CErc20Interface(_ctoken1).mint(balance1);
+        // IERC20(_token1).approve(_ctoken1, 0);
+        // uint cBalanceAfter0 = IERC20(cToken0).balanceOf(address(this));
+        // uint cBalanceAfter1 = IERC20(cToken1).balanceOf(address(this));
+
+        // // amount0 amount1 均为存入 lend 池后得到的 ctoken 的数量
+        // uint amount0 = cBalanceBefore0.sub(cBalanceAfter0); // .sub(_reserve0);
+        // uint amount1 = cBalanceBefore1.sub(cBalanceAfter1); // .sub(_reserve1);
 
         bool feeOn = _mintFee(_reserve0, _reserve1);
         uint _totalSupply = totalSupply;
@@ -490,10 +562,23 @@ contract MdexPair is IMdexERC20, IMdexPair {
             _safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
         } else {
             // failed
-            IERC20(ctoken).transfer(to, camount);
+            _safeTransfer(ctoken, to, camount);
         }
     }
 
+    // 根据 输入金额, 计算swap out 金额
+    // 1. 转换为 camount in
+    // 2. 根据 y = (997 * Xin * Y) / (997*Xin + 1000 * X) 得到 cy
+    // 3. 根据 token/ctoken 的兑换关系, 转换为 y = cy * exchangeRate
+    function calcAmount0Out(uint amount1In) external returns (uint amount1Out) {
+        uint exchangeRate1 = CTokenInterface(cToken1).exchangeRateCurrent();
+        uint camt = amount1In / exchangeRate1;
+    }
+
+    function calcAmount1Out(uint amount0In) external returns (uint amount1Out) {
+
+    }
+    
     // 从 lend 池中把 token 赎回, amount 为待赎回的 token 数量
     // 赎回 token, 如果赎回成功, 将 token 转给 to; 否则, 将 ctoken 转给 to
     function _redeemUnderlyingOrTransfer(address to, address ctoken, address token, uint amount) private {
@@ -503,13 +588,15 @@ contract MdexPair is IMdexERC20, IMdexPair {
         if (ret == 0) {
             // success
             // 将赎回的 token 全部转给 to
+            console.log('redeem success, transfer amount: %d %d', amount, IERC20(token).balanceOf(address(this)));
             _safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
         } else {
             // failed
             // 转多少呢? 这里需要获取 ctoken 和 token 的比例关系, 获取最新的 exchangeRate
-            //
+            // todo 这里 exchangeRate 是乘以了 1e18 !!! fix me
             uint camount = amount / CTokenInterface(ctoken).exchangeRateCurrent();
-            IERC20(ctoken).transfer(to, camount);
+            console.log('redeem failed: %d, transfer ctoken: %d %d', ret, amount, camount);
+            _safeTransfer(ctoken, to, camount);
         }
     }
 
@@ -537,10 +624,13 @@ contract MdexPair is IMdexERC20, IMdexPair {
         }
         uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
         uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
+        console.log('amount0In: %d amount1In: %d', amount0In, amount1In);
         require(amount0In > 0 || amount1In > 0, 'Swap: INSUFFICIENT_INPUT_AMOUNT');
         {// scope for reserve{0,1}Adjusted, avoids stack too deep errors
             uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
             uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
+            console.log('_reserve0: %d _reserve1: %d', _reserve0, _reserve1);
+            console.log('balance0Adjusted: %d balance1Adjusted: %d', balance0Adjusted, balance1Adjusted);
             require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000 ** 2), 'Swap: K');
         }
 
@@ -565,7 +655,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         // gas savings
         // 不能比较 因为 _reserve0 是 ctoken0 的数量
-        require(amount0Out < _reserve0 && amount1Out < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
+        // require(amount0Out < _reserve0 && amount1Out < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
         TokenLocalVars memory vars0;
         TokenLocalVars memory vars1;
 
@@ -590,11 +680,13 @@ contract MdexPair is IMdexERC20, IMdexPair {
             require(to != vars0.ctoken && to != vars1.ctoken, 'Swap: INVALID_TO');
             if (amount0Out > 0) {
                 vars0.cAmountOut = amount0Out / CTokenInterface(vars0.ctoken).exchangeRateCurrent();
+                require(vars0.cAmountOut < _reserve0, 'Swap: INSUFFICIENT_LIQUIDITY');
                 _redeemUnderlyingOrTransfer(to, vars0.ctoken, vars0.token, amount0Out);
             } // _safeTransfer(_token0, to, amount0Out);
             // optimistically transfer tokens
             if (amount1Out > 0) {
                 vars1.cAmountOut = amount1Out / CTokenInterface(vars1.ctoken).exchangeRateCurrent();
+                require(vars1.cAmountOut < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
                 _redeemUnderlyingOrTransfer(to, vars1.ctoken, vars1.token, amount1Out);
             } // _safeTransfer(_token1, to, amount1Out);
             // optimistically transfer tokens
@@ -605,13 +697,19 @@ contract MdexPair is IMdexERC20, IMdexPair {
             vars0.amountIn = IERC20(vars0.token).balanceOf(address(this));
             vars1.amountIn = IERC20(vars1.token).balanceOf(address(this));
             require(vars0.amountIn > 0 || vars1.amountIn > 0, 'Swap: INSUFFICIENT_INPUT_AMOUNT');
+            console.log('vars0: amountIn: %d cAmountOut: %d amountOut: %d', vars0.amountIn, vars0.cAmountOut, amount0Out);
+            console.log('vars1: amountIn: %d cAmountOut: %d amountOut: %d', vars1.amountIn, vars1.cAmountOut, amount1Out);
             if (vars0.amountIn > 0) {
                 // 将转入的 token0 存入借贷池
+                IERC20(vars0.token).approve(vars0.ctoken, vars0.amountIn);
                 CErc20Interface(vars0.ctoken).mint(vars0.amountIn);
+                IERC20(vars0.token).approve(vars0.ctoken, 0);
             }
             if (vars1.amountIn > 0) {
                 // 将转入的 token1 存入借贷池
+                IERC20(vars1.token).approve(vars1.ctoken, vars1.amountIn);
                 CErc20Interface(vars1.ctoken).mint(vars1.amountIn);
+                IERC20(vars1.token).approve(vars1.ctoken, 0);
             }
 
             vars0.balance = IERC20(vars0.ctoken).balanceOf(address(this));
@@ -620,10 +718,13 @@ contract MdexPair is IMdexERC20, IMdexPair {
         // 注意: x * y = K 是两个 cToken 之间的关系
         vars0.cAmountIn = vars0.balance > _reserve0 - vars0.cAmountOut ? vars0.balance - (_reserve0 - vars0.cAmountOut) : 0;
         vars1.cAmountIn = vars1.balance > _reserve1 - vars1.cAmountOut ? vars1.balance - (_reserve1 - vars1.cAmountOut) : 0;
+        console.log('cAmount0In: %d cAmount1In: %d', vars0.cAmountIn, vars1.cAmountIn);
         // uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
         {// scope for reserve{0,1}Adjusted, avoids stack too deep errors
             uint balance0Adjusted = vars0.balance.mul(1000).sub(vars0.cAmountIn.mul(3));
             uint balance1Adjusted = vars1.balance.mul(1000).sub(vars1.cAmountIn.mul(3));
+            console.log('_reserve0: %d _reserve1: %d', _reserve0, _reserve1);
+            console.log('balance0Adjusted: %d balance1Adjusted: %d', balance0Adjusted, balance1Adjusted);
             require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000 ** 2), 'Swap: K');
         }
 
