@@ -32,7 +32,8 @@ describe("MdexPair 测试", function() {
   let cusdt: string
   let csea: string
 
-  const e18 = BigNumber.from(1e18)
+  // e18 是 18位数
+  const e18 = BigNumber.from('1000000000000000000')
 
   before(async () => {
     namedSigners = await ethers.getSigners()
@@ -62,6 +63,13 @@ describe("MdexPair 测试", function() {
       // .to.emit(delegatorFactory, 'NewDelegator').withArgs(delegatorFactory, '0x340d6d7ea30fb8fcc82d906d0232eb65243b0b87')
       // .to.emit(unitroller, 'MarketListed') //.withArgs(usdt, '')
     let tx = await createCToken(deployContracts.lErc20DelegatorFactory, sea)
+
+    // const delegatorFactoryContract = await getCon
+    cusdt = await delegatorFactory.getCTokenAddressPure(usdt)
+    console.log('cusdt address:', cusdt)
+    csea = await delegatorFactory.getCTokenAddressPure(sea)
+    console.log('csea address:', csea)
+
     await tx.wait(2)
   })
 
@@ -190,7 +198,7 @@ describe("MdexPair 测试", function() {
     let amtIn = BigNumber.from(amountIn)
         , reserveOut, reserveIn
 
-    console.log('calcAmountOut:', amountIn.toString())
+    console.log('calcAmountOut amountIn:', amountIn.toString())
     console.log( reserve0.toString(), reserve1.toString())
     let amountInWithFee = amtIn.mul(997);
     if (idx === 0) {
@@ -202,7 +210,9 @@ describe("MdexPair 测试", function() {
     }
     let numerator = amountInWithFee.mul(reserveOut);
     let denominator = reserveIn.mul(1000).add(amountInWithFee);
-    return numerator.div(denominator);
+    const out = numerator.div(denominator);
+    console.log('+++++++++++++++numerator=%s denominator=%s out=%s', numerator.toString(), denominator.toString(), out.toString())
+    return out;
 
     // mul exchangeRate
     // return cAmtOut;
@@ -211,14 +221,20 @@ describe("MdexPair 测试", function() {
   // 根据 exchangeRate 的换算关系, 将 token 转为为 ctoken
   // ctoken = token / exchangeRate
   const toCAmount = async (ctoken: Contract, amt: BigNumberish) => {
-    const er = ctoken.exchangeRateCurrent()
-    const camt = BigNumber.from(amt).div(er)
+    await ctoken.exchangeRateCurrent() // 确保计算得到最新的 exchangeRate
+    const er = await ctoken.exchangeRateStored()
+    const camt = BigNumber.from(amt).mul(e18).div(er)
 
     console.log('exchangeRate: %s amt: %s camount: %s', er.toString(), amt.toString(), camt.toString())
+    return camt
   }
 
-  const toAmount = async () => {
+  const toAmount = async (ctoken: Contract, camt: BigNumberish) => {
+    await ctoken.exchangeRateCurrent() // 确保计算得到最新的 exchangeRate
+    const er = await ctoken.exchangeRateStored()
+    const amt = BigNumber.from(camt).mul(er).div(e18)
 
+    return amt
   }
 
   // 交换
@@ -230,6 +246,8 @@ describe("MdexPair 测试", function() {
     const usdtc = await getTokenContract(usdt)
     const seac = await getTokenContract(sea)
     const usdtBuyer = await getTokenContract(usdt, buyer)
+    const cusdtCt = await getCTokenContract(cusdt)
+    const cseaCt = await getCTokenContract(csea)
 
     let balance = await usdtc.balanceOf(buyer.address)
     console.log('buyer:', buyer.address)
@@ -252,13 +270,16 @@ describe("MdexPair 测试", function() {
     // let amtIn = BigNumber.from(amt)
     if (idx === 0) {
       amountOut0 = 0
-      // const camt = toCAmount(amt)
-      amountOut1 = await calcAmountOut(pair, amt, idx)
+      const camt = await toCAmount(cusdtCt, amt)
+      const camountOut1 = await calcAmountOut(pair, camt, idx)
+      amountOut1 = await toAmount(cseaCt, camountOut1)
     } else {
-      amountOut0 = await calcAmountOut(pair, amt, idx)
+      const camt = await toCAmount(cseaCt, amt)
+      const camountOut0 = await calcAmountOut(pair, camt, idx)
+      amountOut0 = await toAmount(cusdtCt, camountOut0)
       amountOut1 = 0
     }
-    console.log('amt=%s idx=%d amountOut0=%s amountOut1=%s', amt, idx, amountOut0, amountOut1)
+    console.log('amtIn=%s idx=%d amountOut0=%s amountOut1=%s', amt, idx, amountOut0, amountOut1)
     tx = await pair.swap2x(amountOut0, amountOut1, buyer.address, [])
     let receipt = await tx.wait(2)
     console.log('pair swap receipt:', receipt.events.length)
@@ -275,7 +296,13 @@ describe("MdexPair 测试", function() {
   })
 
   it('token->ctoken', async () => {
-    const cusdt = getCTokenContract()
+    const cusdtCt = await getCTokenContract(cusdt)
+      , cseaCt = await getCTokenContract(csea)
+
+    const erCusdt = await cusdtCt.exchangeRateStored()
+      , erCsea = await cseaCt.exchangeRateStored()
+    console.log(erCusdt)
+    console.log('exchage rate cusdt: %s sea: %s', erCusdt.toString(), erCsea.toString())
   })
 
   it('swap-swap', async () => {

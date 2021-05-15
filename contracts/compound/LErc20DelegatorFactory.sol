@@ -10,7 +10,8 @@ import "hardhat/console.sol";
 contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     
     event NewDelegator(address token,address delegator);
-    
+    bytes32 public initCodeHash;
+
     /**
      * @notice Construct
      */
@@ -20,6 +21,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
         comptroller = ComptrollerInterface(comptroller_);
         implementation_ = _implementation;
         interestRateModel_ = InterestRateModel(intersetRateModel);
+        initCodeHash = keccak256(abi.encodePacked(type(LErc20Delegator).creationCode));
     }
     
     //可以设置
@@ -52,8 +54,8 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     }
     
     // 只读 如果不存在 返回 0
-    function getCTokenAddressPure(address cToken) override external view returns (address) {
-        return tokenKeyMapping[cToken];
+    function getCTokenAddressPure(address token) override external view returns (address) {
+        return tokenKeyMapping[token];
     }
 
     function getTokenAddress(address cToken) override external view returns (address) {
