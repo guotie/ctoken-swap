@@ -761,6 +761,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
 
 contract MdexFactory is IMdexFactory {
     using SafeMath for uint256;
+    using SafeMath for uint;
     address public override feeTo;
     address public override feeToSetter;
     uint256 public override feeToRate;
@@ -916,6 +917,22 @@ contract MdexFactory is IMdexFactory {
         amountIn = (numerator / denominator).add(1);
     }
 
+    // 调用前确保已经是最新的 exchangeRate
+    // ctokenAmt = amt / exchangeRate
+    function amountToCTokenAmt(address ctoken, uint amountIn) public view returns (uint cAmountIn) {
+        uint exchangeRate = CTokenInterface(ctoken).exchangeRateStored();
+        return amountIn.mul(1e18).div(exchangeRate);
+    }
+
+    // 调用前确保已经是最新的 exchangeRate
+    // ctoken amount 转换为 token amt
+    // tokenAmt = ctokenAmt * exchangeRate
+    function ctokenAmtToAmount(address ctoken, uint cAmountOut) public view returns (uint amountOut) {
+        uint exchangeRate = CTokenInterface(ctoken).exchangeRateStored();
+        return cAmountOut.mul(exchangeRate).div(1e18);
+    }
+
+    // path 中的 address 应该都是 ctoken
     // performs chained getAmountOut calculations on any number of pairs
     function getAmountsOut(uint amountIn, address[] memory path) public view override returns (uint[] memory amounts) {
         require(path.length >= 2, 'SwapFactory: INVALID_PATH');
@@ -927,6 +944,7 @@ contract MdexFactory is IMdexFactory {
         }
     }
 
+    // path 中的 address 应该都是 ctoken
     // performs chained getAmountIn calculations on any number of pairs
     function getAmountsIn(uint amountOut, address[] memory path) public view override returns (uint[] memory amounts) {
         require(path.length >= 2, 'SwapFactory: INVALID_PATH');

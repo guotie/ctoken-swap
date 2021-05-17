@@ -22,6 +22,9 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
         implementation_ = _implementation;
         interestRateModel_ = InterestRateModel(intersetRateModel);
         initCodeHash = keccak256(abi.encodePacked(type(LErc20Delegator).creationCode));
+
+        // bytes32 0x71a762e9b044ae662a0d792ceaa9aaa4bf09c9ecdd90967035ae11e75f841390
+        console.logBytes32(initCodeHash);
     }
     
     //可以设置

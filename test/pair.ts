@@ -7,6 +7,8 @@ import { BigNumber, BigNumberish, Contract } from 'ethers'
 // import { deployTokens, Tokens  } from './shared/fixtures'
 import getLErc20DelegatorContract from './shared/mint'
 import contracts, { getContractAt, getContractBy } from '../utils/contracts'
+import { getCreate2Address } from '@ethersproject/address'
+import { pack, keccak256 } from '@ethersproject/solidity'
 
 import { DeployContracts, deployAll, deployTokens, Tokens, getTokenContract, getCTokenContract } from '../deployments/deploys'
 import createCToken from './shared/ctoken'
@@ -98,6 +100,18 @@ describe("MdexPair 测试", function() {
 
     // await sleep(3000)
     console.log('transfer testcase end')
+  })
+
+  it('getCreate2Address of LErc20Token', async() => {
+    const INIT_CODE_HASH = '0x71a762e9b044ae662a0d792ceaa9aaa4bf09c9ecdd90967035ae11e75f841390'
+      , factoryAddress = deployContracts.lErc20DelegatorFactory.address
+    const addr = getCreate2Address(
+      factoryAddress,
+      keccak256(['bytes'], [pack(['address'], [usdt])]),
+      INIT_CODE_HASH
+    )
+
+    console.log('cusdt contract address computed:', addr)
   })
 
   it("create mdex pair", async function() {

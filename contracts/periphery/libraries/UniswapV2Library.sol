@@ -2,6 +2,7 @@
 pragma solidity >=0.5.0;
 
 import '../../common/IMdexPair.sol';
+import '../../common/CTokenInterfaces.sol';
 
 import "./SafeMath.sol";
 
@@ -68,6 +69,21 @@ library UniswapV2Library {
             (uint reserveIn, uint reserveOut) = getReserves(factory, path[i], path[i + 1]);
             amounts[i + 1] = getAmountOut(amounts[i], reserveIn, reserveOut);
         }
+    }
+
+    // 调用前确保已经是最新的 exchangeRate
+    // ctokenAmt = amt / exchangeRate
+    function amountToCTokenAmt(address ctoken, uint amountIn) public view returns (uint cAmountIn) {
+        uint exchangeRate = CTokenInterface(ctoken).exchangeRateStored();
+        return amountIn.mul(1e18) / (exchangeRate);
+    }
+
+    // 调用前确保已经是最新的 exchangeRate
+    // ctoken amount 转换为 token amt
+    // tokenAmt = ctokenAmt * exchangeRate
+    function ctokenAmtToAmount(address ctoken, uint cAmountOut) public view returns (uint amountOut) {
+        uint exchangeRate = CTokenInterface(ctoken).exchangeRateStored();
+        return cAmountOut.mul(exchangeRate) / (1e18);
     }
 
     // performs chained getAmountIn calculations on any number of pairs
