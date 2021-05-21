@@ -89,6 +89,25 @@ contract LErc20 is CToken, CErc20Interface {
     }
 
     /**
+     *  @notice 流动性杠杆借贷, 用户杠杆借款由 margin 合约代持, 并由 margin 合约负责清算
+     *          只能由 marignLP 合约调用
+     *  @param borrowAmount 要借贷的数量
+     */
+    function borrowLPMargin(address borrower, uint borrowAmount) override external returns (uint) {
+        // todo
+        return 0;
+    }
+
+    /**
+     *  @notice swap 杠杆借贷, 用户杠杆借款由 margin 合约代持, 并由 margin 合约负责清算
+     *          只能由 marignSWAP 合约调用
+     *  @param borrowAmount 要借贷的数量
+     */
+    function borrowSwapMargin(address borrower, uint borrowAmount) override external returns (uint) {
+        return 0;
+    }
+
+    /**
      * @notice Sender repays their own borrow
      * @param repayAmount The amount to repay
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)

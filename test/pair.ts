@@ -232,6 +232,13 @@ describe("MdexPair 测试", function() {
     // return cAmtOut;
   }
 
+  // 输入为 token 的 amountIn, 输出为 token 的 amountOut, 均已完成转换
+  // 根据 x * y = K 计算swap amount out
+  // idx: 0: amountIn 为 token0; 1: amountIn 为 token
+  const calcAmountOutWithToken = async (factory: Contract, pair: Contract, amountIn: BigNumberish, idx: 0 | 1) => {
+
+  }
+
   // 根据 exchangeRate 的换算关系, 将 token 转为为 ctoken
   // ctoken = token / exchangeRate
   const toCAmount = async (ctoken: Contract, amt: BigNumberish) => {
@@ -294,7 +301,7 @@ describe("MdexPair 测试", function() {
       amountOut1 = 0
     }
     console.log('amtIn=%s idx=%d amountOut0=%s amountOut1=%s', amt, idx, amountOut0, amountOut1)
-    tx = await pair.swap2x(amountOut0, amountOut1, buyer.address, [])
+    tx = await pair.swap(amountOut0, amountOut1, buyer.address, [])
     let receipt = await tx.wait(2)
     console.log('pair swap receipt:', receipt.events.length)
     // pair.swap()

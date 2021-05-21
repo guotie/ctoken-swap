@@ -566,19 +566,21 @@ contract MdexPair is IMdexERC20, IMdexPair {
         }
     }
 
+    // exchangeRate: 调用者需要保证 exchangeRate 是最新的
     // 根据 输入金额, 计算swap out 金额
     // 1. 转换为 camount in
     // 2. 根据 y = (997 * Xin * Y) / (997*Xin + 1000 * X) 得到 cy
     // 3. 根据 token/ctoken 的兑换关系, 转换为 y = cy * exchangeRate
-    function calcAmount0Out(uint amount1In) external returns (uint amount1Out) {
-        uint exchangeRate1 = CTokenInterface(cToken1).exchangeRateCurrent();
-        uint camt = amount1In / exchangeRate1;
-    }
+    // function calcAmount0Out(uint amount1In) external returns (uint amount1Out) {
+    //     uint exchangeRate1 = CTokenInterface(cToken1).exchangeRateStored();
+    //     uint camt = amount1In / exchangeRate1;
+    // }
 
-    function calcAmount1Out(uint amount0In) external returns (uint amount1Out) {
+    // function calcAmount1Out(uint amount0In) external returns (uint amount1Out) {
 
-    }
+    // }
     
+    // exchangeRate: 调用者需要保证 exchangeRate 是最新的
     // 从 lend 池中把 token 赎回, amount 为待赎回的 token 数量
     // 赎回 token, 如果赎回成功, 将 token 转给 to; 否则, 将 ctoken 转给 to
     function _redeemUnderlyingOrTransfer(address to, address ctoken, address token, uint amount) private {
@@ -593,50 +595,50 @@ contract MdexPair is IMdexERC20, IMdexPair {
         } else {
             // failed
             // 转多少呢? 这里需要获取 ctoken 和 token 的比例关系, 获取最新的 exchangeRate
-            // todo 这里 exchangeRate 是乘以了 1e18 !!! fix me
-            uint camount = amount / CTokenInterface(ctoken).exchangeRateCurrent();
+            // 这里 exchangeRate 是乘以了 1e18 !!! fix me
+            uint camount = amount.mul(1e18) / CTokenInterface(ctoken).exchangeRateStored();
             console.log('redeem failed: %d, transfer ctoken: %d %d', ret, amount, camount);
             _safeTransfer(ctoken, to, camount);
         }
     }
 
     // this low-level function should be called from a contract which performs important safety checks
-    function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) override external lock {
-        require(amount0Out > 0 || amount1Out > 0, 'Swap: INVALID_AMOUNT');
-        (uint112 _reserve0, uint112 _reserve1,) = getReserves();
-        // gas savings
-        require(amount0Out < _reserve0 && amount1Out < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
+    // function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) override external lock {
+    //     require(amount0Out > 0 || amount1Out > 0, 'Swap: INVALID_AMOUNT');
+    //     (uint112 _reserve0, uint112 _reserve1,) = getReserves();
+    //     // gas savings
+    //     require(amount0Out < _reserve0 && amount1Out < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
 
-        uint balance0;
-        uint balance1;
-        {// scope for _token{0,1}, avoids stack too deep errors
-            address _token0 = token0;
-            address _token1 = token1;
-            require(to != _token0 && to != _token1, 'Swap: INVALID_TO');
-            require(to != cToken0 && to != cToken1, 'Swap: INVALID_TO');
-            if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
-            // optimistically transfer tokens
-            if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
-            // optimistically transfer tokens
-            if (data.length > 0) IHswapV2Callee(to).hswapV2Call(msg.sender, amount0Out, amount1Out, data);
-            balance0 = IERC20(_token0).balanceOf(address(this));
-            balance1 = IERC20(_token1).balanceOf(address(this));
-        }
-        uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
-        uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
-        console.log('amount0In: %d amount1In: %d', amount0In, amount1In);
-        require(amount0In > 0 || amount1In > 0, 'Swap: INSUFFICIENT_INPUT_AMOUNT');
-        {// scope for reserve{0,1}Adjusted, avoids stack too deep errors
-            uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
-            uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
-            console.log('_reserve0: %d _reserve1: %d', _reserve0, _reserve1);
-            console.log('balance0Adjusted: %d balance1Adjusted: %d', balance0Adjusted, balance1Adjusted);
-            require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000 ** 2), 'Swap: K');
-        }
+    //     uint balance0;
+    //     uint balance1;
+    //     {// scope for _token{0,1}, avoids stack too deep errors
+    //         address _token0 = token0;
+    //         address _token1 = token1;
+    //         require(to != _token0 && to != _token1, 'Swap: INVALID_TO');
+    //         require(to != cToken0 && to != cToken1, 'Swap: INVALID_TO');
+    //         if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
+    //         // optimistically transfer tokens
+    //         if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
+    //         // optimistically transfer tokens
+    //         if (data.length > 0) IHswapV2Callee(to).hswapV2Call(msg.sender, amount0Out, amount1Out, data);
+    //         balance0 = IERC20(_token0).balanceOf(address(this));
+    //         balance1 = IERC20(_token1).balanceOf(address(this));
+    //     }
+    //     uint amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
+    //     uint amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
+    //     console.log('amount0In: %d amount1In: %d', amount0In, amount1In);
+    //     require(amount0In > 0 || amount1In > 0, 'Swap: INSUFFICIENT_INPUT_AMOUNT');
+    //     {// scope for reserve{0,1}Adjusted, avoids stack too deep errors
+    //         uint balance0Adjusted = balance0.mul(1000).sub(amount0In.mul(3));
+    //         uint balance1Adjusted = balance1.mul(1000).sub(amount1In.mul(3));
+    //         console.log('_reserve0: %d _reserve1: %d', _reserve0, _reserve1);
+    //         console.log('balance0Adjusted: %d balance1Adjusted: %d', balance0Adjusted, balance1Adjusted);
+    //         require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(1000 ** 2), 'Swap: K');
+    //     }
 
-        _update(balance0, balance1, _reserve0, _reserve1);
-        emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
-    }
+    //     _update(balance0, balance1, _reserve0, _reserve1);
+    //     emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
+    // }
 
     struct TokenLocalVars {
         uint balance;
@@ -647,10 +649,13 @@ contract MdexPair is IMdexERC20, IMdexPair {
         uint cAmountIn;
         uint cAmountOut;
     }
+
+    // exchangeRate: 调用者需要保证 exchangeRate 是最新的
     // amount0Out: 预计得到的 token0 的数量, 在外围合约中计算好, 计算时需要考虑 exchangeRate 兑换比例
     // amount1Out: 预计得到的 token1 的数量, 在外围合约中计算好, 计算时需要考虑 exchangeRate 兑换比例
     // 转入的币应该是 token 而不是 ctoken
-    function swap2x(uint amount0Out, uint amount1Out, address to, bytes calldata data) external lock {
+    // this low-level function should be called from a contract which performs important safety checks
+    function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external override lock {
         require(amount0Out > 0 || amount1Out > 0, 'Swap: INVALID_AMOUNT');
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         // gas savings
@@ -679,13 +684,13 @@ contract MdexPair is IMdexERC20, IMdexPair {
             require(to != vars0.token && to != vars1.token, 'Swap: INVALID_TO');
             require(to != vars0.ctoken && to != vars1.ctoken, 'Swap: INVALID_TO');
             if (amount0Out > 0) {
-                vars0.cAmountOut = amount0Out / CTokenInterface(vars0.ctoken).exchangeRateCurrent();
+                vars0.cAmountOut = amount0Out / CTokenInterface(vars0.ctoken).exchangeRateStored();
                 require(vars0.cAmountOut < _reserve0, 'Swap: INSUFFICIENT_LIQUIDITY');
                 _redeemUnderlyingOrTransfer(to, vars0.ctoken, vars0.token, amount0Out);
             } // _safeTransfer(_token0, to, amount0Out);
             // optimistically transfer tokens
             if (amount1Out > 0) {
-                vars1.cAmountOut = amount1Out / CTokenInterface(vars1.ctoken).exchangeRateCurrent();
+                vars1.cAmountOut = amount1Out / CTokenInterface(vars1.ctoken).exchangeRateStored();
                 require(vars1.cAmountOut < _reserve1, 'Swap: INSUFFICIENT_LIQUIDITY');
                 _redeemUnderlyingOrTransfer(to, vars1.ctoken, vars1.token, amount1Out);
             } // _safeTransfer(_token1, to, amount1Out);
@@ -919,7 +924,7 @@ contract MdexFactory is IMdexFactory {
 
     // 调用前确保已经是最新的 exchangeRate
     // ctokenAmt = amt / exchangeRate
-    function amountToCTokenAmt(address ctoken, uint amountIn) public view returns (uint cAmountIn) {
+    function amountToCTokenAmt(address ctoken, uint amountIn) external view override returns (uint cAmountIn) {
         uint exchangeRate = CTokenInterface(ctoken).exchangeRateStored();
         return amountIn.mul(1e18).div(exchangeRate);
     }
@@ -927,7 +932,7 @@ contract MdexFactory is IMdexFactory {
     // 调用前确保已经是最新的 exchangeRate
     // ctoken amount 转换为 token amt
     // tokenAmt = ctokenAmt * exchangeRate
-    function ctokenAmtToAmount(address ctoken, uint cAmountOut) public view returns (uint amountOut) {
+    function ctokenAmtToAmount(address ctoken, uint cAmountOut) external view override returns (uint amountOut) {
         uint exchangeRate = CTokenInterface(ctoken).exchangeRateStored();
         return cAmountOut.mul(exchangeRate).div(1e18);
     }

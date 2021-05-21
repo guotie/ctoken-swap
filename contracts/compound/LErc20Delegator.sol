@@ -129,6 +129,17 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
         delegateAndReturn();
     }
 
+    function borrowLPMargin(address borrower, uint borrowAmount) override external returns (uint) {
+        borrower;
+        borrowAmount; // Shh
+        delegateAndReturn();
+    }
+
+    function borrowSwapMargin(address borrower, uint borrowAmount) override external returns (uint) {
+        borrower;
+        borrowAmount; // Shh
+        delegateAndReturn();
+    }
     /**
      * @notice Sender repays their own borrow
      * @param repayAmount The amount to repay

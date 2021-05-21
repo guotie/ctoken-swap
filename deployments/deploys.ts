@@ -34,12 +34,13 @@ async function getAbiByContractName(name: string) {
   return art.abi
 }
 
-async function _deploy(name: string, opts: any, verify: boolean) {
+export async function _deploy(name: string, opts: any, verify: boolean) {
   const deploy = hre.deployments.deploy
 
   try {
     let c = await deploy(name, opts)
-    if (network.name === 'hecotest' && verify) {
+    // newlyDeployed 是否是新部署
+    if (network.name === 'hecotest' && verify && c.newlyDeployed) {
       // do verify
       // 先等一会 否则有可能在链上还看不到合约地址
       await sleep(6000)

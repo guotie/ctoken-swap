@@ -128,6 +128,15 @@ contract CTokenStorage {
      * @notice Mapping of account addresses to outstanding borrow balances
      */
     mapping(address => BorrowSnapshot) internal accountBorrows;
+
+    /*
+     * @notice 流动性杠杆账户 借出的token 由 marginLP 合约代持
+     */
+    mapping(address => BorrowSnapshot) internal lpMarginBorrows;
+    /*
+     * @notice swap杠杆账户 借出的token 由 marginSwap 合约代持
+     */
+    mapping(address => BorrowSnapshot) internal swapMarginBorrows;
 }
 
 abstract contract CTokenInterface is CTokenStorage {
@@ -269,6 +278,8 @@ abstract contract CErc20Interface is CErc20Storage {
     function redeem(uint redeemTokens) virtual external returns (uint);
     function redeemUnderlying(uint redeemAmount) virtual external returns (uint);
     function borrow(uint borrowAmount) virtual external returns (uint);
+    function borrowLPMargin(address borrower, uint borrowAmount) virtual external returns (uint);
+    function borrowSwapMargin(address borrower, uint borrowAmount) virtual external returns (uint);
     function repayBorrow(uint repayAmount) virtual external returns (uint);
     function repayBorrowBehalf(address borrower, uint repayAmount) virtual external returns (uint);
     function liquidateBorrow(address borrower, uint repayAmount, CTokenInterface cTokenCollateral) virtual external returns (uint);

@@ -329,6 +329,45 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         return (MathError.NO_ERROR, result);
     }
 
+    // marginType: 0: LP margin; 1: swap margin
+    function borrowMarginBalanceStoredInternal(address account, uint marginType) internal view returns (MathError, uint) {
+        /* Note: we do not assert that the market is up to date */
+        MathError mathErr;
+        uint principalTimesIndex;
+        uint result;
+
+        /* Get borrowBalance and borrowIndex */
+        BorrowSnapshot storage borrowSnapshot;
+        
+        if (marginType == 0) {
+            borrowSnapshot = lpMarginBorrows[account];
+        } else {
+            borrowSnapshot = swapMarginBorrows[account];
+        }
+
+        /* If borrowBalance = 0 then borrowIndex is likely also 0.
+         * Rather than failing the calculation with a division by 0, we immediately return 0 in this case.
+         */
+        if (borrowSnapshot.principal == 0) {
+            return (MathError.NO_ERROR, 0);
+        }
+
+        /* Calculate new borrow balance using the interest index:
+         *  recentBorrowBalance = borrower.borrowBalance * market.borrowIndex / borrower.borrowIndex
+         */
+        (mathErr, principalTimesIndex) = mulUInt(borrowSnapshot.principal, borrowIndex);
+        if (mathErr != MathError.NO_ERROR) {
+            return (mathErr, 0);
+        }
+
+        (mathErr, result) = divUInt(principalTimesIndex, borrowSnapshot.interestIndex);
+        if (mathErr != MathError.NO_ERROR) {
+            return (mathErr, 0);
+        }
+
+        return (MathError.NO_ERROR, result);
+    }
+
     /**
      * @notice Accrue interest then return the up-to-date exchange rate
      * @return Calculated exchange rate scaled by 1e18
@@ -828,6 +867,92 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         /* We emit a Borrow event */
         emit Borrow(borrower, borrowAmount, vars.accountBorrowsNew, vars.totalBorrowsNew);
+
+        /* We call the defense hook */
+        comptroller.borrowVerify(address(this), borrower, borrowAmount);
+
+        return uint(Error.NO_ERROR);
+    }
+
+    /**
+      * @notice Sender borrows assets from the protocol to their own address
+      * @param borrowAmount The amount of the underlying asset to borrow
+      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+      */
+    function borrowMarginInternal(address borrower, uint borrowAmount, uint marginType) internal nonReentrant returns (uint) {
+        uint error = accrueInterest();
+        if (error != uint(Error.NO_ERROR)) {
+            // accrueInterest emits logs on errors, but we still want to log the fact that an attempted borrow failed
+            return fail(Error(error), FailureInfo.BORROW_ACCRUE_INTEREST_FAILED);
+        }
+        // borrowFresh emits borrow-specific logs on errors, so we don't need to
+        return borrowMarginFresh(msg.sender, borrower, borrowAmount, marginType);
+    }
+
+    /**
+      * @notice 杠杆借贷 真实的币转给 borrower, 记账记在 realBorrower
+      * @param borrowAmount The amount of the underlying asset to borrow
+      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+      */
+    function borrowMarginFresh(address payable borrower, address realBorrower, uint borrowAmount, uint marginType) internal returns (uint) {
+        /* Fail if borrow not allowed */
+        // todo 这里不需要要验证用户是否有流动性问题, 只需要做基本的检查即可
+        uint allowed = comptroller.borrowAllowed(address(this), borrower, borrowAmount);
+        if (allowed != 0) {
+            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.BORROW_COMPTROLLER_REJECTION, allowed);
+        }
+
+        /* Verify market's block number equals current block number */
+        if (accrualBlockNumber != getBlockNumber()) {
+            return fail(Error.MARKET_NOT_FRESH, FailureInfo.BORROW_FRESHNESS_CHECK);
+        }
+
+        /* Fail gracefully if protocol has insufficient underlying cash */
+        if (getCashPrior() < borrowAmount) {
+            return fail(Error.TOKEN_INSUFFICIENT_CASH, FailureInfo.BORROW_CASH_NOT_AVAILABLE);
+        }
+
+        BorrowLocalVars memory vars;
+
+        /*
+         * We calculate the new borrower and total borrow balances, failing on overflow:
+         *  accountBorrowsNew = accountBorrows + borrowAmount
+         *  totalBorrowsNew = totalBorrows + borrowAmount
+         */
+        (vars.mathErr, vars.accountBorrows) = borrowMarginBalanceStoredInternal(realBorrower, marginType);
+        if (vars.mathErr != MathError.NO_ERROR) {
+            return failOpaque(Error.MATH_ERROR, FailureInfo.BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
+        }
+
+        (vars.mathErr, vars.accountBorrowsNew) = addUInt(vars.accountBorrows, borrowAmount);
+        if (vars.mathErr != MathError.NO_ERROR) {
+            return failOpaque(Error.MATH_ERROR, FailureInfo.BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
+        }
+
+        (vars.mathErr, vars.totalBorrowsNew) = addUInt(totalBorrows, borrowAmount);
+        if (vars.mathErr != MathError.NO_ERROR) {
+            return failOpaque(Error.MATH_ERROR, FailureInfo.BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
+        }
+
+        /////////////////////////
+        // EFFECTS & INTERACTIONS
+        // (No safe failures beyond this point)
+
+        /*
+         * We invoke doTransferOut for the borrower and the borrowAmount.
+         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
+         *  On success, the cToken borrowAmount less of cash.
+         *  doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
+         */
+        doTransferOut(borrower, borrowAmount);
+
+        /* We write the previously calculated values into storage */
+        accountBorrows[realBorrower].principal = vars.accountBorrowsNew;
+        accountBorrows[realBorrower].interestIndex = borrowIndex;
+        totalBorrows = vars.totalBorrowsNew;
+
+        /* We emit a Borrow event */
+        emit Borrow(realBorrower, borrowAmount, vars.accountBorrowsNew, vars.totalBorrowsNew);
 
         /* We call the defense hook */
         comptroller.borrowVerify(address(this), borrower, borrowAmount);

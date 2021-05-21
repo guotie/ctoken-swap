@@ -73,7 +73,7 @@ library UniswapV2Library {
 
     // 调用前确保已经是最新的 exchangeRate
     // ctokenAmt = amt / exchangeRate
-    function amountToCTokenAmt(address ctoken, uint amountIn) public view returns (uint cAmountIn) {
+    function amountToCTokenAmt(address ctoken, uint amountIn) internal view returns (uint cAmountIn) {
         uint exchangeRate = CTokenInterface(ctoken).exchangeRateStored();
         return amountIn.mul(1e18) / (exchangeRate);
     }
@@ -81,7 +81,7 @@ library UniswapV2Library {
     // 调用前确保已经是最新的 exchangeRate
     // ctoken amount 转换为 token amt
     // tokenAmt = ctokenAmt * exchangeRate
-    function ctokenAmtToAmount(address ctoken, uint cAmountOut) public view returns (uint amountOut) {
+    function ctokenAmtToAmount(address ctoken, uint cAmountOut) internal view returns (uint amountOut) {
         uint exchangeRate = CTokenInterface(ctoken).exchangeRateStored();
         return cAmountOut.mul(exchangeRate) / (1e18);
     }

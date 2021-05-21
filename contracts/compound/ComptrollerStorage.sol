@@ -149,3 +149,14 @@ contract ComptrollerV4Storage is ComptrollerV3Storage {
     // @notice Borrow caps enforced by borrowAllowed for each cToken address. Defaults to zero which corresponds to unlimited borrowing.
     mapping(address => uint) public borrowCaps;
 }
+
+struct Position {
+    address owner;
+    uint256 productionId;  // lend 池中的代币 CToken
+    uint256 debtShare;
+}
+
+contract ComptrollerV5Storage is ComptrollerV4Storage {
+    address public marginLP;    // 杠杆 LP 地址
+    address public marginSwap;  // 杠杆 Swap 地址
+}
