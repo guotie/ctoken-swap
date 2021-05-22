@@ -330,7 +330,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
     }
 
     // marginType: 0: LP margin; 1: swap margin
-    function borrowMarginBalanceStoredInternal(address account, uint marginType) internal view returns (MathError, uint) {
+    function borrowMarginBalanceStoredInternal(uint posId, uint marginType) internal view returns (MathError, uint) {
         /* Note: we do not assert that the market is up to date */
         MathError mathErr;
         uint principalTimesIndex;
@@ -340,9 +340,9 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         BorrowSnapshot storage borrowSnapshot;
         
         if (marginType == 0) {
-            borrowSnapshot = lpMarginBorrows[account];
+            borrowSnapshot = lpMarginBorrows[posId];
         } else {
-            borrowSnapshot = swapMarginBorrows[account];
+            borrowSnapshot = swapMarginBorrows[posId];
         }
 
         /* If borrowBalance = 0 then borrowIndex is likely also 0.
@@ -493,21 +493,25 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_SIMPLE_INTEREST_FACTOR_CALCULATION_FAILED, uint(mathErr));
         }
 
+        // 增加的利息收入
         (mathErr, interestAccumulated) = mulScalarTruncate(simpleInterestFactor, borrowsPrior);
         if (mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_ACCUMULATED_INTEREST_CALCULATION_FAILED, uint(mathErr));
         }
 
+        // 更新借款 借款 = 借款 + 利息
         (mathErr, totalBorrowsNew) = addUInt(interestAccumulated, borrowsPrior);
         if (mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_NEW_TOTAL_BORROWS_CALCULATION_FAILED, uint(mathErr));
         }
 
+        // 增加准备金 
         (mathErr, totalReservesNew) = mulScalarTruncateAddUInt(Exp({mantissa: reserveFactorMantissa}), interestAccumulated, reservesPrior);
         if (mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_NEW_TOTAL_RESERVES_CALCULATION_FAILED, uint(mathErr));
         }
 
+        // 更新贷款利息
         (mathErr, borrowIndexNew) = mulScalarTruncateAddUInt(simpleInterestFactor, borrowIndexPrior, borrowIndexPrior);
         if (mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_NEW_BORROW_INDEX_CALCULATION_FAILED, uint(mathErr));
@@ -879,14 +883,14 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrowMarginInternal(address borrower, uint borrowAmount, uint marginType) internal nonReentrant returns (uint) {
+    function borrowMarginInternal(address borrower, uint posId, uint borrowAmount, uint marginType) internal nonReentrant returns (uint) {
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
             // accrueInterest emits logs on errors, but we still want to log the fact that an attempted borrow failed
             return fail(Error(error), FailureInfo.BORROW_ACCRUE_INTEREST_FAILED);
         }
         // borrowFresh emits borrow-specific logs on errors, so we don't need to
-        return borrowMarginFresh(msg.sender, borrower, borrowAmount, marginType);
+        return borrowMarginFresh(msg.sender, borrower, posId, borrowAmount, marginType);
     }
 
     /**
@@ -894,9 +898,9 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrowMarginFresh(address payable borrower, address realBorrower, uint borrowAmount, uint marginType) internal returns (uint) {
+    function borrowMarginFresh(address payable borrower, address realBorrower, uint posId, uint borrowAmount, uint marginType) internal returns (uint) {
         /* Fail if borrow not allowed */
-        // todo 这里不需要要验证用户是否有流动性问题, 只需要做基本的检查即可
+        // todo 这里不需要要验证用户是否有流动性问题, 只需要做基本的检查即可 还有 comp 的分发！！！
         uint allowed = comptroller.borrowAllowed(address(this), borrower, borrowAmount);
         if (allowed != 0) {
             return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.BORROW_COMPTROLLER_REJECTION, allowed);
@@ -919,7 +923,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          *  accountBorrowsNew = accountBorrows + borrowAmount
          *  totalBorrowsNew = totalBorrows + borrowAmount
          */
-        (vars.mathErr, vars.accountBorrows) = borrowMarginBalanceStoredInternal(realBorrower, marginType);
+        (vars.mathErr, vars.accountBorrows) = borrowMarginBalanceStoredInternal(posId, marginType);
         if (vars.mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
         }
@@ -1066,6 +1070,90 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* We write the previously calculated values into storage */
         accountBorrows[borrower].principal = vars.accountBorrowsNew;
         accountBorrows[borrower].interestIndex = borrowIndex;
+        totalBorrows = vars.totalBorrowsNew;
+
+        /* We emit a RepayBorrow event */
+        emit RepayBorrow(payer, borrower, vars.actualRepayAmount, vars.accountBorrowsNew, vars.totalBorrowsNew);
+
+        /* We call the defense hook */
+        comptroller.repayBorrowVerify(address(this), payer, borrower, vars.actualRepayAmount, vars.borrowerIndex);
+
+        return (uint(Error.NO_ERROR), vars.actualRepayAmount);
+    }
+
+    /**
+     * @notice Borrows are repaid by another user (possibly the borrower).
+     * @param payer the account paying off the borrow
+     * @param borrower the account with the debt being payed off
+     * @param repayAmount the amount of undelrying tokens being returned
+     * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual repayment amount.
+     */
+    function repayBorrowMarginFresh(uint posId, address payer, address borrower, uint repayAmount, uint marginType) internal returns (uint, uint) {
+        /* Fail if repayBorrow not allowed */
+        uint allowed = comptroller.repayBorrowAllowed(address(this), payer, borrower, repayAmount);
+        if (allowed != 0) {
+            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REPAY_BORROW_COMPTROLLER_REJECTION, allowed), 0);
+        }
+
+        /* Verify market's block number equals current block number */
+        if (accrualBlockNumber != getBlockNumber()) {
+            return (fail(Error.MARKET_NOT_FRESH, FailureInfo.REPAY_BORROW_FRESHNESS_CHECK), 0);
+        }
+
+        RepayBorrowLocalVars memory vars;
+
+        /* We remember the original borrowerIndex for verification purposes */
+        if (marginType == 0) {
+            vars.borrowerIndex = lpMarginBorrows[posId].interestIndex;
+        } else {
+            vars.borrowerIndex = swapMarginBorrows[posId].interestIndex;
+        }
+
+        /* We fetch the amount the borrower owes, with accumulated interest */
+        (vars.mathErr, vars.accountBorrows) = borrowMarginBalanceStoredInternal(posId, marginType);
+        if (vars.mathErr != MathError.NO_ERROR) {
+            return (failOpaque(Error.MATH_ERROR, FailureInfo.REPAY_BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED, uint(vars.mathErr)), 0);
+        }
+
+        /* If repayAmount == -1, repayAmount = accountBorrows */
+        if (repayAmount == uint(-1)) {
+            vars.repayAmount = vars.accountBorrows;
+        } else {
+            vars.repayAmount = repayAmount;
+        }
+
+        /////////////////////////
+        // EFFECTS & INTERACTIONS
+        // (No safe failures beyond this point)
+
+        /*
+         * We call doTransferIn for the payer and the repayAmount
+         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
+         *  On success, the cToken holds an additional repayAmount of cash.
+         *  doTransferIn reverts if anything goes wrong, since we can't be sure if side effects occurred.
+         *   it returns the amount actually transferred, in case of a fee.
+         */
+        vars.actualRepayAmount = doTransferIn(payer, vars.repayAmount);
+
+        /*
+         * We calculate the new borrower and total borrow balances, failing on underflow:
+         *  accountBorrowsNew = accountBorrows - actualRepayAmount
+         *  totalBorrowsNew = totalBorrows - actualRepayAmount
+         */
+        (vars.mathErr, vars.accountBorrowsNew) = subUInt(vars.accountBorrows, vars.actualRepayAmount);
+        require(vars.mathErr == MathError.NO_ERROR, "REPAY_BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED");
+
+        (vars.mathErr, vars.totalBorrowsNew) = subUInt(totalBorrows, vars.actualRepayAmount);
+        require(vars.mathErr == MathError.NO_ERROR, "REPAY_BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED");
+
+        /* We write the previously calculated values into storage */
+        if (marginType == 0) {
+            lpMarginBorrows[posId].principal = vars.accountBorrowsNew;
+            lpMarginBorrows[posId].interestIndex = borrowIndex;
+        } else {
+            swapMarginBorrows[posId].principal = vars.accountBorrowsNew;
+            swapMarginBorrows[posId].interestIndex = borrowIndex;
+        }
         totalBorrows = vars.totalBorrowsNew;
 
         /* We emit a RepayBorrow event */

@@ -34,6 +34,9 @@ abstract contract ComptrollerInterface {
     function borrowAllowed(address cToken, address borrower, uint borrowAmount) virtual external returns (uint);
     function borrowVerify(address cToken, address borrower, uint borrowAmount) virtual external;
 
+    // 杠杆
+    function borrowMarginAllowed(address cToken, address borrower, uint borrowAmount) virtual external returns (uint);
+
     function repayBorrowAllowed(
         address cToken,
         address payer,

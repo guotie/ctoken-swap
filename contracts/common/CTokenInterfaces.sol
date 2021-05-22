@@ -131,12 +131,13 @@ contract CTokenStorage {
 
     /*
      * @notice 流动性杠杆账户 借出的token 由 marginLP 合约代持
+     * key 是 position id
      */
-    mapping(address => BorrowSnapshot) internal lpMarginBorrows;
+    mapping(uint => BorrowSnapshot) internal lpMarginBorrows;
     /*
      * @notice swap杠杆账户 借出的token 由 marginSwap 合约代持
      */
-    mapping(address => BorrowSnapshot) internal swapMarginBorrows;
+    mapping(uint => BorrowSnapshot) internal swapMarginBorrows;
 }
 
 abstract contract CTokenInterface is CTokenStorage {

@@ -417,7 +417,66 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
             maxAssets = maxAssets;
         }
     }
+    /**
+     * @notice Checks if the account should be allowed to borrow the underlying asset of the given market
+     * @param cToken The market to verify the borrow against
+     * @param borrower The account which would borrow the asset
+     * @param borrowAmount The amount of underlying the account would borrow
+     * @return 0 if the borrow is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
+     */
+    function borrowMarginAllowed(address cToken, address borrower, uint borrowAmount) override external returns (uint) {
+        // Pausing is a very serious situation - we revert to sound the alarms
+        require(!borrowGuardianPaused[cToken], "borrow is paused");
 
+        if (!markets[cToken].isListed) {
+            return uint(Error.MARKET_NOT_LISTED);
+        }
+
+        // accountMembership 是用来检查用户质押资产情况的, 杠杆的情况下, 是通过杠杆合约来确保用户资产的, 不需要这里的检查
+        // if (!markets[cToken].accountMembership[borrower]) {
+        //     // only cTokens may call borrowAllowed if borrower not in market
+        //     require(msg.sender == cToken, "sender must be cToken");
+
+        //     // attempt to add borrower to the market
+        //     Error ierr = addToMarketInternal(CToken(msg.sender), borrower);
+        //     if (ierr != Error.NO_ERROR) {
+        //         return uint(ierr);
+        //     }
+
+        //     // it should be impossible to break the important invariant
+        //     assert(markets[cToken].accountMembership[borrower]);
+        // }
+
+        // if (oracle.getUnderlyingPrice(CToken(cToken)) == 0) {
+        //     return uint(Error.PRICE_ERROR);
+        // }
+
+
+        uint borrowCap = borrowCaps[cToken];
+        // Borrow cap of 0 corresponds to unlimited borrowing
+        if (borrowCap != 0) {
+            uint totalBorrows = CToken(cToken).totalBorrows();
+            uint nextTotalBorrows = add_(totalBorrows, borrowAmount);
+            require(nextTotalBorrows < borrowCap, "market borrow cap reached");
+        }
+
+        // 用户的抵押是否够借 杠杆的情况的检查在 MarginLP marginSwap 中进行
+        // (Error err, , uint shortfall) = getHypotheticalAccountLiquidityInternal(borrower, CToken(cToken), 0, borrowAmount);
+        // if (err != Error.NO_ERROR) {
+        //     return uint(err);
+        // }
+        // if (shortfall > 0) {
+        //     return uint(Error.INSUFFICIENT_LIQUIDITY);
+        // }
+
+        // Keep the flywheel moving
+        Exp memory borrowIndex = Exp({mantissa: CToken(cToken).borrowIndex()});
+        updateCompBorrowIndex(cToken, borrowIndex);
+        distributeBorrowerComp(cToken, borrower, borrowIndex, false);
+
+        return uint(Error.NO_ERROR);
+    }
+    
     /**
      * @notice Checks if the account should be allowed to repay a borrow in the given market
      * @param cToken The market to verify the repay against
