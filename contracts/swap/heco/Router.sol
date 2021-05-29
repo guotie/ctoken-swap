@@ -32,15 +32,36 @@ contract MdexRouter is IMdexRouter, Ownable {
     address public immutable override factory;
     address public immutable override WHT;
     address public override swapMining;
+    address[] public quoteTokens;
+
+    // 所有交易对产生的手续费收入, 各个交易对根据占比分配收益
+    uint public override allPairFee;
+    // 上一个块的总手续费
+    uint public override allPairFeeLastBlock;
+    // 开始分配收益的块
+    uint public override startBlock;
+    // 记录当前手续费的块数
+    uint public currentBlock;
+    // tokens created per block to all pair LP
+    uint256 public lpPerBlock;      // LP 每块收益
+    uint256 public traderPerBlock;  // 交易者每块收益
+    // How many blocks are halved  182天
+    uint256 public halvingPeriod = 5256000;
+    address public rewardToken; // 收益 token 
 
     modifier ensure(uint deadline) {
         require(deadline >= block.timestamp, 'MdexRouter: EXPIRED');
         _;
     }
 
-    constructor(address _factory, address _WHT) {
+    constructor(address _factory, address _WHT, uint _startBlock) {
         factory = _factory;
         WHT = _WHT;
+        startBlock = _startBlock;
+        // heco 链上的 usdt
+        quoteTokens.push(IMdexFactory(_factory).anchorToken()); // usdt
+        quoteTokens.push(_WHT); // wht
+        // quoteTokens.push();  // husd
     }
 
     receive() external payable {
@@ -54,6 +75,54 @@ contract MdexRouter is IMdexRouter, Ownable {
 
     function setSwapMining(address _swapMininng) public onlyOwner {
         swapMining = _swapMininng;
+    }
+
+    function resetQuoteTokens(address[] memory tokens) public onlyOwner {
+        for (uint i; i < quoteTokens.length; i ++) {
+            quoteTokens.pop();
+        }
+        // quoteTokens.length = 0;
+        for (uint i; i < tokens.length; i ++) {
+            quoteTokens.push(tokens[i]);
+        }
+    }
+
+    function addQuoteToken(address token) public onlyOwner {
+        quoteTokens.push(token);
+    }
+
+    function phase(uint256 blockNumber) public view returns (uint256) {
+        if (halvingPeriod == 0) {
+            return 0;
+        }
+        if (blockNumber > startBlock) {
+            return (blockNumber.sub(startBlock).sub(1)).div(halvingPeriod);
+        }
+        return 0;
+    }
+
+    // 计算块奖励
+    function reward(uint256 blockNumber) public override view returns (uint256) {
+        // todo totalSupply !!!
+        if (IERC20(rewardToken).totalSupply() > 1e28) {
+            return 0;
+        }
+        uint256 _phase = phase(blockNumber);
+        return lpPerBlock.div(2 ** _phase);
+    }
+
+    function getBlockRewards(uint256 _lastRewardBlock) public override view returns (uint256) {
+        uint256 blockReward = 0;
+        uint256 n = phase(_lastRewardBlock);
+        uint256 m = phase(block.number);
+        while (n < m) {
+            n++;
+            uint256 r = n.mul(halvingPeriod).add(startBlock);
+            blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
+            _lastRewardBlock = r;
+        }
+        blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
+        return blockReward;
     }
 
     // **** ADD LIQUIDITY ****
@@ -241,20 +310,99 @@ contract MdexRouter is IMdexRouter, Ownable {
         );
     }
 
+    // 兑换手续费, 不收手续费
+    function _swapFee(address pair, uint feeIn, address feeTo) internal returns (uint feeOut) {
+        (uint reserve0, uint reserve1, ) = IMdexPair(pair).getReserves();
+        feeOut = feeIn.mul(reserve1).div(reserve0.add(feeIn));
+        IMdexPair(pair).swapNoFee(0, feeOut, feeTo, feeOut);
+    }
+
+    // 将收到的手续费 token 转换为 anchorToken
+    function _swapToAnchorToken(address input, address pair, address anchorToken) internal returns (uint fee) {
+        address feeTo = IMdexFactory(factory).feeTo();
+        uint amountIn = IERC20(pair).balanceOf(pair);    // 输入转入
+        uint feeIn = IMdexPair(pair).getFee(amountIn);
+
+        if (input == anchorToken) {
+            // 直接收
+            fee = feeIn;
+            // feeTotal = feeTotal.add(feeIn);
+        } else {
+            // 兑换成 anchorToken
+            // uint fee = _swapToAnchorToken(input, amountIn);
+            for (uint i; i < quoteTokens.length; i ++) {
+                address token = quoteTokens[i];
+                address tPair = IMdexFactory(factory).getPair(input, token);
+                if (tPair != address(0)) {
+                    if (token == anchorToken) {
+                        // 兑换成功
+                        IERC20(tPair).transfer(tPair, feeIn);
+                        fee = _swapFee(tPair, feeIn, feeTo);
+                    } else {
+                        // 需要两步兑换
+                        // 第一步, 兑换为中间币种 例如ht husd btc
+                        address pair2 = IMdexFactory(factory).getPair(token, anchorToken);
+                        require(pair2 != address(0), "quote coin has no pair to anchorToken");
+                        IERC20(tPair).transfer(tPair, feeIn);
+                        uint fee1 = _swapFee(tPair, feeIn, pair2);
+                        // 第二步
+                        fee = _swapFee(pair2, fee1, feeTo);
+                    }
+                    break;
+                }
+            }
+        }
+        // IERC20(anchorToken).transfer(feeTo, fee);
+        return fee;
+    }
+
+    function _updatePairFee(uint fee) private {
+        // 更新所有交易对的手续费
+        if (currentBlock == block.number) {
+            allPairFee += fee;
+        } else {
+            //
+            allPairFeeLastBlock = allPairFee;
+            allPairFee = fee;
+            currentBlock = block.number;
+        }
+    }
+
     // **** SWAP ****
     // requires the initial amount to have already been sent to the first pair
     function _swap(uint[] memory amounts, address[] memory path, address _to) internal virtual {
+        uint feeTotal;  // by anchorToken
+        address anchorToken = IMdexFactory(factory).anchorToken();
+
         for (uint i; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
             (address token0,) = IMdexFactory(factory).sortTokens(input, output);
+            address pair = IMdexFactory(factory).getPair(path[i], path[i + 1]);
+            // address feeTo = IMdexFactory(factory).feeTo();
+            // uint feeRate = IMdexPair(pair).feeRate();
             uint amountOut = amounts[i + 1];
+            // uint amountIn = IERC20(pair).balanceOf(pair);    // 输入转入
+            // uint feeIn = IMdexPair(pair).getFee(amountIn);
+
+            // 收手续费
+            uint fee = _swapToAnchorToken(input, pair, anchorToken);
+            if (fee > 0) {
+                _updatePairFee(fee);
+            }
+            // feeTotal = feeTotal.add();
+            // if (feeTotal > 0) {
+            //     // 分配LP手续费奖励
+            // }
+
             if (swapMining != address(0)) {
+                // 交易挖矿
                 ISwapMining(swapMining).swap(msg.sender, input, output, amountOut);
             }
+            
             (uint amount0Out, uint amount1Out) = input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
             address to = i < path.length - 2 ? pairFor(output, path[i + 2]) : _to;
-            IMdexPair(pairFor(input, output)).swap(
-                amount0Out, amount1Out, to, new bytes(0)
+            IMdexPair(pairFor(input, output)).swapNoFee(
+                amount0Out, amount1Out, to, fee
             );
         }
     }

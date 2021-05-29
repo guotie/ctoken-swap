@@ -18,9 +18,13 @@ interface IMdexFactory {
 
     function feeTo() external view returns (address);
 
+    function router() external view returns (address);
+
     function feeToSetter() external view returns (address);
 
-    function feeToRate() external view returns (uint256);
+    function lpFeeRate() external view returns (uint256);
+
+    function anchorToken() external view returns (address);
 
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 
@@ -54,4 +58,14 @@ interface IMdexFactory {
 
     function amountToCTokenAmt(address ctoken, uint amountIn) external view returns (uint cAmountIn);
     function ctokenAmtToAmount(address ctoken, uint cAmountOut) external view returns (uint amountOut);
+
+    function setPairFeeRate(address pair, uint feeRate) external;
+
+    function getReservesFeeRate(address tokenA, address tokenB) external view returns (uint reserveA, uint reserveB, uint feeRate, bool outAnchorToken);
+
+    function getAmountOutFeeRate(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) external pure returns (uint amountOut);
+
+    function getAmountInFeeRate(uint amountOut, uint reserveIn, uint reserveOut, uint feeRate) external pure returns (uint amountIn);
+
+    function getAmountOutFeeRateAnchorToken(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) external pure returns (uint amountOut);
 }

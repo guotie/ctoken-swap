@@ -59,6 +59,8 @@ interface IMdexPair {
 
     function factory() external view returns (address);
 
+    function feeRate() external view returns (uint);
+
     function token0() external view returns (address);
 
     function token1() external view returns (address);
@@ -72,11 +74,13 @@ interface IMdexPair {
     function kLast() external view returns (uint);
 
     function mint(address to) external returns (uint liquidity);
-    function mintCToken(address to) external returns (uint liquidity);
+    // function mintCToken(address to) external returns (uint liquidity);
 
     function burn(address to) external returns (uint amount0, uint amount1);
 
     function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external;
+
+    function swapNoFee(uint amount0Out, uint amount1Out, address to, uint fee) external;
 
     function skim(address to) external;
 
@@ -85,6 +89,11 @@ interface IMdexPair {
     function price(address token, uint256 baseDecimal) external view returns (uint256);
 
     function initialize(address, address) external;
+    function updateFeeRate(uint256 _feeRate) external;
     // initialize ctoken address
     function initializeCTokenAddress(address, address) external;
+
+    function getFee(uint256 amt) external view returns (uint256);
+
+    // function updateFeeRate(_feeRate) external;
 }

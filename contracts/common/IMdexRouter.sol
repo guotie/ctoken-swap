@@ -18,7 +18,17 @@ interface IMdexRouter {
 
     function WHT() external view returns (address);
 
+    function allPairFee() external view returns (uint);
+
+    function allPairFeeLastBlock() external view returns (uint);
+
+    function reward(uint256 blockNumber) external view returns (uint256);
+
+    function startBlock() external view returns (uint);
+
     function swapMining() external view returns (address);
+
+    function getBlockRewards(uint256 _lastRewardBlock) external view returns (uint256);
 
     function addLiquidity(
         address tokenA,

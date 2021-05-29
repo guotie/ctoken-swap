@@ -131,6 +131,14 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     log: log,
   }, verify);
 
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+  // deploy bank margin
+  // 1. deploy margin goblin 每个交易对一个 goblin， MdxStrategyAddTwoSidesOptimal
+  // 2. deploy bank
+  // 3. 上架 bank product, 配置 goblin
+  //
+  /////////////////////////////////////////////////////////////////////////////////////////////////////
+
   if (log) {
     console.log('deploy comptroller at: ', comp.address)
     console.log('deploy unitroller at: ', uni.address)
