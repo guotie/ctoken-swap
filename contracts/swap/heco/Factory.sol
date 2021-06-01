@@ -480,6 +480,9 @@ contract MdexPair is IMdexERC20, IMdexPair {
         uint amount0 = balance0.sub(_reserve0);
         uint amount1 = balance1.sub(_reserve1);
 
+        console.log(cToken0, cToken1);
+        console.log(balance0, balance1, _reserve0, _reserve1);
+
         bool feeOn = _mintFee(_reserve0, _reserve1);
         uint _totalSupply = totalSupply;
         // gas savings, must be defined here since totalSupply can update in _mintFee
@@ -624,39 +627,39 @@ contract MdexPair is IMdexERC20, IMdexPair {
 
     // 将手续费换算为usdt
     // path 手续费兑换路径
-    function _swapFee(uint256 amt0In, uint256 amt1In, address[] memory path) private {
-        address _token0 = cToken0;
-        address _token1 = cToken1;
-        address feeTo = IMdexFactory(factory).feeTo();
-        address anchorToken = IMdexFactory(factory).anchorToken();
-        if (_token0 == anchorToken || _token1 == anchorToken) {
-            // 如果pair本身就是 usdt 交易对, 手续费直接收或者直接换算即可
-            if (amt0In > 0) {
-                if (_token0 == anchorToken) {
-                    IERC20(_token0).transfer(feeTo, getFee(amt0In));
-                } else {
-                    // 计算换算成多少 anchorToken
-                    // uint256 fee = getFee(amt0In);
-                    // x*y = x' * y'
-                    uint256 fee = _swapWithOutFee(getFee(amt0In), reserve0, reserve1);
-                    IERC20(_token1).transfer(feeTo, fee);
-                }
-            }
-            if (amt1In > 0) {
-                if (_token1 == anchorToken) {
-                    IERC20(_token1).transfer(feeTo, getFee(amt1In));
-                } else {
-                    // 计算换算成多少 anchorToken
-                    // uint256 fee = getFee(amt1In);
-                    // x*y = x' * y'
-                    uint256 fee = _swapWithOutFee(getFee(amt1In), reserve1, reserve0);
-                    IERC20(_token0).transfer(feeTo, fee);
-                }
-            }
-        } else {
-            // 需要调用其他 pair 的不收手续费版本的 swap, 权限很难控制
-        }
-    }
+    // function _swapFee(uint256 amt0In, uint256 amt1In, address[] memory path) private {
+    //     address _token0 = cToken0;
+    //     address _token1 = cToken1;
+    //     address feeTo = IMdexFactory(factory).feeTo();
+    //     address anchorToken = IMdexFactory(factory).anchorToken();
+    //     if (_token0 == anchorToken || _token1 == anchorToken) {
+    //         // 如果pair本身就是 usdt 交易对, 手续费直接收或者直接换算即可
+    //         if (amt0In > 0) {
+    //             if (_token0 == anchorToken) {
+    //                 IERC20(_token0).transfer(feeTo, getFee(amt0In));
+    //             } else {
+    //                 // 计算换算成多少 anchorToken
+    //                 // uint256 fee = getFee(amt0In);
+    //                 // x*y = x' * y'
+    //                 uint256 fee = _swapWithOutFee(getFee(amt0In), reserve0, reserve1);
+    //                 IERC20(_token1).transfer(feeTo, fee);
+    //             }
+    //         }
+    //         if (amt1In > 0) {
+    //             if (_token1 == anchorToken) {
+    //                 IERC20(_token1).transfer(feeTo, getFee(amt1In));
+    //             } else {
+    //                 // 计算换算成多少 anchorToken
+    //                 // uint256 fee = getFee(amt1In);
+    //                 // x*y = x' * y'
+    //                 uint256 fee = _swapWithOutFee(getFee(amt1In), reserve1, reserve0);
+    //                 IERC20(_token0).transfer(feeTo, fee);
+    //             }
+    //         }
+    //     } else {
+    //         // 需要调用其他 pair 的不收手续费版本的 swap, 权限很难控制
+    //     }
+    // }
 
     // force balances to match reserves
     function skim(address to) override external lock {
@@ -691,12 +694,13 @@ contract MdexFactory is IMdexFactory {
     address public override feeTo;       
     address public override feeToSetter;
     uint256 public override lpFeeRate = 0;    // 分配给LP的比例: 0: 0; n: (n/(n+1))
+    address public anchorUnderlying;
     address public override anchorToken;           // 手续费锚定币种
     address public override router;
     bytes32 public initCodeHash;
 
     // lend controller address. should be unitroller address, which is proxy of comptroller
-    LErc20DelegatorInterface public lErc20DelegatorFactory;
+    LErc20DelegatorInterface public override lErc20DelegatorFactory;
     address public owner;
 
     mapping(address => mapping(address => address)) public override getPair;
@@ -705,15 +709,26 @@ contract MdexFactory is IMdexFactory {
     // event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
     // 创建时需要设置 LERC20 factory 地址
-    constructor(address _feeToSetter, address _comptroller) {
+    constructor(address _feeToSetter, address _ctokenFacotry, address _anchorToken) {
         owner = msg.sender;
         feeToSetter = _feeToSetter;
-        lErc20DelegatorFactory = LErc20DelegatorInterface(_comptroller);
+        lErc20DelegatorFactory = LErc20DelegatorInterface(_ctokenFacotry);
         initCodeHash = keccak256(abi.encodePacked(type(MdexPair).creationCode));
+
+        anchorUnderlying = _anchorToken;
+        anchorToken = _anchorToken; // lErc20DelegatorFactory.getCTokenAddressPure(_anchorToken);
+        require(anchorToken != address(0), "cToken of anchorToken is 0");
     }
 
     function allPairsLength() external view override returns (uint) {
         return allPairs.length;
+    }
+
+    function setAnchorToken(address _anchorToken) external override {
+        require(msg.sender == owner, "No auth");
+        anchorUnderlying = _anchorToken;
+        anchorToken = _anchorToken; // lErc20DelegatorFactory.getCTokenAddressPure(_anchorToken);
+        require(anchorToken != address(0), "cToken of anchorToken is 0");
     }
 
     // 创建交易对
@@ -849,6 +864,8 @@ contract MdexFactory is IMdexFactory {
         // 输出货币是否是 锚定货币
         outAnchorToken = tokenA == token0 ? tokenB == anchorToken : tokenA == anchorToken;
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
+        console.log("tokenA: %s tokenB: %s anchorToken: %s", tokenA, tokenB, anchorToken);
+        console.log("reserveA: %d reserveB: %d feeRate: %d", reserveA, reserveB, feeRate);
     }
 
     // given some amount of an asset and pair reserves, returns an equivalent amount of the other asset

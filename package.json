@@ -4,7 +4,9 @@
   "description": "debank with lend, borrow & swap",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:swap": "hardhat test test/swap.ts", 
+    "test:all": "hardhat test",
+    "test": "hardhat test",
     "clean": "hardhat clean",
     "compile": "hardhat compile"
   },

@@ -20,6 +20,9 @@ import "../../common/IMdexFactory.sol";
 import "../../common/IMdexPair.sol";
 import "../../common/IMdexRouter.sol";
 import "../../common/IWHT.sol";
+import "../../common/LErc20DelegatorInterface.sol";
+
+import "hardhat/console.sol";
 
 interface ISwapMining {
     function swap(address account, address input, address output, uint256 amount) external returns (bool);
@@ -33,6 +36,7 @@ contract MdexRouter is IMdexRouter, Ownable {
     address public immutable override WHT;
     address public override swapMining;
     address[] public quoteTokens;
+    address public immutable cWHT;
 
     // 所有交易对产生的手续费收入, 各个交易对根据占比分配收益
     uint public override allPairFee;
@@ -54,9 +58,10 @@ contract MdexRouter is IMdexRouter, Ownable {
         _;
     }
 
-    constructor(address _factory, address _WHT, uint _startBlock) {
+    constructor(address _factory, address _WHT, address _cWHT, uint _startBlock) {
         factory = _factory;
         WHT = _WHT;
+        cWHT = _cWHT;
         startBlock = _startBlock;
         // heco 链上的 usdt
         quoteTokens.push(IMdexFactory(_factory).anchorToken()); // usdt
@@ -104,9 +109,9 @@ contract MdexRouter is IMdexRouter, Ownable {
     // 计算块奖励
     function reward(uint256 blockNumber) public override view returns (uint256) {
         // todo totalSupply !!!
-        if (IERC20(rewardToken).totalSupply() > 1e28) {
-            return 0;
-        }
+        // if (IERC20(rewardToken).totalSupply() > 1e28) {
+        //     return 0;
+        // }
         uint256 _phase = phase(blockNumber);
         return lpPerBlock.div(2 ** _phase);
     }
@@ -123,6 +128,14 @@ contract MdexRouter is IMdexRouter, Ownable {
         }
         blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
         return blockReward;
+    }
+
+    function _getCtoken(address token) private view returns (address ctoken) {
+        ctoken = LErc20DelegatorInterface(IMdexFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
+    }
+
+    function _safeTransferCtoken(address token, address from, address to, uint amt) private {
+        TransferHelper.safeTransferFrom(_getCtoken(token), from, to, amt);
     }
 
     // **** ADD LIQUIDITY ****
@@ -167,11 +180,14 @@ contract MdexRouter is IMdexRouter, Ownable {
     ) external virtual override ensure(deadline) returns (uint amountA, uint amountB, uint liquidity) {
         (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
         address pair = pairFor(tokenA, tokenB);
-        TransferHelper.safeTransferFrom(tokenA, msg.sender, pair, amountA);
-        TransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
+        // TransferHelper.safeTransferFrom(tokenA, msg.sender, pair, amountA);
+        // TransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
+        _safeTransferCtoken(tokenA, msg.sender, pair, amountA);
+        _safeTransferCtoken(tokenB, msg.sender, pair, amountB);
         liquidity = IMdexPair(pair).mint(to);
     }
 
+    // 这个函数应该不能直接被调用了, 如果是 ctoken, 直接调用上面的函数；如果是 token, 需要调用 todo
     function addLiquidityETH(
         address token,
         uint amountTokenDesired,
@@ -189,7 +205,8 @@ contract MdexRouter is IMdexRouter, Ownable {
             amountETHMin
         );
         address pair = pairFor(token, WHT);
-        TransferHelper.safeTransferFrom(token, msg.sender, pair, amountToken);
+        // TransferHelper.safeTransferFrom(token, msg.sender, pair, amountToken);
+        _safeTransferCtoken(token, msg.sender, pair, amountToken);
         IWHT(WHT).deposit{value : amountETH}();
         assert(IWHT(WHT).transfer(pair, amountETH));
         liquidity = IMdexPair(pair).mint(to);
@@ -320,8 +337,9 @@ contract MdexRouter is IMdexRouter, Ownable {
     // 将收到的手续费 token 转换为 anchorToken
     function _swapToAnchorToken(address input, address pair, address anchorToken) internal returns (uint fee) {
         address feeTo = IMdexFactory(factory).feeTo();
-        uint amountIn = IERC20(pair).balanceOf(pair);    // 输入转入
+        uint amountIn = IERC20(_getCtoken(input)).balanceOf(pair);    // 输入转入
         uint feeIn = IMdexPair(pair).getFee(amountIn);
+        console.log("amountIn: %d  feeIn: %d", amountIn, feeIn);
 
         if (input == anchorToken) {
             // 直接收
@@ -333,6 +351,8 @@ contract MdexRouter is IMdexRouter, Ownable {
             for (uint i; i < quoteTokens.length; i ++) {
                 address token = quoteTokens[i];
                 address tPair = IMdexFactory(factory).getPair(input, token);
+
+                console.log("_swapToAnchorToken: input=%s token=%s pair=%s", input, token, tPair);
                 if (tPair != address(0)) {
                     if (token == anchorToken) {
                         // 兑换成功
@@ -352,6 +372,8 @@ contract MdexRouter is IMdexRouter, Ownable {
                 }
             }
         }
+
+        console.log("_swapToAnchorToken: input: %s  fee: %d  ", input, fee);
         // IERC20(anchorToken).transfer(feeTo, fee);
         return fee;
     }
@@ -374,6 +396,7 @@ contract MdexRouter is IMdexRouter, Ownable {
         uint feeTotal;  // by anchorToken
         address anchorToken = IMdexFactory(factory).anchorToken();
 
+        console.log("_swap ....");
         for (uint i; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
             (address token0,) = IMdexFactory(factory).sortTokens(input, output);
@@ -414,9 +437,11 @@ contract MdexRouter is IMdexRouter, Ownable {
         address to,
         uint deadline
     ) external virtual override ensure(deadline) returns (uint[] memory amounts) {
+        console.log('swapExactTokensForTokens ....');
         amounts = IMdexFactory(factory).getAmountsOut(amountIn, path);
+        console.log(amounts[0], amounts[1]);
         require(amounts[amounts.length - 1] >= amountOutMin, 'MdexRouter: INSUFFICIENT_OUTPUT_AMOUNT');
-        TransferHelper.safeTransferFrom(
+        _safeTransferCtoken(
             path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
         );
         _swap(amounts, path, to);
@@ -429,83 +454,88 @@ contract MdexRouter is IMdexRouter, Ownable {
         address to,
         uint deadline
     ) external virtual override ensure(deadline) returns (uint[] memory amounts) {
+        console.log('swapTokensForExactTokens ....');
         amounts = IMdexFactory(factory).getAmountsIn(amountOut, path);
         require(amounts[0] <= amountInMax, 'MdexRouter: EXCESSIVE_INPUT_AMOUNT');
-        TransferHelper.safeTransferFrom(
+        _safeTransferCtoken(
             path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
         );
         _swap(amounts, path, to);
     }
 
-    function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
-    external
-    virtual
-    override
-    payable
-    ensure(deadline)
-    returns (uint[] memory amounts)
-    {
-        require(path[0] == WHT, 'MdexRouter: INVALID_PATH');
-        amounts = IMdexFactory(factory).getAmountsOut(msg.value, path);
-        require(amounts[amounts.length - 1] >= amountOutMin, 'MdexRouter: INSUFFICIENT_OUTPUT_AMOUNT');
-        IWHT(WHT).deposit{value : amounts[0]}();
-        assert(IWHT(WHT).transfer(pairFor(path[0], path[1]), amounts[0]));
-        _swap(amounts, path, to);
-    }
+    // function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
+    // external
+    // virtual
+    // override
+    // payable
+    // ensure(deadline)
+    // returns (uint[] memory amounts)
+    // {
+    //     console.log('swapExactETHForTokens ....');
+    //     require(path[0] == WHT, 'MdexRouter: INVALID_PATH');
+    //     amounts = IMdexFactory(factory).getAmountsOut(msg.value, path);
+    //     require(amounts[amounts.length - 1] >= amountOutMin, 'MdexRouter: INSUFFICIENT_OUTPUT_AMOUNT');
+    //     IWHT(WHT).deposit{value : amounts[0]}();
+    //     assert(IWHT(WHT).transfer(pairFor(path[0], path[1]), amounts[0]));
+    //     _swap(amounts, path, to);
+    // }
 
-    function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
-    external
-    virtual
-    override
-    ensure(deadline)
-    returns (uint[] memory amounts)
-    {
-        require(path[path.length - 1] == WHT, 'MdexRouter: INVALID_PATH');
-        amounts = IMdexFactory(factory).getAmountsIn(amountOut, path);
-        require(amounts[0] <= amountInMax, 'MdexRouter: EXCESSIVE_INPUT_AMOUNT');
-        TransferHelper.safeTransferFrom(
-            path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
-        );
-        _swap(amounts, path, address(this));
-        IWHT(WHT).withdraw(amounts[amounts.length - 1]);
-        TransferHelper.safeTransferETH(to, amounts[amounts.length - 1]);
-    }
+    // function swapTokensForExactETH(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
+    // external
+    // virtual
+    // override
+    // ensure(deadline)
+    // returns (uint[] memory amounts)
+    // {
+    //     console.log('swapTokensForExactETH ....');
+    //     require(path[path.length - 1] == WHT, 'MdexRouter: INVALID_PATH');
+    //     amounts = IMdexFactory(factory).getAmountsIn(amountOut, path);
+    //     require(amounts[0] <= amountInMax, 'MdexRouter: EXCESSIVE_INPUT_AMOUNT');
+    //     _safeTransferCtoken(
+    //         path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
+    //     );
+    //     _swap(amounts, path, address(this));
+    //     IWHT(WHT).withdraw(amounts[amounts.length - 1]);
+    //     TransferHelper.safeTransferETH(to, amounts[amounts.length - 1]);
+    // }
 
-    function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
-    external
-    virtual
-    override
-    ensure(deadline)
-    returns (uint[] memory amounts)
-    {
-        require(path[path.length - 1] == WHT, 'MdexRouter: INVALID_PATH');
-        amounts = IMdexFactory(factory).getAmountsOut(amountIn, path);
-        require(amounts[amounts.length - 1] >= amountOutMin, 'MdexRouter: INSUFFICIENT_OUTPUT_AMOUNT');
-        TransferHelper.safeTransferFrom(
-            path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
-        );
-        _swap(amounts, path, address(this));
-        IWHT(WHT).withdraw(amounts[amounts.length - 1]);
-        TransferHelper.safeTransferETH(to, amounts[amounts.length - 1]);
-    }
+    // function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
+    // external
+    // virtual
+    // override
+    // ensure(deadline)
+    // returns (uint[] memory amounts)
+    // {
+    //     console.log('swapExactTokensForETH ....');
+    //     require(path[path.length - 1] == WHT, 'MdexRouter: INVALID_PATH');
+    //     amounts = IMdexFactory(factory).getAmountsOut(amountIn, path);
+    //     require(amounts[amounts.length - 1] >= amountOutMin, 'MdexRouter: INSUFFICIENT_OUTPUT_AMOUNT');
+    //     _safeTransferCtoken(
+    //         path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
+    //     );
+    //     _swap(amounts, path, address(this));
+    //     IWHT(WHT).withdraw(amounts[amounts.length - 1]);
+    //     TransferHelper.safeTransferETH(to, amounts[amounts.length - 1]);
+    // }
 
-    function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline)
-    external
-    virtual
-    override
-    payable
-    ensure(deadline)
-    returns (uint[] memory amounts)
-    {
-        require(path[0] == WHT, 'MdexRouter: INVALID_PATH');
-        amounts = IMdexFactory(factory).getAmountsIn(amountOut, path);
-        require(amounts[0] <= msg.value, 'MdexRouter: EXCESSIVE_INPUT_AMOUNT');
-        IWHT(WHT).deposit{value : amounts[0]}();
-        assert(IWHT(WHT).transfer(pairFor(path[0], path[1]), amounts[0]));
-        _swap(amounts, path, to);
-        // refund dust eth, if any
-        if (msg.value > amounts[0]) TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0]);
-    }
+    // function swapETHForExactTokens(uint amountOut, address[] calldata path, address to, uint deadline)
+    // external
+    // virtual
+    // override
+    // payable
+    // ensure(deadline)
+    // returns (uint[] memory amounts)
+    // {
+    //     console.log('swapETHForExactTokens ....');
+    //     require(path[0] == WHT, 'MdexRouter: INVALID_PATH');
+    //     amounts = IMdexFactory(factory).getAmountsIn(amountOut, path);
+    //     require(amounts[0] <= msg.value, 'MdexRouter: EXCESSIVE_INPUT_AMOUNT');
+    //     IWHT(WHT).deposit{value : amounts[0]}();
+    //     assert(IWHT(WHT).transfer(pairFor(path[0], path[1]), amounts[0]));
+    //     _swap(amounts, path, to);
+    //     // refund dust eth, if any
+    //     if (msg.value > amounts[0]) TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0]);
+    // }
 
     // **** SWAP (supporting fee-on-transfer tokens) ****
     // requires the initial amount to have already been sent to the first pair

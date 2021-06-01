@@ -13,6 +13,8 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 pragma solidity =0.7.6;
 
+import "./LErc20DelegatorInterface.sol";
+
 interface IMdexFactory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
@@ -23,6 +25,8 @@ interface IMdexFactory {
     function feeToSetter() external view returns (address);
 
     function lpFeeRate() external view returns (uint256);
+
+    function lErc20DelegatorFactory() external view returns (LErc20DelegatorInterface);
 
     function anchorToken() external view returns (address);
 
@@ -68,4 +72,6 @@ interface IMdexFactory {
     function getAmountInFeeRate(uint amountOut, uint reserveIn, uint reserveOut, uint feeRate) external pure returns (uint amountIn);
 
     function getAmountOutFeeRateAnchorToken(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) external pure returns (uint amountOut);
+
+    function setAnchorToken(address _token) external;
 }

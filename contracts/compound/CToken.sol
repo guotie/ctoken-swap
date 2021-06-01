@@ -84,9 +84,11 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return Whether or not the transfer succeeded
      */
     function transferTokens(address spender, address src, address dst, uint tokens) internal returns (uint) {
+        console.log("transfer ctoken:", spender, src, dst);
         /* Fail if transfer not allowed */
-        uint allowed = comptroller.transferAllowed(address(this), src, dst, tokens);
+        uint allowed = 0; // comptroller.transferAllowed(address(this), src, dst, tokens);
         if (allowed != 0) {
+            console.log("not allow transfer");
             return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.TRANSFER_COMPTROLLER_REJECTION, allowed);
         }
 
@@ -103,6 +105,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
             startingAllowance = transferAllowances[src][spender];
         }
 
+
         /* Do the calculations, checking for {under,over}flow */
         MathError mathErr;
         uint allowanceNew;
@@ -114,6 +117,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
             return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ALLOWED);
         }
 
+        console.log(startingAllowance, tokens, accountTokens[src]);
         (mathErr, srcTokensNew) = subUInt(accountTokens[src], tokens);
         if (mathErr != MathError.NO_ERROR) {
             return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ENOUGH);
@@ -141,6 +145,7 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         comptroller.transferVerify(address(this), src, dst, tokens);
 
+        console.log("transfer ctoken success");
         return uint(Error.NO_ERROR);
     }
 
@@ -424,13 +429,12 @@ abstract contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
                 return (mathErr, 0);
             }
 
-            console.log("exchangeRateStoredInternal: totalCash: %d", totalCash);
-            console.log("exchangeRateStoredInternal: totalBorrows: %d", totalBorrows);
-            console.log("exchangeRateStoredInternal: totalReserves: %d", totalReserves);
-            console.log("exchangeRateStoredInternal: totalSupply: %d", totalSupply);
+            // console.log("exchangeRateStoredInternal: totalCash: %d", totalCash);
+            // console.log("exchangeRateStoredInternal: totalBorrows: %d", totalBorrows);
+            // console.log("exchangeRateStoredInternal: totalReserves: %d", totalReserves);
+            // console.log("exchangeRateStoredInternal: totalSupply: %d", totalSupply);
             console.log("exchangeRateStoredInternal: exchangeRate: %d", exchangeRate.mantissa);
-            // console.log("exchangeRateStoredInternal: totalCash: %d totalBorrows: %d totalReserves: %d totalSupply: %d exchangeRate:",
-                // totalCash, totalBorrows, totalReserves, _totalSupply);
+            console.log(totalCash, totalBorrows, totalReserves, _totalSupply);
             return (MathError.NO_ERROR, exchangeRate.mantissa);
         }
     }

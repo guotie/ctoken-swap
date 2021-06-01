@@ -2,15 +2,19 @@
 const hre = require('hardhat')
 const ethers = hre.ethers
 
-import { Signer } from 'ethers'
+import { Contract, Signer } from 'ethers'
 import { network } from 'hardhat'
 import sleep from '../utils/sleep'
+import { getCreate2Address } from '@ethersproject/address'
+import { pack, keccak256 } from '@ethersproject/solidity'
 
 export interface DeployParams {
   log?: boolean
   baseRatePerYear?: string    // 基础利率
   multiplierPerYear?: string  // 利率乘数
-  baseSymbol?: string // price orace 的 baseSymbol
+  baseSymbol?: string         // price orace 的 baseSymbol
+  anchorToken?: string        // usdt地址, 用于将手续费兑换为usdt
+  addresses?: string[]        // 需要生成 ctoken 的 token数组
 }
 
 export interface ContractAddrAbi {
@@ -27,6 +31,9 @@ export interface DeployContracts {
   mdexFactory: ContractAddrAbi
   lErc20Delegate: ContractAddrAbi
   lErc20DelegatorFactory: ContractAddrAbi
+  WHT: ContractAddrAbi
+  cWHT: ContractAddrAbi
+  router: ContractAddrAbi
 }
 
 async function getAbiByContractName(name: string) {
@@ -55,6 +62,40 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
     console.error('deploy %s failed:', name, err)
   }
 }
+
+
+async function deployWHT(deployer: any, log: any, verify: any) {
+  let wht: ContractAddrAbi = {address: '', abi: await getAbiByContractName('WHT')}
+
+  switch (network.name) {
+    case 'hardhat':
+      // deploy wht
+      let dr = await _deploy('WHT', {
+          from: deployer,
+          //
+          args: [],
+          log: log
+        }, verify)
+      wht.address = dr.address
+      break;
+
+    case 'heco':
+      wht.address = '0x5545153CCFcA01fbd7Dd11C0b23ba694D9509A6F'
+      break;
+
+    case 'hecotest':
+      wht.address = '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836'
+      break
+
+    default:
+      // heco mainnet
+      console.warn('network name:', network.name)
+      wht.address = '0x5545153CCFcA01fbd7Dd11C0b23ba694D9509A6F'
+  }
+
+  return wht
+}
+
 // deploy: hardhat deploy 函数
 // verify: 是否需要 verify 合约
 export async function deployAll(opts: DeployParams = {}, verify = false): Promise<DeployContracts> {
@@ -94,8 +135,8 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     from: deployer,
     // 10% 60%
     args: [
-        opts.baseRatePerYear ?? '10000000000000000000',
-        opts.multiplierPerYear ?? '60000000000000000000'
+        opts.baseRatePerYear ?? '1000000000000000000',
+        opts.multiplierPerYear ?? '6000000000000000000'
       ],
     log: log,
   }, verify);
@@ -116,6 +157,13 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     log: log,
   }, verify);
 
+  let lht = await _deploy('LHT', {
+    from: deployer,
+    // comptroller_ interestRateModel_ initialExchangeRateMantissa_ name_ symbol_ decimals_ admin_
+    args: [unitroller.address, interest.address, '15000000000000000000', 'WHT', 'WHT', 18, namedSigners[0].address],
+    log: log,
+  }, verify);
+
   let lercFactoryDeployed = await _deploy('LErc20DelegatorFactory', {
     from: deployer,
     // 
@@ -123,14 +171,32 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     log: log,
   }, verify);
 
+  let wht = await deployWHT(deployer, log, verify)
+
+  if (opts.addresses) {
+    await deployCTokens(lercFactoryDeployed.address, opts.addresses, deployer)
+  }
+
   // mdex pair
+  const anchorToken = opts.anchorToken ?? '0x04F535663110A392A6504839BEeD34E019FdB4E0'
+  console.log('mdex anchor token:', anchorToken)
   const mdexFactory = await _deploy('MdexFactory', {
     from: deployer,
-    // 10% 60%
-    args: [namedSigners[0].address, lercFactoryDeployed.address],
+    // 10% 60% 稳定币 usdt 地址
+    args: [namedSigners[0].address, lercFactoryDeployed.address, anchorToken],
     log: log,
   }, verify);
 
+  const router = await _deploy('MdexRouter', {
+    from: deployer,
+    // factory wht lht startBlock
+    args: [mdexFactory.address, wht.address, lht.address, 0],
+    log: log
+  }, verify)
+
+  // mdexFactory 设置 router 地址
+  const mdexFactoryCont = new ethers.Contract(mdexFactory.address, mdexFactory.abi, namedSigners[0])
+  await mdexFactoryCont.setRouter(router.address)
   /////////////////////////////////////////////////////////////////////////////////////////////////////
   // deploy bank margin
   // 1. deploy margin goblin 每个交易对一个 goblin， MdxStrategyAddTwoSidesOptimal
@@ -140,6 +206,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   /////////////////////////////////////////////////////////////////////////////////////////////////////
 
   if (log) {
+    console.log('contract WHT at:', wht.address)
     console.log('deploy comptroller at: ', comp.address)
     console.log('deploy unitroller at: ', uni.address)
     console.log('deploy interest at: ', interest.address)
@@ -147,6 +214,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     console.log('deploy mdexFactory at: ', mdexFactory.address)
     console.log('deploy lerc20Implement at: ', lerc20Implement.address)
     console.log('deploy lerc20DelegatorFactory at: ', lercFactoryDeployed.address)
+    console.log('deploy router at: ', router.address)
   }
 
   return {
@@ -156,7 +224,10 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     priceOracle: { address: priceOrace.address, abi: await getAbiByContractName('SimplePriceOracle') },
     mdexFactory: { address: mdexFactory.address, abi: await getAbiByContractName('MdexFactory') },
     lErc20Delegate: { address: lerc20Implement.address, abi: await getAbiByContractName('LErc20Delegate') },
+    WHT: wht,
+    cWHT: { address: lht.address, abi: await getAbiByContractName('LHT')},
     lErc20DelegatorFactory: { address: lercFactoryDeployed.address, abi: await getAbiByContractName('LErc20DelegatorFactory') },
+    router: { address: router.address, abi: await getAbiByContractName('MdexRouter') },
   }
 }
 
@@ -182,6 +253,26 @@ export async function getCTokenContract(addr: string, _signer?: Signer) {
   const tokenArt = await hre.artifacts.readArtifact('contracts/compound/LErc20Delegator.sol:LErc20Delegator')
   // const factory = await ethers.getContractFactory('Token')
   return ethers.getContractAt(tokenArt.abi, addr, _signer ?? deployer)
+}
+
+// 计算 ctoken 地址
+export async function calcCTokenAddress(factory: string, token: string) {
+  const INIT_CODE_HASH = '0x71a762e9b044ae662a0d792ceaa9aaa4bf09c9ecdd90967035ae11e75f841390'
+
+  return getCreate2Address(
+    factory,
+    keccak256(['bytes'], [pack(['address'], [token])]),
+    INIT_CODE_HASH
+  )
+}
+
+export async function deployCTokens(factoryAddr: string, addresses: string[], deployer: any) {
+  let abi = await getAbiByContractName('LErc20DelegatorFactory')
+    , ctokenFactory = await ethers.getContractAt(abi, factoryAddr, deployer)
+
+  for (let addr of addresses) {
+    await ctokenFactory.getCTokenAddress(addr)
+  }
 }
 
 // 部署或查找合约, 返回合约地址
