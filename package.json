@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test:swap": "hardhat test test/swap.ts", 
+    "test:stable": "hardhat test test/stable.ts", 
     "test:all": "hardhat test",
     "test": "hardhat test",
     "clean": "hardhat clean",

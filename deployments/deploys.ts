@@ -2,7 +2,7 @@
 const hre = require('hardhat')
 const ethers = hre.ethers
 
-import { Contract, Signer } from 'ethers'
+import { BigNumber, Contract, Signer } from 'ethers'
 import { network } from 'hardhat'
 import sleep from '../utils/sleep'
 import { getCreate2Address } from '@ethersproject/address'
@@ -94,6 +94,65 @@ async function deployWHT(deployer: any, log: any, verify: any) {
   }
 
   return wht
+}
+
+interface StableToken {
+  decimals: number
+  totalSupply: number  // 总发行量 单位个 无精度
+  name: string
+}
+
+function decimalPrecsion(decimal: number) {
+  let precision = BigNumber.from('1')
+
+  for (let i = 0; i < decimal; i ++) {
+    precision = precision.mul(10)
+  }
+  return precision
+}
+
+function totalSupplyWithDecimals(token: StableToken) {
+  let precision = decimalPrecsion(token.decimals)
+
+  return precision.mul(token.totalSupply)
+}
+
+export async function deployStableCoin(factory: Contract, token: StableToken, deployer: any) {
+  return factory.deploy(token.name, token.name, totalSupplyWithDecimals(token), deployer, token.decimals)
+}
+
+export async function deployStablePair() {
+  const namedSigners = await ethers.getSigners()
+  const deployer = namedSigners[0].address
+
+  const factory = await ethers.getContractFactory('Token')
+  // const supply = BigNumber.from('100000000')
+  const tokens = {
+    USDT: { decimals: 6, totalSupply: 10000000, name: 'USDT' },
+    USDC: { decimals: 18, totalSupply: 10000000, name: 'USDC' },
+    DAI: { decimals: 18, totalSupply: 10000000, name: 'DAI' },
+  }
+
+  let usdt = await deployStableCoin(factory, tokens['USDT'], deployer) // factory.deploy(tokens['USDT'].name, tokens['USDT'].name, totalSupplyWithDecimals(tokens['USDT']), deployer, tokens['USDT'].decimals)
+  let dai = await deployStableCoin(factory, tokens['DAI'], deployer)  // factory.deploy(tokens['DAI'].name, tokens['DAI'].name, totalSupplyWithDecimals(tokens['DAI']), deployer, tokens['DAI'].decimals)
+
+  let stable = await _deploy('StablePair', {
+      from: deployer,
+      // tokenA tokenB A fee precision0, precision1
+      args: [usdt.address, dai.address, 800, 4000000, decimalPrecsion(tokens['USDT'].decimals), decimalPrecsion(tokens['DAI'].decimals)],
+      log: true
+    }, true)
+
+  const tokenArt = await hre.artifacts.readArtifact('contracts/common/Token.sol:Token')
+    , stableArt = await hre.artifacts.readArtifact('StablePair')
+  return {
+    usdt: usdt,
+    usdtC: await ethers.getContractAt(tokenArt.abi, usdt.address, deployer),
+    dai: dai,
+    daiC: await ethers.getContractAt(tokenArt.abi, dai.address, deployer),
+    stable: stable,
+    stableC: await ethers.getContractAt(stableArt.abi, stable.address, deployer),
+  }
 }
 
 // deploy: hardhat deploy 函数
@@ -197,6 +256,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   // mdexFactory 设置 router 地址
   const mdexFactoryCont = new ethers.Contract(mdexFactory.address, mdexFactory.abi, namedSigners[0])
   await mdexFactoryCont.setRouter(router.address)
+
   /////////////////////////////////////////////////////////////////////////////////////////////////////
   // deploy bank margin
   // 1. deploy margin goblin 每个交易对一个 goblin， MdxStrategyAddTwoSidesOptimal
@@ -283,6 +343,7 @@ export async function deployTokens(newly = false): Promise<Tokens> {
   console.log('deploy tokens to network:', hre.network.name)
 
   let address: Map<string, string> = new Map();
+  // todo 更新地址
   if (network === 'hecotest' && newly === false) {
     address.set('USDT', '0x129d417609e58760f5dC16b1fbA54c9CcF2116b6')
     address.set('SEA', '0xEe798D153F3de181dE16DedA318266EE8Ad56dEA')
@@ -300,7 +361,7 @@ export async function deployTokens(newly = false): Promise<Tokens> {
   const supply = '10000000000000000000000000000'
 
   for (let name of ['USDT', 'SEA', 'DOGE', 'SHIB']) {
-    let deployed = await factory.deploy(name, name, supply, deployer)
+    let deployed = await factory.deploy(name, name, supply, deployer, 18)
     address.set(name, deployed.address)
     console.log('deploy ERC20 token: %s %s', name, deployed.address)
     
