@@ -17,12 +17,12 @@ function getDeployedContractInfoByName(network: string, name: string) {
 // 根据 ContractAddrAbi 来构建 Contract
 export async function getContractAt(addrAbi: ContractAddrAbi): Promise<Contract> {
   const signer = await ethers.getSigners()
-  return await ethers.getContractAt(addrAbi.abi, addrAbi.address, signer[0])
+  return ethers.getContractAt(addrAbi.abi, addrAbi.address, signer[0])
 }
 
 export async function getContractBy(abi: any, addr: string): Promise<Contract> {
   const signer = await ethers.getSigners()
-  return await ethers.getContractAt(abi, addr, signer[0])
+  return ethers.getContractAt(abi, addr, signer[0])
 }
 
 export default {

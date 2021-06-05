@@ -63,6 +63,14 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
   }
 }
 
+// 部署 OrderBook
+export async function deployOrderBook(router: string, token0: string, token1: string, deployer: any, log: any, verify: any) {
+  return await _deploy('OrderBook', {
+      from: deployer,
+      args: [router, token0, token1, 0, 0],
+      log: log,
+    }, verify);
+}
 
 async function deployWHT(deployer: any, log: any, verify: any) {
   let wht: ContractAddrAbi = {address: '', abi: await getAbiByContractName('WHT')}
