@@ -121,3 +121,6 @@ deployments/artifacts/hardhat
 
 # Coverage report
 coverage.json
+
+# code counter
+.VSCodeCounter/
