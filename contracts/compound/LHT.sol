@@ -12,16 +12,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./CToken.sol";
+
+import "hardhat/console.sol";
+
+interface ILHT {
+    function mint() external payable;
+}
 
 /**
  * @title LendHub's LHT Contract
  * @notice CToken which wraps HT
  * @author LendHub
  */
-contract LHT is CToken {
+contract LHT is CToken, ILHT {
     /**
      * @notice Construct a new CEther money market
      * @param comptroller_ The address of the Comptroller
@@ -38,7 +44,7 @@ contract LHT is CToken {
                 string memory name_,
                 string memory symbol_,
                 uint8 decimals_,
-                address payable admin_) {
+                address payable admin_) public {
         // Creator of the contract is admin during initialization
         admin = msg.sender;
 
@@ -56,6 +62,7 @@ contract LHT is CToken {
      * @dev Reverts upon any failure
      */
     function mint() external payable {
+        console.log("mint LHT");
         (uint err,) = mintInternal(msg.value);
         requireNoError(err, "mint failed");
     }
@@ -124,15 +131,15 @@ contract LHT is CToken {
      * @notice Send Ether to CEther to mint
      */
     // function () external payable {
-    fallback() external payable {
+    function() external payable {
         (uint err,) = mintInternal(msg.value);
         requireNoError(err, "mint failed");
     }
 
-    receive() external payable {
-        (uint err,) = mintInternal(msg.value);
-        requireNoError(err, "mint failed");
-    }
+    // receive() external payable {
+    //     (uint err,) = mintInternal(msg.value);
+    //     requireNoError(err, "mint failed");
+    // }
     /*** Safe Token ***/
 
     /**
@@ -140,7 +147,7 @@ contract LHT is CToken {
      * @dev This excludes the value of the current message, if any
      * @return The quantity of Ether owned by this contract
      */
-    function getCashPrior() override internal view returns (uint) {
+    function getCashPrior() internal view returns (uint) {
         (MathError err, uint startingBalance) = subUInt(address(this).balance, msg.value);
         require(err == MathError.NO_ERROR);
         return startingBalance;
@@ -152,14 +159,14 @@ contract LHT is CToken {
      * @param amount Amount of Ether being sent
      * @return The actual amount of Ether transferred
      */
-    function doTransferIn(address from, uint amount) override internal returns (uint) {
+    function doTransferIn(address from, uint amount) internal returns (uint) {
         // Sanity checks
         require(msg.sender == from, "sender mismatch");
         require(msg.value == amount, "value mismatch");
         return amount;
     }
 
-    function doTransferOut(address payable to, uint amount) override internal {
+    function doTransferOut(address payable to, uint amount) internal {
         /* Send the Ether, with minimal gas and revert on failure */
         to.transfer(amount);
     }

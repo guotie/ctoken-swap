@@ -12,12 +12,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./ERC20.sol";
 
 contract Token is ERC20 {
-  constructor(string memory name_, string memory symbol_, uint totalSupply_, address holder_, uint8 decimals_) ERC20(name_, symbol_, decimals_) {
+  constructor(string memory name_, string memory symbol_, uint totalSupply_, address holder_, uint8 decimals_) ERC20(name_, symbol_, decimals_) public {
     // _setupDecimals(8);
     _mint(holder_, totalSupply_);
   }

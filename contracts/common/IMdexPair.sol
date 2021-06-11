@@ -11,9 +11,9 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
-interface IMdexPair {
+interface IDeBankPair {
     // event Approval(address indexed owner, address indexed spender, uint value);
     // event Transfer(address indexed from, address indexed to, uint value);
 

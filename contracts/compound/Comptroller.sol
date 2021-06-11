@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./CToken.sol";
 import "./ErrorReporter.sol";
@@ -96,7 +96,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
     // No collateralFactorMantissa may exceed this value
     uint internal constant collateralFactorMaxMantissa = 0.9e18; // 0.9
 
-    constructor() {
+    constructor() public {
         admin = msg.sender;
     }
 
@@ -128,7 +128,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param cTokens The list of addresses of the cToken markets to be enabled
      * @return Success indicator for whether each corresponding market was entered
      */
-    function enterMarkets(address[] memory cTokens) override public returns (uint[] memory) {
+    function enterMarkets(address[] memory cTokens) public returns (uint[] memory) {
         uint len = cTokens.length;
 
         uint[] memory results = new uint[](len);
@@ -180,7 +180,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param cTokenAddress The address of the asset to be removed
      * @return Whether or not the account successfully exited the market
      */
-    function exitMarket(address cTokenAddress) override external returns (uint) {
+    function exitMarket(address cTokenAddress) external returns (uint) {
         CToken cToken = CToken(cTokenAddress);
         /* Get sender tokensHeld and amountOwed underlying from the cToken */
         (uint oErr, uint tokensHeld, uint amountOwed, ) = cToken.getAccountSnapshot(msg.sender);
@@ -242,7 +242,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param mintAmount The amount of underlying being supplied to the market in exchange for tokens
      * @return 0 if the mint is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function mintAllowed(address cToken, address minter, uint mintAmount) override external returns (uint) {
+    function mintAllowed(address cToken, address minter, uint mintAmount) external returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!mintGuardianPaused[cToken], "mint is paused");
 
@@ -269,7 +269,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param actualMintAmount The amount of the underlying asset being minted
      * @param mintTokens The number of tokens being minted
      */
-    function mintVerify(address cToken, address minter, uint actualMintAmount, uint mintTokens) override external {
+    function mintVerify(address cToken, address minter, uint actualMintAmount, uint mintTokens) external {
         // Shh - currently unused
         cToken;
         minter;
@@ -289,7 +289,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param redeemTokens The number of cTokens to exchange for the underlying asset in the market
      * @return 0 if the redeem is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function redeemAllowed(address cToken, address redeemer, uint redeemTokens) override external returns (uint) {
+    function redeemAllowed(address cToken, address redeemer, uint redeemTokens) external returns (uint) {
         uint allowed = redeemAllowedInternal(cToken, redeemer, redeemTokens);
         if (allowed != uint(Error.NO_ERROR)) {
             return allowed;
@@ -331,7 +331,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param redeemAmount The amount of the underlying asset being redeemed
      * @param redeemTokens The number of tokens being redeemed
      */
-    function redeemVerify(address cToken, address redeemer, uint redeemAmount, uint redeemTokens) override external pure {
+    function redeemVerify(address cToken, address redeemer, uint redeemAmount, uint redeemTokens) external {
         // Shh - currently unused
         cToken;
         redeemer;
@@ -349,7 +349,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param borrowAmount The amount of underlying the account would borrow
      * @return 0 if the borrow is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function borrowAllowed(address cToken, address borrower, uint borrowAmount) override external returns (uint) {
+    function borrowAllowed(address cToken, address borrower, uint borrowAmount) external returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!borrowGuardianPaused[cToken], "borrow is paused");
 
@@ -406,7 +406,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param borrower The address borrowing the underlying
      * @param borrowAmount The amount of the underlying asset requested to borrow
      */
-    function borrowVerify(address cToken, address borrower, uint borrowAmount) override external {
+    function borrowVerify(address cToken, address borrower, uint borrowAmount) external {
         // Shh - currently unused
         cToken;
         borrower;
@@ -424,7 +424,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param borrowAmount The amount of underlying the account would borrow
      * @return 0 if the borrow is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function borrowMarginAllowed(address cToken, address borrower, uint borrowAmount) override external returns (uint) {
+    function borrowMarginAllowed(address cToken, address borrower, uint borrowAmount) external returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!borrowGuardianPaused[cToken], "borrow is paused");
 
@@ -489,7 +489,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         address cToken,
         address payer,
         address borrower,
-        uint repayAmount) override external returns (uint) {
+        uint repayAmount) external returns (uint) {
         // Shh - currently unused
         payer;
         borrower;
@@ -519,7 +519,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         address payer,
         address borrower,
         uint actualRepayAmount,
-        uint borrowerIndex) override external {
+        uint borrowerIndex) external {
         // Shh - currently unused
         cToken;
         payer;
@@ -546,7 +546,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         address cTokenCollateral,
         address liquidator,
         address borrower,
-        uint repayAmount) override external view returns (uint) {
+        uint repayAmount) external returns (uint) {
         // Shh - currently unused
         liquidator;
 
@@ -587,7 +587,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         address liquidator,
         address borrower,
         uint actualRepayAmount,
-        uint seizeTokens) override external {
+        uint seizeTokens) external {
         // Shh - currently unused
         cTokenBorrowed;
         cTokenCollateral;
@@ -615,7 +615,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         address cTokenBorrowed,
         address liquidator,
         address borrower,
-        uint seizeTokens) override external returns (uint) {
+        uint seizeTokens) external returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!seizeGuardianPaused, "seize is paused");
 
@@ -651,7 +651,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         address cTokenBorrowed,
         address liquidator,
         address borrower,
-        uint seizeTokens) override external {
+        uint seizeTokens) external {
         // Shh - currently unused
         cTokenCollateral;
         cTokenBorrowed;
@@ -673,7 +673,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param transferTokens The number of cTokens to transfer
      * @return 0 if the transfer is allowed, otherwise a semi-opaque error code (See ErrorReporter.sol)
      */
-    function transferAllowed(address cToken, address src, address dst, uint transferTokens) override external returns (uint) {
+    function transferAllowed(address cToken, address src, address dst, uint transferTokens) external returns (uint) {
         // Pausing is a very serious situation - we revert to sound the alarms
         require(!transferGuardianPaused, "transfer is paused");
 
@@ -699,7 +699,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param dst The account which receives the tokens
      * @param transferTokens The number of cTokens to transfer
      */
-    function transferVerify(address cToken, address src, address dst, uint transferTokens) override external {
+    function transferVerify(address cToken, address src, address dst, uint transferTokens) external {
         // Shh - currently unused
         cToken;
         src;
@@ -855,7 +855,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      */
     function liquidateCalculateSeizeTokens(address cTokenBorrowed,
                                             address cTokenCollateral,
-                                            uint actualRepayAmount) override external view returns (uint, uint) {
+                                            uint actualRepayAmount) external view returns (uint, uint) {
         /* Read oracle prices for borrowed and collateral markets */
         uint priceBorrowedMantissa = oracle.getUnderlyingPrice(CToken(cTokenBorrowed));
         uint priceCollateralMantissa = oracle.getUnderlyingPrice(CToken(cTokenCollateral));
@@ -998,7 +998,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
       * @param cToken The address of the market (token) to list
       * @return uint 0=success, otherwise a failure. (See enum Error for details)
       */
-    function _supportMarket(address cToken) external override returns (uint) {
+    function _supportMarket(address cToken) external returns (uint) {
         // if (msg.sender != admin) {
         //     console.log('msg.sender %s is not admin %s', msg.sender, admin);
         //     return fail(Error.UNAUTHORIZED, FailureInfo.SUPPORT_MARKET_OWNER_CHECK);
@@ -1471,7 +1471,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
      * @param token The address of the token to be query
      * @return The address of cToken
      */
-    function getCTokenAddress(address token) override public pure returns (address) {
+    function getCTokenAddress(address token) public view returns (address) {
         // todo
         token;
         return 0x8F67854497218043E1f72908FFE38D0Ed7F24721;

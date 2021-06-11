@@ -15,8 +15,8 @@ pragma solidity =0.7.6;
 
 import "../library/SafeMath.sol";
 import "../interface/IERC20.sol";
-import "../../common/IMdexFactory.sol";
-import "../../common/IMdexPair.sol";
+import "../../common/IDeBankFactory.sol";
+import "../../common/IDeBankPair.sol";
 
 import "../../common/LErc20DelegatorInterface.sol";
 import "../../common/CTokenInterfaces.sol";
@@ -151,7 +151,7 @@ contract MdexERC20 is IMdexERC20 {
     }
 }
 
-contract MdexPair is IMdexERC20, IMdexPair {
+contract MdexPair is IMdexERC20, IDeBankPair {
     using SafeMath  for uint;
     using UQ112x112 for uint224;
 
@@ -186,17 +186,17 @@ contract MdexPair is IMdexERC20, IMdexPair {
     }
     // using SafeMath for uint;
 
-    string public constant override(IMdexERC20, IMdexPair) name = 'LP Token';
-    string public constant override(IMdexERC20, IMdexPair) symbol = 'HMDX';
-    uint8 public constant override(IMdexERC20, IMdexPair) decimals = 18;
-    uint  public override(IMdexERC20, IMdexPair) totalSupply;
-    mapping(address => uint) public override(IMdexERC20, IMdexPair) balanceOf;
-    mapping(address => mapping(address => uint)) public override(IMdexERC20, IMdexPair) allowance;
+    string public constant override(IMdexERC20, IDeBankPair) name = 'LP Token';
+    string public constant override(IMdexERC20, IDeBankPair) symbol = 'HMDX';
+    uint8 public constant override(IMdexERC20, IDeBankPair) decimals = 18;
+    uint  public override(IMdexERC20, IDeBankPair) totalSupply;
+    mapping(address => uint) public override(IMdexERC20, IDeBankPair) balanceOf;
+    mapping(address => mapping(address => uint)) public override(IMdexERC20, IDeBankPair) allowance;
 
-    bytes32 public override(IMdexERC20, IMdexPair) DOMAIN_SEPARATOR;
+    bytes32 public override(IMdexERC20, IDeBankPair) DOMAIN_SEPARATOR;
     // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-    bytes32 public constant override(IMdexERC20, IMdexPair) PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
-    mapping(address => uint) public override(IMdexERC20, IMdexPair) nonces;
+    bytes32 public constant override(IMdexERC20, IDeBankPair) PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
+    mapping(address => uint) public override(IMdexERC20, IDeBankPair) nonces;
 
     // event Approval(address indexed owner, address indexed spender, uint value);
     // event Transfer(address indexed from, address indexed to, uint value);
@@ -241,17 +241,17 @@ contract MdexPair is IMdexERC20, IMdexPair {
         emit Transfer(from, to, value);
     }
 
-    function approve(address spender, uint value) override(IMdexERC20, IMdexPair) external returns (bool) {
+    function approve(address spender, uint value) override(IMdexERC20, IDeBankPair) external returns (bool) {
         _approve(msg.sender, spender, value);
         return true;
     }
 
-    function transfer(address to, uint value) override(IMdexERC20, IMdexPair) external returns (bool) {
+    function transfer(address to, uint value) override(IMdexERC20, IDeBankPair) external returns (bool) {
         _transfer(msg.sender, to, value);
         return true;
     }
 
-    function transferFrom(address from, address to, uint value) override(IMdexERC20, IMdexPair) external returns (bool) {
+    function transferFrom(address from, address to, uint value) override(IMdexERC20, IDeBankPair) external returns (bool) {
         if (allowance[from][msg.sender] != uint(- 1)) {
             allowance[from][msg.sender] = allowance[from][msg.sender].sub(value);
         }
@@ -260,7 +260,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
     }
 
     function permit(address owner, address spender, uint value, uint deadline,
-                    uint8 v, bytes32 r, bytes32 s) override(IMdexERC20, IMdexPair) external {
+                    uint8 v, bytes32 r, bytes32 s) override(IMdexERC20, IDeBankPair) external {
         require(deadline >= block.timestamp, 'Swap: EXPIRED');
         bytes32 digest = keccak256(
             abi.encodePacked(
@@ -362,7 +362,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
 
     // if fee is on, mint liquidity equivalent to 1/6th of the growth in sqrt(k)
     function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
-        address feeTo = IMdexFactory(factory).feeTo();
+        address feeTo = IDeBankFactory(factory).feeTo();
         feeOn = feeTo != address(0);
         uint _kLast = kLast;
         // gas savings
@@ -372,7 +372,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
                 uint rootKLast = SafeMath.sqrt(_kLast);
                 if (rootK > rootKLast) {
                     uint numerator = totalSupply.mul(rootK.sub(rootKLast));
-                    uint denominator = rootK.mul(IMdexFactory(factory).feeToRate()).add(rootKLast);
+                    uint denominator = rootK.mul(IDeBankFactory(factory).feeToRate()).add(rootKLast);
                     uint liquidity = numerator / denominator;
                     if (liquidity > 0) _mint(feeTo, liquidity);
                 }
@@ -764,7 +764,7 @@ contract MdexPair is IMdexERC20, IMdexPair {
     }
 }
 
-contract MdexFactory is IMdexFactory {
+contract MdexFactory is IDeBankFactory {
     using SafeMath for uint256;
     using SafeMath for uint;
     address public override feeTo;
@@ -809,11 +809,11 @@ contract MdexFactory is IMdexFactory {
         assembly {
             pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
-        IMdexPair(pair).initialize(token0, token1);
+        IDeBankPair(pair).initialize(token0, token1);
 
         // guotie
         // set compound ctoken address
-        IMdexPair(pair).initializeCTokenAddress(ctoken0, ctoken1);
+        IDeBankPair(pair).initializeCTokenAddress(ctoken0, ctoken1);
 
         getPair[token0][token1] = pair;
         getPair[token1][token0] = pair;
@@ -892,7 +892,7 @@ contract MdexFactory is IMdexFactory {
     // fetches and sorts the reserves for a pair
     function getReserves(address tokenA, address tokenB) public view override returns (uint reserveA, uint reserveB) {
         (address token0,) = sortTokens(tokenA, tokenB);
-        (uint reserve0, uint reserve1,) = IMdexPair(pairFor(tokenA, tokenB)).getReserves();
+        (uint reserve0, uint reserve1,) = IDeBankPair(pairFor(tokenA, tokenB)).getReserves();
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
     }
 

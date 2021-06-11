@@ -11,7 +11,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
@@ -36,7 +36,7 @@ contract Timelock {
     mapping(bytes32 => bool) public queuedTransactions;
 
 
-    constructor(address admin_, uint delay_) {
+    constructor(address admin_, uint delay_) public {
         require(delay_ >= MINIMUM_DELAY, "Timelock::constructor: Delay must exceed minimum delay.");
         require(delay_ <= MAXIMUM_DELAY, "Timelock::setDelay: Delay must not exceed maximum delay.");
 
@@ -44,7 +44,7 @@ contract Timelock {
         delay = delay_;
     }
 
-    receive() external payable {}
+    function() external payable {}
 
     function setDelay(uint delay_) public {
         require(msg.sender == address(this), "Timelock::setDelay: Call must come from Timelock.");
@@ -109,7 +109,7 @@ contract Timelock {
         }
 
         // solium-disable-next-line security/no-call-value
-        (bool success, bytes memory returnData) = target.call{value : value}(callData);
+        (bool success, bytes memory returnData) = target.call.value(value)(callData);
         require(success, "Timelock::executeTransaction: Transaction execution reverted.");
 
         emit ExecuteTransaction(txHash, target, value, signature, data, eta);

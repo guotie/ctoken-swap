@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "../interface/IERC20.sol";
 import "../library/SafeMath.sol";
 
-import "../../common/IMdexFactory.sol";
-import "../../common/IMdexPair.sol";
+import "../interface/IDeBankFactory.sol";
+import "../interface/IDeBankPair.sol";
 
 import "../interface/IMdx.sol";
 
@@ -34,7 +34,7 @@ contract SwapMining is Ownable {
     // router address
     address public router;
     // factory address
-    IMdexFactory public factory;
+    IDeBankFactory public factory;
     // mdx token address
     IMdx public mdx;
     // Calculate price based on HUSD
@@ -44,13 +44,13 @@ contract SwapMining is Ownable {
 
     constructor(
         IMdx _mdx,
-        IMdexFactory _factory,
+        IDeBankFactory _factory,
         IOracle _oracle,
         address _router,
         address _targetToken,
         uint256 _mdxPerBlock,
         uint256 _startBlock
-    ) {
+    ) public {
         mdx = _mdx;
         factory = _factory;
         oracle = _oracle;
@@ -137,7 +137,7 @@ contract SwapMining is Ownable {
 
     function getWhitelist(uint256 _index) public view returns (address){
         require(_index <= getWhitelistLength() - 1, "SwapMining: index out of bounds");
-        return EnumerableSet.at(_whitelist, _index);
+        return EnumerableSet.get(_whitelist, _index);
     }
 
     function setHalvingPeriod(uint256 _block) public onlyOwner {
@@ -237,7 +237,7 @@ contract SwapMining is Ownable {
             return false;
         }
 
-        address pair = IMdexFactory(factory).pairFor(input, output);
+        address pair = IDeBankFactory(factory).pairFor(input, output);
 
         PoolInfo storage pool = poolInfo[pairOfPid[pair]];
         // If it does not exist or the allocPoint is 0 then return
@@ -303,8 +303,8 @@ contract SwapMining is Ownable {
     function getPoolInfo(uint256 _pid) public view returns (address, address, uint256, uint256, uint256, uint256){
         require(_pid <= poolInfo.length - 1, "SwapMining: Not find this pool");
         PoolInfo memory pool = poolInfo[_pid];
-        address token0 = IMdexPair(pool.pair).token0();
-        address token1 = IMdexPair(pool.pair).token1();
+        address token0 = IDeBankPair(pool.pair).token0();
+        address token1 = IDeBankPair(pool.pair).token1();
         uint256 mdxAmount = pool.allocMdxAmount;
         uint256 blockReward = getMdxReward(pool.lastRewardBlock);
         uint256 mdxReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
@@ -322,13 +322,13 @@ contract SwapMining is Ownable {
         uint256 quantity = 0;
         if (outputToken == anchorToken) {
             quantity = outputAmount;
-        } else if (IMdexFactory(factory).getPair(outputToken, anchorToken) != address(0)) {
+        } else if (IDeBankFactory(factory).getPair(outputToken, anchorToken) != address(0)) {
             quantity = IOracle(oracle).consult(outputToken, outputAmount, anchorToken);
         } else {
             uint256 length = getWhitelistLength();
             for (uint256 index = 0; index < length; index++) {
                 address intermediate = getWhitelist(index);
-                if (IMdexFactory(factory).getPair(outputToken, intermediate) != address(0) && IMdexFactory(factory).getPair(intermediate, anchorToken) != address(0)) {
+                if (IDeBankFactory(factory).getPair(outputToken, intermediate) != address(0) && IDeBankFactory(factory).getPair(intermediate, anchorToken) != address(0)) {
                     uint256 interQuantity = IOracle(oracle).consult(outputToken, outputAmount, intermediate);
                     quantity = IOracle(oracle).consult(intermediate, interQuantity, anchorToken);
                     break;

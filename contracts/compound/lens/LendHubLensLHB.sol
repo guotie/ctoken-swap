@@ -12,9 +12,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
-// pragma experimental ABIEncoderV2;
-pragma abicoder v2;
+pragma solidity ^0.5.16;
+pragma experimental ABIEncoderV2;
+// pragma abicoder v2;
 
 import "../LErc20.sol";
 import "../CToken.sol";

@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./CToken.sol";
 import "./PriceOracle.sol";
@@ -150,11 +150,11 @@ contract ComptrollerV4Storage is ComptrollerV3Storage {
     mapping(address => uint) public borrowCaps;
 }
 
-struct Position {
-    address owner;
-    uint256 productionId;  // lend 池中的代币 CToken
-    uint256 debtShare;
-}
+// struct Position {
+//     address owner;
+//     uint256 productionId;  // lend 池中的代币 CToken
+//     uint256 debtShare;
+// }
 
 contract ComptrollerV5Storage is ComptrollerV4Storage {
     address public marginLP;    // 杠杆 LP 地址

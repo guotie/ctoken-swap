@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "../common/CTokenInterfaces.sol";
 
@@ -71,7 +71,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param allowResign Flag to indicate whether to call _resignImplementation on the old implementation
      * @param becomeImplementationData The encoded bytes data to be passed to _becomeImplementation
      */
-    function _setImplementation(address implementation_, bool allowResign, bytes memory becomeImplementationData) override public {
+    function _setImplementation(address implementation_, bool allowResign, bytes memory becomeImplementationData) public {
         require(msg.sender == admin, "CErc20Delegator::_setImplementation: Caller must be admin");
 
         if (allowResign) {
@@ -92,7 +92,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param mintAmount The amount of the underlying asset to supply
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function mint(uint mintAmount) override external returns (uint) {
+    function mint(uint mintAmount) external returns (uint) {
         mintAmount; // Shh
         delegateAndReturn();
     }
@@ -103,7 +103,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param redeemTokens The number of cTokens to redeem into underlying
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeem(uint redeemTokens) override external returns (uint) {
+    function redeem(uint redeemTokens) external returns (uint) {
         redeemTokens; // Shh
         delegateAndReturn();
     }
@@ -114,7 +114,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param redeemAmount The amount of underlying to redeem
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeemUnderlying(uint redeemAmount) override external returns (uint) {
+    function redeemUnderlying(uint redeemAmount) external returns (uint) {
         redeemAmount; // Shh
         delegateAndReturn();
     }
@@ -124,18 +124,18 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrow(uint borrowAmount) override external returns (uint) {
+    function borrow(uint borrowAmount) external returns (uint) {
         borrowAmount; // Shh
         delegateAndReturn();
     }
 
-    function borrowLPMargin(address borrower, uint borrowAmount) override external returns (uint) {
+    function borrowLPMargin(address borrower, uint borrowAmount) external returns (uint) {
         borrower;
         borrowAmount; // Shh
         delegateAndReturn();
     }
 
-    function borrowSwapMargin(address borrower, uint borrowAmount) override external returns (uint) {
+    function borrowSwapMargin(address borrower, uint borrowAmount) external returns (uint) {
         borrower;
         borrowAmount; // Shh
         delegateAndReturn();
@@ -145,7 +145,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param repayAmount The amount to repay
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function repayBorrow(uint repayAmount) override external returns (uint) {
+    function repayBorrow(uint repayAmount) external returns (uint) {
         repayAmount; // Shh
         delegateAndReturn();
     }
@@ -156,7 +156,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param repayAmount The amount to repay
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function repayBorrowBehalf(address borrower, uint repayAmount) override external returns (uint) {
+    function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint) {
         borrower; repayAmount; // Shh
         delegateAndReturn();
     }
@@ -170,7 +170,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
     function liquidateBorrow(address borrower, uint repayAmount,
-                        CTokenInterface cTokenCollateral) override external returns (uint) {
+                        CTokenInterface cTokenCollateral) external returns (uint) {
         borrower; repayAmount; cTokenCollateral; // Shh
         delegateAndReturn();
     }
@@ -181,7 +181,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param amount The number of tokens to transfer
      * @return Whether or not the transfer succeeded
      */
-    function transfer(address dst, uint amount) override external returns (bool) {
+    function transfer(address dst, uint amount) external returns (bool) {
         dst; amount; // Shh
         delegateAndReturn();
     }
@@ -193,7 +193,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param amount The number of tokens to transfer
      * @return Whether or not the transfer succeeded
      */
-    function transferFrom(address src, address dst, uint256 amount) override external returns (bool) {
+    function transferFrom(address src, address dst, uint256 amount) external returns (bool) {
         src; dst; amount; // Shh
         delegateAndReturn();
     }
@@ -206,7 +206,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param amount The number of tokens that are approved (-1 means infinite)
      * @return Whether or not the approval succeeded
      */
-    function approve(address spender, uint256 amount) override external returns (bool) {
+    function approve(address spender, uint256 amount) external returns (bool) {
         spender; amount; // Shh
         delegateAndReturn();
     }
@@ -217,7 +217,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param spender The address of the account which may transfer tokens
      * @return The number of tokens allowed to be spent (-1 means infinite)
      */
-    function allowance(address owner, address spender) override external view returns (uint) {
+    function allowance(address owner, address spender) external view returns (uint) {
         owner; spender; // Shh
         delegateToViewAndReturn();
     }
@@ -227,7 +227,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param owner The address of the account to query
      * @return The number of tokens owned by `owner`
      */
-    function balanceOf(address owner) override external view returns (uint) {
+    function balanceOf(address owner) external view returns (uint) {
         owner; // Shh
         delegateToViewAndReturn();
     }
@@ -238,7 +238,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param owner The address of the account to query
      * @return The amount of underlying owned by `owner`
      */
-    function balanceOfUnderlying(address owner) override external returns (uint) {
+    function balanceOfUnderlying(address owner) external returns (uint) {
         owner; // Shh
         delegateAndReturn();
     }
@@ -249,7 +249,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param account Address of the account to snapshot
      * @return (possible error, token balance, borrow balance, exchange rate mantissa)
      */
-    function getAccountSnapshot(address account) override external view returns (uint, uint, uint, uint) {
+    function getAccountSnapshot(address account) external view returns (uint, uint, uint, uint) {
         account; // Shh
         delegateToViewAndReturn();
     }
@@ -258,7 +258,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @notice Returns the current per-block borrow interest rate for this cToken
      * @return The borrow interest rate per block, scaled by 1e18
      */
-    function borrowRatePerBlock() override external view returns (uint) {
+    function borrowRatePerBlock() external view returns (uint) {
         delegateToViewAndReturn();
     }
 
@@ -266,7 +266,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @notice Returns the current per-block supply interest rate for this cToken
      * @return The supply interest rate per block, scaled by 1e18
      */
-    function supplyRatePerBlock() override external view returns (uint) {
+    function supplyRatePerBlock() external view returns (uint) {
         delegateToViewAndReturn();
     }
 
@@ -274,7 +274,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @notice Returns the current total borrows plus accrued interest
      * @return The total borrows with interest
      */
-    function totalBorrowsCurrent() override external returns (uint) {
+    function totalBorrowsCurrent() external returns (uint) {
         delegateAndReturn();
     }
 
@@ -283,7 +283,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param account The address whose balance should be calculated after updating borrowIndex
      * @return The calculated balance
      */
-    function borrowBalanceCurrent(address account) override external returns (uint) {
+    function borrowBalanceCurrent(address account) external returns (uint) {
         account; // Shh
         delegateAndReturn();
     }
@@ -293,7 +293,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param account The address whose balance should be calculated
      * @return The calculated balance
      */
-    function borrowBalanceStored(address account) override public view returns (uint) {
+    function borrowBalanceStored(address account) public view returns (uint) {
         account; // Shh
         delegateToViewAndReturn();
     }
@@ -302,7 +302,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @notice Accrue interest then return the up-to-date exchange rate
      * @return Calculated exchange rate scaled by 1e18
      */
-    function exchangeRateCurrent() override public returns (uint) {
+    function exchangeRateCurrent() public returns (uint) {
         delegateAndReturn();
     }
 
@@ -311,7 +311,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @dev This function does not accrue interest before calculating the exchange rate
      * @return Calculated exchange rate scaled by 1e18
      */
-    function exchangeRateStored() override public view returns (uint) {
+    function exchangeRateStored() public view returns (uint) {
         delegateToViewAndReturn();
     }
 
@@ -319,7 +319,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @notice Get cash balance of this cToken in the underlying asset
      * @return The quantity of underlying asset owned by this contract
      */
-    function getCash() override external view returns (uint) {
+    function getCash() external view returns (uint) {
         delegateToViewAndReturn();
     }
 
@@ -328,7 +328,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
       * @dev This calculates interest accrued from the last checkpointed block
       *      up to the current block and writes new checkpoint to storage.
       */
-    function accrueInterest() override public returns (uint) {
+    function accrueInterest() public returns (uint) {
         delegateAndReturn();
     }
 
@@ -341,7 +341,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param seizeTokens The number of cTokens to seize
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function seize(address liquidator, address borrower, uint seizeTokens) override external returns (uint) {
+    function seize(address liquidator, address borrower, uint seizeTokens) external returns (uint) {
         liquidator; borrower; seizeTokens; // Shh
         delegateAndReturn();
     }
@@ -354,7 +354,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
       * @param newPendingAdmin New pending admin.
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _setPendingAdmin(address payable newPendingAdmin) override external returns (uint) {
+    function _setPendingAdmin(address payable newPendingAdmin) external returns (uint) {
         newPendingAdmin; // Shh
         delegateAndReturn();
     }
@@ -364,7 +364,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
       * @dev Admin function to set a new comptroller
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _setComptroller(ComptrollerInterface newComptroller) override public returns (uint) {
+    function _setComptroller(ComptrollerInterface newComptroller) public returns (uint) {
         newComptroller; // Shh
         delegateAndReturn();
     }
@@ -374,7 +374,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
       * @dev Admin function to accrue interest and set a new reserve factor
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _setReserveFactor(uint newReserveFactorMantissa) override external returns (uint) {
+    function _setReserveFactor(uint newReserveFactorMantissa) external returns (uint) {
         newReserveFactorMantissa; // Shh
         delegateAndReturn();
     }
@@ -384,7 +384,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
       * @dev Admin function for pending admin to accept role and update admin
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function _acceptAdmin() override external returns (uint) {
+    function _acceptAdmin() external returns (uint) {
         delegateAndReturn();
     }
 
@@ -393,7 +393,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param addAmount Amount of reserves to add
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function _addReserves(uint addAmount) override external returns (uint) {
+    function _addReserves(uint addAmount) external returns (uint) {
         addAmount; // Shh
         delegateAndReturn();
     }
@@ -403,7 +403,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param reduceAmount Amount of reduction to reserves
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function _reduceReserves(uint reduceAmount) override external returns (uint) {
+    function _reduceReserves(uint reduceAmount) external returns (uint) {
         reduceAmount; // Shh
         delegateAndReturn();
     }
@@ -414,7 +414,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param newInterestRateModel the new interest rate model to use
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function _setInterestRateModel(InterestRateModel newInterestRateModel) override public returns (uint) {
+    function _setInterestRateModel(InterestRateModel newInterestRateModel) public returns (uint) {
         newInterestRateModel; // Shh
         delegateAndReturn();
     }
@@ -494,16 +494,16 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @dev It returns to the external caller whatever the implementation returns or forwards reverts
      */
     // function () external payable {
-    fallback () external payable {
+    function () external payable {
         require(msg.value == 0, "LErc20Delegator:fallback: cannot send value to fallback");
 
         // delegate all other functions to current implementation
         delegateAndReturn();
     }
-    receive () external payable {
-        require(msg.value == 0, "LErc20Delegator:receive: cannot send value to receive");
+    // receive () external payable {
+    //     require(msg.value == 0, "LErc20Delegator:receive: cannot send value to receive");
 
-        // delegate all other functions to current implementation
-        // delegateAndReturn();
-    }
+    //     // delegate all other functions to current implementation
+    //     // delegateAndReturn();
+    // }
 }

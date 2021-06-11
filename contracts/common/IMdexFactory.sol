@@ -11,11 +11,11 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./LErc20DelegatorInterface.sol";
 
-interface IMdexFactory {
+interface IDeBankFactory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
     function feeTo() external view returns (address);

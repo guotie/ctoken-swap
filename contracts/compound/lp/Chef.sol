@@ -12,13 +12,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "../Governance/LendHub.sol";
 
 //
@@ -79,7 +79,7 @@ contract Chef is Ownable {
         LendHub _lhb,
         uint256 _lhbPerBlock,
         uint256 _startBlock
-    ) {
+    ) public {
         lhb = _lhb;
         lhbPerBlock = _lhbPerBlock;
         startBlock = _startBlock;

@@ -12,9 +12,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
-// pragma experimental ABIEncoderV2;
-pragma abicoder v2;
+pragma solidity ^0.5.16;
+pragma experimental ABIEncoderV2;
+// pragma abicoder v2;
 
 contract LendHub {
     /// @notice EIP-20 token name for this token
@@ -75,7 +75,7 @@ contract LendHub {
      * @notice Construct a new LendHub token
      * @param account The initial account to grant all the tokens
      */
-    constructor(address account) {
+    constructor(address account) public {
         balances[account] = uint96(totalSupply);
         emit Transfer(address(0), account, totalSupply);
     }

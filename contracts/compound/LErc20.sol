@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./CToken.sol";
 
@@ -54,7 +54,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @param mintAmount The amount of the underlying asset to supply
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function mint(uint mintAmount) override external returns (uint) {
+    function mint(uint mintAmount) external returns (uint) {
         (uint err,) = mintInternal(mintAmount);
         return err;
     }
@@ -65,7 +65,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @param redeemTokens The number of cTokens to redeem into underlying
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeem(uint redeemTokens) override external returns (uint) {
+    function redeem(uint redeemTokens) external returns (uint) {
         return redeemInternal(redeemTokens);
     }
 
@@ -75,7 +75,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @param redeemAmount The amount of underlying to redeem
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeemUnderlying(uint redeemAmount) override external returns (uint) {
+    function redeemUnderlying(uint redeemAmount) external returns (uint) {
         return redeemUnderlyingInternal(redeemAmount);
     }
 
@@ -84,7 +84,7 @@ contract LErc20 is CToken, CErc20Interface {
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrow(uint borrowAmount) override external returns (uint) {
+    function borrow(uint borrowAmount) external returns (uint) {
         return borrowInternal(borrowAmount);
     }
 
@@ -93,7 +93,7 @@ contract LErc20 is CToken, CErc20Interface {
      *          只能由 marignLP 合约调用
      *  @param borrowAmount 要借贷的数量
      */
-    function borrowLPMargin(address borrower, uint borrowAmount) override external returns (uint) {
+    function borrowLPMargin(address borrower, uint borrowAmount) external returns (uint) {
         // todo
         return 0;
     }
@@ -103,7 +103,7 @@ contract LErc20 is CToken, CErc20Interface {
      *          只能由 marignSWAP 合约调用
      *  @param borrowAmount 要借贷的数量
      */
-    function borrowSwapMargin(address borrower, uint borrowAmount) override external returns (uint) {
+    function borrowSwapMargin(address borrower, uint borrowAmount) external returns (uint) {
         return 0;
     }
 
@@ -112,7 +112,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @param repayAmount The amount to repay
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function repayBorrow(uint repayAmount) override external returns (uint) {
+    function repayBorrow(uint repayAmount) external returns (uint) {
         (uint err,) = repayBorrowInternal(repayAmount);
         return err;
     }
@@ -123,7 +123,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @param repayAmount The amount to repay
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function repayBorrowBehalf(address borrower, uint repayAmount) override external returns (uint) {
+    function repayBorrowBehalf(address borrower, uint repayAmount) external returns (uint) {
         (uint err,) = repayBorrowBehalfInternal(borrower, repayAmount);
         return err;
     }
@@ -138,7 +138,7 @@ contract LErc20 is CToken, CErc20Interface {
      */
     function liquidateBorrow(address borrower,
                         uint repayAmount,
-                        CTokenInterface cTokenCollateral) override external returns (uint) {
+                        CTokenInterface cTokenCollateral) external returns (uint) {
         (uint err,) = liquidateBorrowInternal(borrower, repayAmount, cTokenCollateral);
         return err;
     }
@@ -148,7 +148,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @param addAmount The amount fo underlying token to add as reserves
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function _addReserves(uint addAmount) override external returns (uint) {
+    function _addReserves(uint addAmount) external returns (uint) {
         return _addReservesInternal(addAmount);
     }
 
@@ -159,7 +159,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @dev This excludes the value of the current message, if any
      * @return The quantity of underlying tokens owned by this contract
      */
-    function getCashPrior() override internal view returns (uint) {
+    function getCashPrior() internal view returns (uint) {
         EIP20Interface token = EIP20Interface(underlying);
         return token.balanceOf(address(this));
     }
@@ -173,7 +173,7 @@ contract LErc20 is CToken, CErc20Interface {
      *      Note: This wrapper safely handles non-standard ERC-20 tokens that do not return a value.
      *            See here: https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca
      */
-    function doTransferIn(address from, uint amount) override internal returns (uint) {
+    function doTransferIn(address from, uint amount) internal returns (uint) {
         EIP20NonStandardInterface token = EIP20NonStandardInterface(underlying);
         uint balanceBefore = EIP20Interface(underlying).balanceOf(address(this));
         console.log('balanceBefore:', balanceBefore);
@@ -213,7 +213,7 @@ contract LErc20 is CToken, CErc20Interface {
      *      Note: This wrapper safely handles non-standard ERC-20 tokens that do not return a value.
      *            See here: https://medium.com/coinmonks/missing-return-value-bug-at-least-130-tokens-affected-d67bf08521ca
      */
-    function doTransferOut(address payable to, uint amount) override internal {
+    function doTransferOut(address payable to, uint amount) internal {
         EIP20NonStandardInterface token = EIP20NonStandardInterface(underlying);
         token.transfer(to, amount);
 

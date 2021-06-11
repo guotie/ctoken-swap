@@ -7,6 +7,8 @@ import { network } from 'hardhat'
 import sleep from '../utils/sleep'
 import { getCreate2Address } from '@ethersproject/address'
 import { pack, keccak256 } from '@ethersproject/solidity'
+import { assert } from 'console'
+// import { getContract } from 'hardhat-deploy-ethers/dist/src/helpers'
 
 export interface DeployParams {
   log?: boolean
@@ -36,6 +38,9 @@ export interface DeployContracts {
   router: ContractAddrAbi
 }
 
+// wETH 的地址
+let wETH: Contract;
+
 async function getAbiByContractName(name: string) {
   const art = await hre.artifacts.readArtifact(name)
   return art.abi
@@ -49,12 +54,17 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
     // newlyDeployed 是否是新部署
     if (network.name === 'hecotest' && verify && c.newlyDeployed) {
       // do verify
-      // 先等一会 否则有可能在链上还看不到合约地址
-      await sleep(6000)
-      await hre.run('verify:verify', {
-        address: c.address,
-        constructorArguments: opts.args
-      })
+        try {
+            // 先等一会 否则有可能在链上还看不到合约地址
+            console.log('verify %s at %s:', name, c.address)
+            await sleep(6500)
+            await hre.run('verify:verify', {
+              address: c.address,
+              constructorArguments: opts.args
+            })
+        } catch (err) {
+            console.log('verify failed')
+        }
     }
 
     return c
@@ -65,14 +75,14 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
 
 // 部署 OrderBook
 export async function deployOrderBook(router: string, token0: string, token1: string, deployer: any, log: any, verify: any) {
-  return await _deploy('OrderBook', {
+  return _deploy('OrderBook', {
       from: deployer,
       args: [router, token0, token1, 0, 0],
       log: log,
     }, verify);
 }
 
-async function deployWHT(deployer: any, log: any, verify: any) {
+export async function deployWHT(deployer: any, log: any, verify: any) {
   let wht: ContractAddrAbi = {address: '', abi: await getAbiByContractName('WHT')}
 
   switch (network.name) {
@@ -97,10 +107,10 @@ async function deployWHT(deployer: any, log: any, verify: any) {
 
     default:
       // heco mainnet
-      console.warn('network name:', network.name)
       wht.address = '0x5545153CCFcA01fbd7Dd11C0b23ba694D9509A6F'
   }
 
+  console.warn('network name: %s wht address: %s', network.name, wht.address)
   return wht
 }
 
@@ -239,6 +249,11 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   }, verify);
 
   let wht = await deployWHT(deployer, log, verify)
+  wETH = new ethers.Contract(wht.address, wht.abi, namedSigners[0])
+
+  // 设置 wht lht 对应关系
+  const cf = await ethers.getContractAt(lercFactoryDeployed.abi, lercFactoryDeployed.address, namedSigners[0])
+  await cf.addNewCToken(wht.address, lht.address)
 
   if (opts.addresses) {
     await deployCTokens(lercFactoryDeployed.address, opts.addresses, deployer)
@@ -247,14 +262,15 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   // mdex pair
   const anchorToken = opts.anchorToken ?? '0x04F535663110A392A6504839BEeD34E019FdB4E0'
   console.log('mdex anchor token:', anchorToken)
-  const mdexFactory = await _deploy('MdexFactory', {
+  const mdexFactory = await _deploy('DeBankFactory', {
     from: deployer,
     // 10% 60% 稳定币 usdt 地址
-    args: [namedSigners[0].address, lercFactoryDeployed.address, anchorToken],
+    args: [lercFactoryDeployed.address, anchorToken],
+    // args: [namedSigners[0].address, lercFactoryDeployed.address, anchorToken],
     log: log,
   }, verify);
 
-  const router = await _deploy('MdexRouter', {
+  const router = await _deploy('DeBankRouter', {
     from: deployer,
     // factory wht lht startBlock
     args: [mdexFactory.address, wht.address, lht.address, 0],
@@ -282,6 +298,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     console.log('deploy mdexFactory at: ', mdexFactory.address)
     console.log('deploy lerc20Implement at: ', lerc20Implement.address)
     console.log('deploy lerc20DelegatorFactory at: ', lercFactoryDeployed.address)
+    console.log('deploy CETH at: ', lht.address)
     console.log('deploy router at: ', router.address)
   }
 
@@ -290,12 +307,12 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     unitroller: { address: uni.address, abi: await getAbiByContractName('Unitroller') },
     interest: { address: interest.address, abi: await getAbiByContractName('WhitePaperInterestRateModel') },
     priceOracle: { address: priceOrace.address, abi: await getAbiByContractName('SimplePriceOracle') },
-    mdexFactory: { address: mdexFactory.address, abi: await getAbiByContractName('MdexFactory') },
+    mdexFactory: { address: mdexFactory.address, abi: await getAbiByContractName('DeBankFactory') },
     lErc20Delegate: { address: lerc20Implement.address, abi: await getAbiByContractName('LErc20Delegate') },
     WHT: wht,
     cWHT: { address: lht.address, abi: await getAbiByContractName('LHT')},
     lErc20DelegatorFactory: { address: lercFactoryDeployed.address, abi: await getAbiByContractName('LErc20DelegatorFactory') },
-    router: { address: router.address, abi: await getAbiByContractName('MdexRouter') },
+    router: { address: router.address, abi: await getAbiByContractName('DeBankRouter') },
   }
 }
 
@@ -307,6 +324,13 @@ export interface Tokens {
 
 // 获取 usdt sea doge 的合约
 export async function getTokenContract(addr: string, _signer?: Signer) {
+    assert(wETH !== undefined, "wETH not initialized")
+
+    if (addr === wETH.address) {
+      console.log('return wht token !!!')
+      return wETH
+    }
+
   const signer = await ethers.getSigners()
   const deployer = signer[0].address
   const tokenArt = await hre.artifacts.readArtifact('contracts/common/Token.sol:Token')
@@ -346,14 +370,14 @@ export async function deployCTokens(factoryAddr: string, addresses: string[], de
 // 部署或查找合约, 返回合约地址
 export async function deployTokens(newly = false): Promise<Tokens> {
   // contract info not exist
-  const network = hre.network.name
+  // const network = hre.network.name
   const tokenArt = await hre.artifacts.readArtifact('contracts/common/Token.sol:Token')
   console.log('deploy tokens to network:', hre.network.name)
 
   let address: Map<string, string> = new Map();
   // todo 更新地址
-  if (network === 'hecotest' && newly === false) {
-    address.set('USDT', '0x129d417609e58760f5dC16b1fbA54c9CcF2116b6')
+  if (network.name === 'hecotest' && newly === false) {
+    address.set('USDT', '0x04F535663110A392A6504839BEeD34E019FdB4E0')
     address.set('SEA', '0xEe798D153F3de181dE16DedA318266EE8Ad56dEA')
     address.set('DOGE', '0xA323120A386558ac95203019881C739D3c0A1346')
     address.set('SHIB', '0xf2b80eff2A06f46cA839CA77cCaf32aa820e78D1')
@@ -373,7 +397,7 @@ export async function deployTokens(newly = false): Promise<Tokens> {
     address.set(name, deployed.address)
     console.log('deploy ERC20 token: %s %s', name, deployed.address)
     
-    if (network === 'hecotest') {
+    if (network.name === 'hecotest') {
       await sleep(6000)
       await hre.run("verify:verify", {
         address: deployed.address,

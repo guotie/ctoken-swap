@@ -11,7 +11,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import '@openzeppelin/contracts/math/SafeMath.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
@@ -42,7 +42,7 @@ contract TeamTimeLock {
         uint _startTime,
         uint _delay,
         string memory _introduce
-    ) {
+    ) public {
         require(_beneficiary != address(0) && _token != address(0), "TimeLock: zero address");
         require(_fixedQuantity > 0, "TimeLock: fixedQuantity is zero");
         beneficiary = _beneficiary;

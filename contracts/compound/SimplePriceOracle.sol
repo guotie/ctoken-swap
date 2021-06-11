@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./PriceOracle.sol";
 import "./LErc20.sol";
@@ -25,12 +25,12 @@ contract SimplePriceOracle is PriceOracle {
     address admin;
     event PricePosted(address asset, uint previousPriceMantissa, uint requestedPriceMantissa, uint newPriceMantissa);
 
-    constructor(string memory symbol) {
+    constructor(string memory symbol) public {
         admin = msg.sender;
         baseSymbol = symbol;
     }
 
-    function getUnderlyingPrice(CToken cToken) override public view returns (uint) {
+    function getUnderlyingPrice(CToken cToken) public view returns (uint) {
         if (compareStrings(cToken.symbol(), baseSymbol)) {
             return baseTokenPrice;
         } else {

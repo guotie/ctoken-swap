@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./LErc20.sol";
 
@@ -40,7 +40,7 @@ contract LErc20Immutable is LErc20 {
                 string memory name_,
                 string memory symbol_,
                 uint8 decimals_,
-                address payable admin_) {
+                address payable admin_) public {
         // Creator of the contract is admin during initialization
         admin = msg.sender;
 

@@ -12,11 +12,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./CToken.sol";
 
-abstract contract PriceOracle {
+contract PriceOracle {
     /// @notice Indicator that this is a PriceOracle contract (for inspection)
     bool public constant isPriceOracle = true;
 
@@ -26,5 +26,5 @@ abstract contract PriceOracle {
       * @return The underlying asset price mantissa (scaled by 1e18).
       *  Zero means the price is unavailable.
       */
-    function getUnderlyingPrice(CToken cToken) virtual external view returns (uint);
+    function getUnderlyingPrice(CToken cToken) external view returns (uint);
 }

@@ -11,9 +11,9 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
-interface IMdexRouter {
+interface IDeBankRouter {
     function factory() external view returns (address);
 
     function WHT() external view returns (address);
@@ -41,7 +41,7 @@ interface IMdexRouter {
         uint deadline
     ) external returns (uint amountA, uint amountB, uint liquidity);
 
-    function addLiquidityETH(
+    function addLiquidityETHUnderlying(
         address token,
         uint amountTokenDesired,
         uint amountTokenMin,
@@ -60,7 +60,17 @@ interface IMdexRouter {
         uint deadline
     ) external returns (uint amountA, uint amountB);
 
-    function removeLiquidityETH(
+    function removeLiquidityUnderlying(
+        address tokenA,
+        address tokenB,
+        uint liquidity,
+        uint amountAMin,
+        uint amountBMin,
+        address to,
+        uint deadline
+    ) external returns (uint amountA, uint amountB);
+
+    function removeLiquidityETHUnderlying(
         address token,
         uint liquidity,
         uint amountTokenMin,
@@ -80,7 +90,7 @@ interface IMdexRouter {
         bool approveMax, uint8 v, bytes32 r, bytes32 s
     ) external returns (uint amountA, uint amountB);
 
-    function removeLiquidityETHWithPermit(
+    function removeLiquidityETHUnderlyingWithPermit(
         address token,
         uint liquidity,
         uint amountTokenMin,
@@ -134,45 +144,45 @@ interface IMdexRouter {
 
     function getAmountsIn(uint256 amountOut, address[] calldata path) external view returns (uint256[] memory amounts);
 
-    function removeLiquidityETHSupportingFeeOnTransferTokens(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline
-    ) external returns (uint amountETH);
+    // function removeLiquidityETHSupportingFeeOnTransferTokens(
+    //     address token,
+    //     uint liquidity,
+    //     uint amountTokenMin,
+    //     uint amountETHMin,
+    //     address to,
+    //     uint deadline
+    // ) external returns (uint amountETH);
 
-    function removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(
-        address token,
-        uint liquidity,
-        uint amountTokenMin,
-        uint amountETHMin,
-        address to,
-        uint deadline,
-        bool approveMax, uint8 v, bytes32 r, bytes32 s
-    ) external returns (uint amountETH);
+    // function removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(
+    //     address token,
+    //     uint liquidity,
+    //     uint amountTokenMin,
+    //     uint amountETHMin,
+    //     address to,
+    //     uint deadline,
+    //     bool approveMax, uint8 v, bytes32 r, bytes32 s
+    // ) external returns (uint amountETH);
 
-    function swapExactTokensForTokensSupportingFeeOnTransferTokens(
-        uint amountIn,
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external;
+    // function swapExactTokensForTokensSupportingFeeOnTransferTokens(
+    //     uint amountIn,
+    //     uint amountOutMin,
+    //     address[] calldata path,
+    //     address to,
+    //     uint deadline
+    // ) external;
 
-    function swapExactETHForTokensSupportingFeeOnTransferTokens(
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external payable;
+    // function swapExactETHForTokensSupportingFeeOnTransferTokens(
+    //     uint amountOutMin,
+    //     address[] calldata path,
+    //     address to,
+    //     uint deadline
+    // ) external payable;
 
-    function swapExactTokensForETHSupportingFeeOnTransferTokens(
-        uint amountIn,
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external;
+    // function swapExactTokensForETHSupportingFeeOnTransferTokens(
+    //     uint amountIn,
+    //     uint amountOutMin,
+    //     address[] calldata path,
+    //     address to,
+    //     uint deadline
+    // ) external;
 }

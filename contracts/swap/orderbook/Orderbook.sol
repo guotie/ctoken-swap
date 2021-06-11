@@ -11,9 +11,9 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "../interface/IERC20.sol";
 
@@ -60,7 +60,7 @@ contract OrderBook is Ownable {
   // uint public bestSellPrice;   // 最低卖价
   // uint public bestBuyPrice;    // 最高买价
 
-  constructor(address _router, address _token0, address _token1, uint _minBuyAmt, uint _minSellAmt) {
+  constructor(address _router, address _token0, address _token1, uint _minBuyAmt, uint _minSellAmt) public {
     router = _router;
     token0 = IERC20(_token0);
     token1 = IERC20(_token1);
@@ -74,7 +74,7 @@ contract OrderBook is Ownable {
     _;
   }
 
-  function _putOrder(uint direction, uint price, uint amount, uint itemId, address to) internal {
+  function _putOrder(uint direction, uint price, uint amount, uint _itemId, address to) internal {
     // PriceOrders storage priceOrders;
 
     // if (direction == 0) {
@@ -83,22 +83,25 @@ contract OrderBook is Ownable {
     //   priceOrders = sellOrders[price];
     // }
 
-    OrderItem storage item;
+    // OrderItem storage item;
     address token;
 
     if (direction == 0) {
       // 挂买单
-      item = buyOrders[itemId];
+      OrderItem storage item = buyOrders[_itemId];
       token = address(token1);
+      item.owner = to;
+      item.price = price;
+      item.amount = amount;
     } else {
-      item = sellOrders[itemId];
+      OrderItem storage item = sellOrders[_itemId];
       token = address(token0);
+      item.owner = to;
+      item.price = price;
+      item.amount = amount;
     }
-    item.owner = to;
-    item.price = price;
-    item.amount = amount;
     
-    emit CreateOrder(to, token, itemId, price, amount);
+    emit CreateOrder(to, token, _itemId, price, amount);
     // item.itemId = itemId;
     // item.prev = 0;     // 链表前一个
     // item.next = 0;     // 链表后一个
@@ -151,27 +154,27 @@ contract OrderBook is Ownable {
   // }
 
   // todo 增加参数 address to, 该参数通过 router 合约传入， 并验证 to == item.owner 
-  function cancelOrder(uint direction, uint itemId, address to) public onlyRouter {
+  function cancelOrder(uint direction, uint _itemId, address to) public onlyRouter {
 
     if (direction == 0) {
       // 买单
-      OrderItem memory item = buyOrders[itemId];
+      OrderItem memory item = buyOrders[_itemId];
       if (item.amount > 0) {
         require(item.owner == to, "not permit");
         // transfer to msg.sender
         console.log("balance: ", token1.balanceOf(address(this)), item.amount);
         IERC20(token1).transfer(item.owner, item.amount);
       }
-      delete buyOrders[itemId];
+      delete buyOrders[_itemId];
     } else {
       // 卖单
-      OrderItem memory item = sellOrders[itemId];
+      OrderItem memory item = sellOrders[_itemId];
       if (item.amount > 0) {
         require(item.owner == to, "not permit");
         // transfer to msg.sender
         IERC20(token0).transfer(item.owner, item.amount);
       }
-      delete sellOrders[itemId];
+      delete sellOrders[_itemId];
     }
 
     // bool empty = _removeOrderItem(priceOrders, price, itemId);
@@ -202,9 +205,9 @@ contract OrderBook is Ownable {
       // 买入 操作的是 sellOrders
       console.log("dir = 0, buy order");
       for (uint i = 0; amount > 0 && i < items.length; i ++) {
-        uint itemId = items[i];
-        OrderItem storage item = sellOrders[itemId];
-        console.log(itemId, item.price, item.amount);
+        uint _itemId = items[i];
+        OrderItem storage item = sellOrders[_itemId];
+        console.log(_itemId, item.price, item.amount);
         if (item.amount > 0) {
           uint money = item.amount.mul(item.price).div(priceRatio);
           console.log("amount: %d money: %d", amount, money);
@@ -218,7 +221,7 @@ contract OrderBook is Ownable {
               // transfer to order book owner
             IERC20(token1).transfer(item.owner, money);
             
-            delete sellOrders[itemId];
+            delete sellOrders[_itemId];
           } else {
             uint amt0 = amount * priceRatio / item.price;
             total += amt0;
@@ -230,7 +233,7 @@ contract OrderBook is Ownable {
           }
         } else {
           //
-          delete sellOrders[itemId];
+          delete sellOrders[_itemId];
         }
       }
       if (total > 0) {
@@ -241,8 +244,8 @@ contract OrderBook is Ownable {
       // 卖出 操作的是 buyOrders
       for (uint i = 0; amount > 0 && i < items.length; i ++) {
         //
-        uint itemId = items[i];
-        OrderItem storage item = buyOrders[itemId];
+        uint _itemId = items[i];
+        OrderItem storage item = buyOrders[_itemId];
         if (item.amount > 0) {
           uint q = item.amount * priceRatio / item.price;
           if (amount >= q) {
@@ -250,7 +253,7 @@ contract OrderBook is Ownable {
             amount -= q;
             total = total + amt1;
             IERC20(token0).transfer(item.owner, q);
-            delete buyOrders[itemId];
+            delete buyOrders[_itemId];
           } else {
             uint amt1 = amount * item.price / priceRatio;
             total += amt1;
@@ -259,7 +262,7 @@ contract OrderBook is Ownable {
             break;
           }
         } else {
-          delete buyOrders[itemId];
+          delete buyOrders[_itemId];
         }
       }
       if (total > 0) {

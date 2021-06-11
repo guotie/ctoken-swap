@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "../common/LErc20DelegatorInterface.sol";
 import "./LErc20Delegator.sol";
@@ -15,7 +15,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     /**
      * @notice Construct
      */
-    constructor(address _implementation, address comptroller_, address intersetRateModel) {
+    constructor(address _implementation, address comptroller_, address intersetRateModel) public {
         // Creator of the contract is admin during initialization
         admin_ = msg.sender;
         comptroller = ComptrollerInterface(comptroller_);
@@ -44,7 +44,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
      mapping (address => address) public cTokenKeyMapping;
     
     //根据 'token' 获得 'cToken'
-    function getCTokenAddress(address token) override external returns (address cToken){
+    function getCTokenAddress(address token) external returns (address cToken){
         //判断调用方这是否是swap pair 地址
         cToken =  tokenKeyMapping[token];
         //判断comptroller 中有没有 ctoken,有的话直接返回
@@ -57,11 +57,11 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     }
     
     // 只读 如果不存在 返回 0
-    function getCTokenAddressPure(address token) override external view returns (address) {
+    function getCTokenAddressPure(address token) external view returns (address) {
         return tokenKeyMapping[token];
     }
 
-    function getTokenAddress(address cToken) override external view returns (address) {
+    function getTokenAddress(address cToken) external view returns (address) {
         return cTokenKeyMapping[cToken];
     }
     
@@ -99,7 +99,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     }
     
     //像comportable 添加新币 对应关系
-    function addNewCToken(address token,address cToken) private returns (uint){
+    function addNewCToken(address token,address cToken) public returns (uint){
         //包含两个币互相对应关系
         tokenKeyMapping[token] = cToken;
         cTokenKeyMapping[cToken] = token;

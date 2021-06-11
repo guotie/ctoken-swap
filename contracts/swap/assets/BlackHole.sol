@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 // This is a black hole contract address
 // no one can transfer MDX from the contract

@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "../common/InterestRateModel.sol";
 import "./SafeMath.sol";
@@ -47,7 +47,7 @@ contract WhitePaperInterestRateModel is InterestRateModel {
      * @param baseRatePerYear The approximate target base APR, as a mantissa (scaled by 1e18)
      * @param multiplierPerYear The rate of increase in interest rate wrt utilization (scaled by 1e18)
      */
-    constructor(uint baseRatePerYear, uint multiplierPerYear) {
+    constructor(uint baseRatePerYear, uint multiplierPerYear) public {
         baseRatePerBlock = baseRatePerYear.div(blocksPerYear);
         multiplierPerBlock = multiplierPerYear.div(blocksPerYear);
 
@@ -77,7 +77,7 @@ contract WhitePaperInterestRateModel is InterestRateModel {
      * @param reserves The amount of reserves in the market
      * @return The borrow rate percentage per block as a mantissa (scaled by 1e18)
      */
-    function getBorrowRate(uint cash, uint borrows, uint reserves) override public view returns (uint) {
+    function getBorrowRate(uint cash, uint borrows, uint reserves) public view returns (uint) {
         uint ur = utilizationRate(cash, borrows, reserves);
         return ur.mul(multiplierPerBlock).div(1e18).add(baseRatePerBlock);
     }
@@ -91,7 +91,7 @@ contract WhitePaperInterestRateModel is InterestRateModel {
      * @return The supply rate percentage per block as a mantissa (scaled by 1e18)
      */
     function getSupplyRate(uint cash, uint borrows,
-                        uint reserves, uint reserveFactorMantissa) override public view returns (uint) {
+                        uint reserves, uint reserveFactorMantissa) public view returns (uint) {
         uint oneMinusReserveFactor = uint(1e18).sub(reserveFactorMantissa);
         uint borrowRate = getBorrowRate(cash, borrows, reserves);
         uint rateToPool = borrowRate.mul(oneMinusReserveFactor).div(1e18);

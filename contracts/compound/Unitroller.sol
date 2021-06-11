@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 import "./ErrorReporter.sol";
 import "./ComptrollerStorage.sol";
@@ -43,7 +43,7 @@ contract Unitroller is UnitrollerAdminStorage, ComptrollerErrorReporter {
       */
     event NewAdmin(address oldAdmin, address newAdmin);
 
-    constructor() {
+    constructor() public {
         // Set admin to caller
         admin = msg.sender;
     }
@@ -147,7 +147,7 @@ contract Unitroller is UnitrollerAdminStorage, ComptrollerErrorReporter {
      * or forwards reverts.
      */
     // function () payable external {
-    fallback() external payable {
+    function() external payable {
         // delegate all other functions to current implementation
         (bool success, ) = comptrollerImplementation.delegatecall(msg.data);
 
@@ -160,17 +160,17 @@ contract Unitroller is UnitrollerAdminStorage, ComptrollerErrorReporter {
               default { return(free_mem_ptr, returndatasize()) }
         }
     }
-    receive() external payable {
-        // delegate all other functions to current implementation
-        (bool success, ) = comptrollerImplementation.delegatecall(msg.data);
+    // receive() external payable {
+    //     // delegate all other functions to current implementation
+    //     (bool success, ) = comptrollerImplementation.delegatecall(msg.data);
 
-        assembly {
-              let free_mem_ptr := mload(0x40)
-              returndatacopy(free_mem_ptr, 0, returndatasize())
+    //     assembly {
+    //           let free_mem_ptr := mload(0x40)
+    //           returndatacopy(free_mem_ptr, 0, returndatasize())
 
-              switch success
-              case 0 { revert(free_mem_ptr, returndatasize()) }
-              default { return(free_mem_ptr, returndatasize()) }
-        }
-    }
+    //           switch success
+    //           case 0 { revert(free_mem_ptr, returndatasize()) }
+    //           default { return(free_mem_ptr, returndatasize()) }
+    //     }
+    // }
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -75,7 +75,7 @@ contract HecoPool is Ownable {
         IMdx _mdx,
         uint256 _mdxPerBlock,
         uint256 _startBlock
-    ) {
+    ) public {
         mdx = _mdx;
         mdxPerBlock = _mdxPerBlock;
         startBlock = _startBlock;
@@ -111,7 +111,7 @@ contract HecoPool is Ownable {
 
     function getMultLPAddress(uint256 _pid) public view returns (address){
         require(_pid <= getMultLPLength() - 1, "not find this multLP");
-        return EnumerableSet.at(_multLP, _pid);
+        return EnumerableSet.get(_multLP, _pid);
     }
 
     function setPause() public onlyOwner {
@@ -131,7 +131,7 @@ contract HecoPool is Ownable {
         multLpChef = _multLpChef;
         uint256 length = getMultLPLength();
         while (length > 0) {
-            address dAddress = EnumerableSet.at(_multLP, 0);
+            address dAddress = EnumerableSet.get(_multLP, 0);
             uint256 pid = LpOfPid[dAddress];
             IMasterChefHeco(multLpChef).emergencyWithdraw(poolCorrespond[pid]);
             EnumerableSet.remove(_multLP, dAddress);

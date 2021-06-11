@@ -12,9 +12,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
-// pragma experimental ABIEncoderV2;
-pragma abicoder v2;
+pragma solidity ^0.5.16;
+pragma experimental ABIEncoderV2;
+// pragma abicoder v2;
 
 contract GovernorAlpha {
     /// @notice The name of this contract
@@ -142,7 +142,7 @@ contract GovernorAlpha {
     /// @notice An event emitted when a proposal has been executed in the Timelock
     event ProposalExecuted(uint id);
 
-    constructor(address timelock_, address comp_, address guardian_) {
+    constructor(address timelock_, address comp_, address guardian_) public {
         timelock = TimelockInterface(timelock_);
         comp = CompInterface(comp_);
         guardian = guardian_;
@@ -224,7 +224,7 @@ contract GovernorAlpha {
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
         for (uint i = 0; i < proposal.targets.length; i++) {
-            timelock.executeTransaction{value: proposal.values[i]}(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
+            timelock.executeTransaction.value(proposal.values[i])(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
         }
         emit ProposalExecuted(proposalId);
     }

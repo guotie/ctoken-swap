@@ -12,7 +12,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 /**
  * @title Reservoir Contract
@@ -43,7 +43,7 @@ contract Reservoir {
     * @param token_ The token to drip
     * @param target_ The recipient of dripped tokens
     */
-  constructor(uint dripRate_, EIP20Interface token_, address target_) {
+  constructor(uint dripRate_, EIP20Interface token_, address target_) public {
     dripStart = block.number;
     dripRate = dripRate_;
     token = token_;

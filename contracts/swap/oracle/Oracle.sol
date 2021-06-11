@@ -11,12 +11,12 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
-import "../../common/IMdexFactory.sol";
-import "../../common/IMdexPair.sol";
+import "../interface/IDeBankFactory.sol";
+import "../interface/IDeBankPair.sol";
 
-import "../../common/libraries/FixedPoint.sol";
+import "../library/FixedPoint.sol";
 
 library SafeMath {
     function add(uint x, uint y) internal pure returns (uint z) {
@@ -102,11 +102,11 @@ library MdexOracleLibrary {
         address pair
     ) internal view returns (uint price0Cumulative, uint price1Cumulative, uint32 blockTimestamp) {
         blockTimestamp = currentBlockTimestamp();
-        price0Cumulative = IMdexPair(pair).price0CumulativeLast();
-        price1Cumulative = IMdexPair(pair).price1CumulativeLast();
+        price0Cumulative = IDeBankPair(pair).price0CumulativeLast();
+        price1Cumulative = IDeBankPair(pair).price1CumulativeLast();
 
         // if time has elapsed since the last update on the pair, mock the accumulated price values
-        (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast) = IMdexPair(pair).getReserves();
+        (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast) = IDeBankPair(pair).getReserves();
         if (blockTimestampLast != blockTimestamp) {
             // subtraction overflow is desired
             uint32 timeElapsed = blockTimestamp - blockTimestampLast;
@@ -129,19 +129,19 @@ contract Oracle {
         uint price1Cumulative;
     }
 
-    address public immutable factory;
+    address public factory;
     uint public constant CYCLE = 30 minutes;
 
     // mapping from pair address to a list of price observations of that pair
     mapping(address => Observation) public pairObservations;
 
-    constructor(address factory_) {
+    constructor(address factory_) public {
         factory = factory_;
     }
 
 
     function update(address tokenA, address tokenB) external {
-        address pair = IMdexFactory(factory).pairFor(tokenA, tokenB);
+        address pair = IDeBankFactory(factory).pairFor(tokenA, tokenB);
 
         Observation storage observation = pairObservations[pair];
         uint timeElapsed = block.timestamp - observation.timestamp;
@@ -166,11 +166,11 @@ contract Oracle {
 
 
     function consult(address tokenIn, uint amountIn, address tokenOut) external view returns (uint amountOut) {
-        address pair = IMdexFactory(factory).pairFor(tokenIn, tokenOut);
+        address pair = IDeBankFactory(factory).pairFor(tokenIn, tokenOut);
         Observation storage observation = pairObservations[pair];
         uint timeElapsed = block.timestamp - observation.timestamp;
         (uint price0Cumulative, uint price1Cumulative,) = MdexOracleLibrary.currentCumulativePrices(pair);
-        (address token0,) = IMdexFactory(factory).sortTokens(tokenIn, tokenOut);
+        (address token0,) = IDeBankFactory(factory).sortTokens(tokenIn, tokenOut);
 
         if (token0 == tokenIn) {
             return computeAmountOut(observation.price0Cumulative, price0Cumulative, timeElapsed, amountIn);

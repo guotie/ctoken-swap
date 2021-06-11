@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
-import "../../common/IMdexPair.sol";
+import "../interface/IDeBankPair.sol";
 
 contract Repurchase is Ownable {
     using SafeMath for uint256;
@@ -23,7 +23,7 @@ contract Repurchase is Ownable {
     address public emergencyAddress;
     uint256 public amountIn;
 
-    constructor (uint256 _amount, address _emergencyAddress) {
+    constructor (uint256 _amount, address _emergencyAddress) public {
         require(_amount > 0, "Amount must be greater than zero");
         require(_emergencyAddress != address(0), "Is zero address");
         amountIn = _amount;
@@ -59,16 +59,16 @@ contract Repurchase is Ownable {
 
     function getCaller(uint256 _index) public view returns (address){
         require(_index <= getCallerLength() - 1, "index out of bounds");
-        return EnumerableSet.at(_caller, _index);
+        return EnumerableSet.get(_caller, _index);
     }
 
     function swap() external onlyCaller returns (uint256 amountOut){
         require(IERC20(USDT).balanceOf(address(this)) >= amountIn, "Insufficient contract balance");
-        (uint256 reserve0, uint256 reserve1,) = IMdexPair(MDX_USDT).getReserves();
+        (uint256 reserve0, uint256 reserve1,) = IDeBankPair(MDX_USDT).getReserves();
         uint256 amountInWithFee = amountIn.mul(997);
         amountOut = amountIn.mul(997).mul(reserve0) / reserve1.mul(1000).add(amountInWithFee);
         IERC20(USDT).safeTransfer(MDX_USDT, amountIn);
-        IMdexPair(MDX_USDT).swap(amountOut, 0, destroyAddress, new bytes(0));
+        IDeBankPair(MDX_USDT).swap(amountOut, 0, destroyAddress, new bytes(0));
     }
 
     modifier onlyCaller() {

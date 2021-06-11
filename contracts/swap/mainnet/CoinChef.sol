@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -70,7 +70,7 @@ contract CoinChef is Ownable {
     constructor(
         IMdx _mdx,
         uint256 _startBlock
-    ) {
+    ) public {
         mdx = _mdx;
         startBlock = _startBlock;
         endBlock = _startBlock.add(200000);
@@ -96,7 +96,7 @@ contract CoinChef is Ownable {
 
     function getSushiLPAddress(uint256 _pid) public view returns (address){
         require(_pid <= getSushiLPLength() - 1, "not find this SushiLP");
-        return EnumerableSet.at(_sushiLP, _pid);
+        return EnumerableSet.get(_sushiLP, _pid);
     }
 
     // Add a new lp to the pool. Can only be called by the owner.

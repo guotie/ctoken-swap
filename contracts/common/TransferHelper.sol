@@ -11,7 +11,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 
 
 // helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false
@@ -35,7 +35,7 @@ library TransferHelper {
     }
 
     function safeTransferETH(address to, uint value) internal {
-        (bool success,) = to.call{value : value}(new bytes(0));
+        (bool success,) = to.call.value(value)(new bytes(0));
         require(success, 'TransferHelper: ETH_TRANSFER_FAILED');
     }
 }

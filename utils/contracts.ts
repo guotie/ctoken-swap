@@ -25,6 +25,13 @@ export async function getContractBy(abi: any, addr: string): Promise<Contract> {
   return ethers.getContractAt(abi, addr, signer[0])
 }
 
+export async function getContractByNameAddr(name: string, addr: string): Promise<Contract> {
+  const signer = await ethers.getSigners()
+  const network = hre.network.name
+  const info = getDeployedContractInfoByName(network, name)
+  return ethers.getContractAt(info.abi, addr, signer[0])
+}
+
 export default {
   getDeployedContractInfoByName,
 }

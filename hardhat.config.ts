@@ -171,9 +171,9 @@ export default {
       // 'contracts/compound/dao/Dao.sol': {
       //   version: '0.7.2',
       // },
-      '@openzeppelin/contracts/*/*': {
-        version: '0.7.2',
-      },
+      // '@openzeppelin/contracts/*/*': {
+      //   version: '0.7.2',
+      // },
     },
   },
   tenderly: {

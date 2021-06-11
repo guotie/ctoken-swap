@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.7.6;
+pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+// import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./ERC20.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
-abstract contract DelegateERC20 is ERC20 {
+contract DelegateERC20 is ERC20 {
     using SafeMath for uint256;
     // @notice A record of each accounts delegate
     mapping (address => address) internal _delegates;
 
+    string private _name;
     /// @notice A checkpoint for marking number of votes from a given block
     struct Checkpoint {
         uint32 fromBlock;
@@ -34,7 +36,7 @@ abstract contract DelegateERC20 is ERC20 {
 
 
     // support delegates mint
-    function _mint(address account, uint256 amount) internal override virtual {
+    function _mint(address account, uint256 amount) internal {
         super._mint(account, amount);
 
         // add delegates to the minter
@@ -42,7 +44,7 @@ abstract contract DelegateERC20 is ERC20 {
     }
 
 
-    function _transfer(address sender, address recipient, uint256 amount) internal override virtual {
+    function _transfer(address sender, address recipient, uint256 amount) internal {
         super._transfer(sender, recipient, amount);
         _moveDelegates(_delegates[sender], _delegates[recipient], amount);
     }
@@ -248,7 +250,7 @@ contract MdxToken is DelegateERC20, Ownable {
     using EnumerableSet for EnumerableSet.AddressSet;
     EnumerableSet.AddressSet private _minters;
 
-    constructor() ERC20("MDX Token", "MDX"){
+    constructor() ERC20("MDX Token", "MDX") public {
         _mint(msg.sender, preMineSupply);
     }
 
@@ -281,7 +283,7 @@ contract MdxToken is DelegateERC20, Ownable {
 
     function getMinter(uint256 _index) public view onlyOwner returns (address){
         require(_index <= getMinterLength() - 1, "MdxToken: index out of bounds");
-        return EnumerableSet.at(_minters, _index);
+        return EnumerableSet.get(_minters, _index);
     }
 
     // modifier for mint function
