@@ -41,7 +41,7 @@ export interface DeployContracts {
 // wETH 的地址
 let wETH: Contract;
 
-async function getAbiByContractName(name: string) {
+export async function getAbiByContractName(name: string) {
   const art = await hre.artifacts.readArtifact(name)
   return art.abi
 }
@@ -82,7 +82,14 @@ export async function deployOrderBook(router: string, token0: string, token1: st
     }, verify);
 }
 
-export async function deployWHT(deployer: any, log: any, verify: any) {
+export async function deployWHT(signer: any, log: boolean, verify: boolean): Promise<Contract> {
+    let dr = await _deployWHT(signer.address, log, verify)
+
+    wETH = new ethers.Contract(dr.address, dr.abi, signer)
+    return wETH
+}
+
+export async function _deployWHT(deployer: any, log: any, verify: any): Promise<ContractAddrAbi> {
   let wht: ContractAddrAbi = {address: '', abi: await getAbiByContractName('WHT')}
 
   switch (network.name) {
@@ -248,7 +255,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     log: log,
   }, verify);
 
-  let wht = await deployWHT(deployer, log, verify)
+  let wht = await _deployWHT(deployer, log, verify)
   wETH = new ethers.Contract(wht.address, wht.abi, namedSigners[0])
 
   // 设置 wht lht 对应关系
@@ -320,6 +327,10 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
 export interface Tokens {
   addresses: Map<string, string>
   abi: any
+}
+
+export function setWEth(c: Contract) {
+  wETH = c
 }
 
 // 获取 usdt sea doge 的合约

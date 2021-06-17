@@ -1,22 +1,10 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.6.12;
 
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-pragma solidity ^0.5.16;
-
-import "@openzeppelin/contracts/math/Math.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../UniversalERC20.sol";
+import "./Math.sol";
+import "./SafeMath.sol";
+import "./IERC20.sol";
+import "./UniERC20.sol";
 
 
 interface IUniswapV2Exchange {
@@ -30,7 +18,7 @@ interface IUniswapV2Exchange {
 library UniswapV2ExchangeLib {
     using Math for uint256;
     using SafeMath for uint256;
-    using UniversalERC20 for IERC20;
+    using UniERC20 for IERC20;
 
     function getReturn(
         IUniswapV2Exchange exchange,
@@ -38,8 +26,8 @@ library UniswapV2ExchangeLib {
         IERC20 destToken,
         uint amountIn
     ) internal view returns (uint256 result, bool needSync, bool needSkim) {
-        uint256 reserveIn = fromToken.universalBalanceOf(address(exchange));
-        uint256 reserveOut = destToken.universalBalanceOf(address(exchange));
+        uint256 reserveIn = fromToken.uniBalanceOf(address(exchange));
+        uint256 reserveOut = destToken.uniBalanceOf(address(exchange));
         (uint112 reserve0, uint112 reserve1,) = exchange.getReserves();
         if (fromToken > destToken) {
             (reserve0, reserve1) = (reserve1, reserve0);
