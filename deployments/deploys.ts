@@ -63,7 +63,7 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
               constructorArguments: opts.args
             })
         } catch (err) {
-            console.log('verify failed')
+            console.log('verify failed', err)
         }
     }
 

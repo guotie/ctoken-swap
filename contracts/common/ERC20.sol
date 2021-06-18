@@ -6,7 +6,7 @@ import "./Context.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
@@ -134,7 +134,7 @@ contract ERC20 is Context, IERC20 {
      * - `spender` cannot be the zero address.
      */
     function approve(address spender, uint256 amount) public returns (bool) {
-        console.log('approve msg.sender: %s', _msgSender());
+        // console.log('approve msg.sender: %s', _msgSender());
         _approve(_msgSender(), spender, amount);
         return true;
     }

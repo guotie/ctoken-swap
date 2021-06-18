@@ -36,7 +36,7 @@ describe("ctoken router 测试", function() {
   let cWHT: string
   let cwhtCT: Contract
   let wht: Contract
-  const skipDeploy = true;  // 如果合约没有发生改变，不需要重新部署, 节省测试时间
+  const skipDeploy = false;  // 如果合约没有发生改变，不需要重新部署, 节省测试时间
   const logHr = (s: string) => console.log('--------------------------  ' + s + '  --------------------------')
 
   // e18 是 18位数
@@ -87,8 +87,8 @@ describe("ctoken router 测试", function() {
       // create pair
       await createPair(usdt, sea)
       await createPair(doge, sea)
-      const whtInfo = await deployWHT(deployer, true, true)
-      wht = await getContractAt(whtInfo)
+      wht = await deployWHT(namedSigners[0], true, true)
+      // wht = await getContractAt(whtInfo)
 
       return
     }
@@ -514,7 +514,7 @@ describe("ctoken router 测试", function() {
     await printBalance('after swapTokensForExactTokens ctoken', ctoken0, ctoken1, pairCT.address, deployer);
   }
 
-  /*
+  
   // 将字符串转换为 BigNumebr
   const humanAmount = (amt: string, token = '') => {
 
@@ -541,7 +541,7 @@ describe("ctoken router 测试", function() {
     await swapBurnCToken(cusdt, csea,   null, true)
     // await swapBurnCToken(usdt, sea,   null, false)
   })
-  */
+  
 
   it('router-addETHLiquidity', async () => {
     logHr('addETHLiquidity')

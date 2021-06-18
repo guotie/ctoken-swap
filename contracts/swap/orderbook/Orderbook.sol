@@ -20,53 +20,69 @@ import "../interface/IERC20.sol";
 import "hardhat/console.sol";
 
 contract OrderBook is Ownable {
-  event CreateOrder(address indexed owner, address indexed token, uint itemId, uint price, uint amount);
+  event CreateOrder(address indexed owner,
+          address indexed srcToken,
+          address indexed destToken,
+          uint orderId,
+          uint amountIn,
+          uint minAmountOut,
+          uint flag);
+
+  event FulFilOrder(address indexed maker,
+          address indexed taker,
+          uint orderId,
+          uint amt,
+          uint amtOut,
+          uint remaining);
+
+  event CancelOrder(address indexed owner, uint orderId);
 
   using SafeMath for uint;
   using SafeMath for uint256;
 
   struct OrderItem {
+    uint orderId;
+    address srcToken;
+    address destToken;
     address owner;
-    uint price;
-    uint amount;
-    // 通过
-    // uint next;
-    // uint prev;
-    // uint itemId;
+    address to;
+    uint amountIn;
+    uint minAmountOut;
+    uint timestamp;
+    uint flag;
   }
-
-  // struct PriceOrders {
-  //   uint firstItemId;
-  //   uint lastItemId;
-  //   mapping(uint => OrderItem) orders;  // key: itemId
-  // }
 
   // 计算价格的乘数 price = token0 * priceRatio / token1, such as 1e30
   uint public priceRatio = 1e30; 
 
   uint public itemId;
-  mapping(uint => OrderItem) public buyOrders;
-  mapping(uint => OrderItem) public sellOrders;
 
-  IERC20 public token0;
-  IERC20 public token1;
-
+  // 关闭订单薄功能
+  bool public closed;
   address public router;
+  address public wETH;
+  address public ctokenFactory;
+  address public marginAddr;
 
   uint public minBuyAmt;
   uint public minSellAmt;
   uint public feeRate = 30; // 千分之三
 
+    // token 最低挂单量
+    mapping(address => uint) minAmounts;
+
+    // orders
+    mapping (uint256 => OrderItem) public orders;
+    mapping (address => uint256[]) public addressOrders;
+    mapping (address => uint256[]) public pairOrders;
   // uint public bestSellPrice;   // 最低卖价
   // uint public bestBuyPrice;    // 最高买价
 
-  constructor(address _router, address _token0, address _token1, uint _minBuyAmt, uint _minSellAmt) public {
+  constructor(address _router, address _ctokenFactory, address _wETH, address _margin) public {
     router = _router;
-    token0 = IERC20(_token0);
-    token1 = IERC20(_token1);
-
-    minBuyAmt = _minBuyAmt;
-    minSellAmt = _minSellAmt;
+    wETH = _wETH;
+    ctokenFactory = _ctokenFactory;
+    marginAddr = _margin;
   }
 
   modifier onlyRouter() {
@@ -74,7 +90,24 @@ contract OrderBook is Ownable {
     _;
   }
 
-  function _putOrder(uint direction, uint price, uint amount, uint _itemId, address to) internal {
+  function closeOrderBook() external onlyOwner {
+      closed = true;
+  }
+
+  function openOrderBook() external onlyOwner {
+    closed = false;
+  }
+
+  function setMinOrderAmount(address token, uint amt) external onlyOwner {
+    minAmounts[token] = amt;
+  }
+
+
+  function closeOrder(uint orderId) public {
+    OrderItem memory order = orders[orderId];
+  }
+
+  function _putOrder(uint direction, uint amount, uint minOutAmt, uint _itemId, address to) internal {
     // PriceOrders storage priceOrders;
 
     // if (direction == 0) {
@@ -91,38 +124,24 @@ contract OrderBook is Ownable {
       OrderItem storage item = buyOrders[_itemId];
       token = address(token1);
       item.owner = to;
-      item.price = price;
+      // item.price = price;
       item.amount = amount;
     } else {
       OrderItem storage item = sellOrders[_itemId];
       token = address(token0);
       item.owner = to;
-      item.price = price;
+      // item.price = price;
       item.amount = amount;
     }
     
-    emit CreateOrder(to, token, _itemId, price, amount);
-    // item.itemId = itemId;
-    // item.prev = 0;     // 链表前一个
-    // item.next = 0;     // 链表后一个
-
-    // priceOrders.lastItemId = itemId;
-
-    // if (priceOrders.firstItemId == 0) {
-    //   priceOrders.firstItemId = itemId;
-    // } else {
-    //   OrderItem last = priceOrders.orders[priceOrders.lastItemId];
-
-    //   last.next = itemId;
-    //   item.prev = last.itemId;
-    // }
+    emit CreateOrder(to, token, _itemId, 0, amount);
   }
 
   // 在router中已经把token转入
-  function putOrder(uint direction, uint price, uint amount, address to) public onlyRouter returns (uint) {
+  function putOrder(uint direction, uint amount, uint minOutAmt, address to) public onlyRouter returns (uint) {
     itemId ++;
 
-    _putOrder(direction, price, amount, itemId, to);
+    _putOrder(direction, amount, minOutAmt, itemId, to);
     return itemId;
   }
 
@@ -207,14 +226,14 @@ contract OrderBook is Ownable {
       for (uint i = 0; amount > 0 && i < items.length; i ++) {
         uint _itemId = items[i];
         OrderItem storage item = sellOrders[_itemId];
-        console.log(_itemId, item.price, item.amount);
+        console.log(_itemId, 0, item.amount);
         if (item.amount > 0) {
-          uint money = item.amount.mul(item.price).div(priceRatio);
+          uint money = item.amount.mul(0).div(priceRatio);
           console.log("amount: %d money: %d", amount, money);
           if (amount >= money) {
             // 这个订单全部被买走
             // 买家得到的token0数量
-            uint amt0 = money * priceRatio / item.price;
+            uint amt0 = item.minDestAmount;
             console.log("amt0: %d total: %d", amt0, total);
             total = total + amt0;
             amount = amount - money;
@@ -223,7 +242,7 @@ contract OrderBook is Ownable {
             
             delete sellOrders[_itemId];
           } else {
-            uint amt0 = amount * priceRatio / item.price;
+            uint amt0 = item.minDestAmount;
             total += amt0;
             item.amount -= amt0;
               // transfer to order book owner
@@ -242,29 +261,29 @@ contract OrderBook is Ownable {
       console.log("buy:", total);
     } else {
       // 卖出 操作的是 buyOrders
-      for (uint i = 0; amount > 0 && i < items.length; i ++) {
-        //
-        uint _itemId = items[i];
-        OrderItem storage item = buyOrders[_itemId];
-        if (item.amount > 0) {
-          uint q = item.amount * priceRatio / item.price;
-          if (amount >= q) {
-            uint amt1 = q * item.price / priceRatio;
-            amount -= q;
-            total = total + amt1;
-            IERC20(token0).transfer(item.owner, q);
-            delete buyOrders[_itemId];
-          } else {
-            uint amt1 = amount * item.price / priceRatio;
-            total += amt1;
-            item.amount -= amt1;
-            IERC20(token0).transfer(item.owner, amount);
-            break;
-          }
-        } else {
-          delete buyOrders[_itemId];
-        }
-      }
+      // for (uint i = 0; amount > 0 && i < items.length; i ++) {
+      //   //
+      //   uint _itemId = items[i];
+      //   OrderItem storage item = buyOrders[_itemId];
+      //   if (item.amount > 0) {
+      //     uint q = item.amount * priceRatio / item.price;
+      //     if (amount >= q) {
+      //       uint amt1 = q * item.price / priceRatio;
+      //       amount -= q;
+      //       total = total + amt1;
+      //       IERC20(token0).transfer(item.owner, q);
+      //       delete buyOrders[_itemId];
+      //     } else {
+      //       uint amt1 = amount * item.price / priceRatio;
+      //       total += amt1;
+      //       item.amount -= amt1;
+      //       IERC20(token0).transfer(item.owner, amount);
+      //       break;
+      //     }
+      //   } else {
+      //     delete buyOrders[_itemId];
+      //   }
+      // }
       if (total > 0) {
         token1.transfer(to, total);
       }

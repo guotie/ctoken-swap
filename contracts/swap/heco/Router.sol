@@ -25,7 +25,7 @@ import "../interface/ICToken.sol";
 
 import "../../compound/LHT.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface ISwapMining {
     function swap(address account, address input, address output, uint256 amount) external returns (bool);
@@ -180,27 +180,27 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         uint amountAMin,
         uint amountBMin
     ) internal returns (uint amountA, uint amountB) {
-        console.log("_addLiquidity", factory);
+        // console.log("_addLiquidity", factory);
         address tokenA = _getTokenByCtoken(ctokenA);
         address tokenB = _getTokenByCtoken(ctokenB);
         // create the pair if it doesn't exist yet
         if (IDeBankFactory(factory).getPair(tokenA, tokenB) == address(0)) {
             IDeBankFactory(factory).createPair(tokenA, tokenB);
         }
-        console.log("_addLiquidity getReserves");
+        // console.log("_addLiquidity getReserves");
         (uint reserveA, uint reserveB) = IDeBankFactory(factory).getReserves(tokenA, tokenB);
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {
             uint amountBOptimal = IDeBankFactory(factory).quote(amountADesired, reserveA, reserveB);
-            console.log("_addLiquidity: reserveA=%d  reserveB=%d", reserveA, reserveB);
+            // console.log("_addLiquidity: reserveA=%d  reserveB=%d", reserveA, reserveB);
             if (amountBOptimal <= amountBDesired) {
-                console.log("_addLiquidity: amountBOptimal=%d  amountBDesired=%d  amountADesired=%d", amountBOptimal, amountBDesired, amountADesired);
+                // console.log("_addLiquidity: amountBOptimal=%d  amountBDesired=%d  amountADesired=%d", amountBOptimal, amountBDesired, amountADesired);
                 require(amountBOptimal >= amountBMin, 'AddLiquidity: INSUFFICIENT_B_AMOUNT');
                 (amountA, amountB) = (amountADesired, amountBOptimal);
             } else {
                 uint amountAOptimal = IDeBankFactory(factory).quote(amountBDesired, reserveB, reserveA);
-                console.log("_addLiquidity: amountAOptimal=%d  amountADesired=%d  amountBDesired=%d", amountAOptimal, amountADesired, amountBDesired);
+                // console.log("_addLiquidity: amountAOptimal=%d  amountADesired=%d  amountBDesired=%d", amountAOptimal, amountADesired, amountBDesired);
                 assert(amountAOptimal <= amountADesired);
                 require(amountAOptimal >= amountAMin, 'AddLiquidity: INSUFFICIENT_A_AMOUNT');
                 (amountA, amountB) = (amountAOptimal, amountBDesired);
@@ -219,12 +219,12 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         address to,
         uint deadline
     ) external ensure(deadline) returns (uint amountA, uint amountB, uint liquidity) {
-        console.log(tokenA, tokenB);
-        console.log("amountDesired:", amountADesired, amountBDesired);
-        console.log("amountMin:", amountAMin, amountBMin);
+        // console.log(tokenA, tokenB);
+        // console.log("amountDesired:", amountADesired, amountBDesired);
+        // console.log("amountMin:", amountAMin, amountBMin);
         (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
         address pair = pairFor(tokenA, tokenB);
-        console.log("pair: %s", pair);
+        // console.log("pair: %s", pair);
         TransferHelper.safeTransferFrom(tokenA, msg.sender, pair, amountA);
         TransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
         // _safeTransferCtoken(tokenA, msg.sender, pair, amountA);
@@ -259,7 +259,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         uint b1 = ICToken(ctoken).balanceOf(address(this));
         uint mintCAmt = b1 - b0;
 
-        console.log("_mintTransferCToken:", amt, mintCAmt);
+        // console.log("_mintTransferCToken:", amt, mintCAmt);
 
         TransferHelper.safeTransferFrom(ctoken, address(this), pair, mintCAmt);
     }
@@ -315,7 +315,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // mint token 得到 ctoken
         amountA = _camount2Amount(vars.camountA, vars.rateA);
         amountB = _camount2Amount(vars.camountB, vars.rateB);
-        console.log("amountA: %d amountB: %d", amountA, amountB);
+        // console.log("amountA: %d amountB: %d", amountA, amountB);
         _mintTransferCToken(tokenA, vars.ctokenA, pair, amountA);
         _mintTransferCToken(tokenB, vars.ctokenB, pair, amountB);
         // TransferHelper.safeTransferFrom(tokenA, msg.sender, pair, amountA);
@@ -380,7 +380,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     ) public ensure(deadline) returns (uint amountA, uint amountB) {
         address pair = pairFor(ctokenA, ctokenB);
         IDeBankPair(pair).transferFrom(msg.sender, pair, liquidity);
-        console.log("transfer Liquidity success");
+        // console.log("transfer Liquidity success");
         // send liquidity to pair
         (uint amount0, uint amount1) = IDeBankPair(pair).burn(to);
         address tokenA = _getTokenByCtoken(ctokenA);
@@ -397,7 +397,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         uint err = ICToken(ctoken).redeem(camt);
         require(err == 0, "redeem failed");
         uint b1 = IERC20(token).balanceOf(address(this));
-        console.log(b1, b0);
+        // console.log(b1, b0);
         // require(b1 >= b0, "redeem failed");
         return b1.sub(b0);
     }
@@ -413,7 +413,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
     function _redeemCTokenTransfer(address ctoken, address token, address to, uint camt) private returns (uint)  {
         uint amt = _redeemCToken(ctoken, token, camt);
-        console.log("redeem amt: %d", camt, amt);
+        // console.log("redeem amt: %d", camt, amt);
         if (amt > 0) {
             TransferHelper.safeTransfer(token, to, amt);
         }
@@ -454,11 +454,11 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             (address token0,) = IDeBankFactory(factory).sortTokens(vars.tokenA, vars.tokenB);
             (vars.camountA, vars.camountB) = tokenA == token0 ? (camount0, camount1) : (camount1, camount0);
         }
-        console.log("camountA: %d camountB: %d", vars.camountA, vars.camountB);
+        // console.log("camountA: %d camountB: %d", vars.camountA, vars.camountB);
         amountA = _redeemCTokenTransfer(_getCtoken(tokenA), tokenA, to, vars.camountA);
         amountB = _redeemCTokenTransfer(_getCtoken(tokenB), tokenB, to, vars.camountB);
 
-        console.log("amountA: %d amountB: %d", amountA, amountB);
+        // console.log("amountA: %d amountB: %d", amountA, amountB);
         // TransferHelper.safeTransfer(tokenA, to, amountA);
         // TransferHelper.safeTransfer(tokenB, to, amountB);
         // address ctokenB = _getCtoken(tokenB);
@@ -850,12 +850,12 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         vars.rate1 = _cTokenExchangeRate(cpath[path.length-1]);
         uint camtOut = _amount2CAmount(amountOut, vars.rate1);
         uint[] memory camounts = IDeBankFactory(factory).getAmountsIn(camtOut, path);
-        console.log("camounts:", camounts[0], camounts[1], camtOut);
+        // console.log("camounts:", camounts[0], camounts[1], camtOut);
         
         vars.amountIn = _camount2Amount(camounts[0], vars.rate0);
         // 上一步中舍去的 1
         vars.amountIn = vars.amountIn.add(1);
-        console.log("amountIn:", vars.amountIn);
+        // console.log("amountIn:", vars.amountIn);
         require(vars.amountIn <= amountInMax, 'Router: EXCESSIVE_INPUT_AMOUNT');
         // _safeTransferCtoken(
         //     path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
