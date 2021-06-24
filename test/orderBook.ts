@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 
-import { BigNumber, BigNumberish, Contract } from 'ethers'
+import { BigNumber, BigNumberish, Contract, getDefaultProvider } from 'ethers'
 
 import { getContractAt, getContractBy } from '../utils/contracts'
 // import { getCreate2Address } from '@ethersproject/address'
@@ -34,6 +34,7 @@ describe("ctoken swap 测试", function() {
   let seaC: Contract
   let orderBook: string
   let orderBookC: Contract
+  let ht = '0x0000000000000000000000000000000000000000'
 
   let buyItems: number[] = []
   let sellItems: number[] = []
@@ -74,7 +75,11 @@ describe("ctoken swap 测试", function() {
     obABI = obArt.abi
     tokenABI = tokenArt.abi
 
-    let rr = await deployOrderBook(router.address, sea, usdt, deployer, true, true)
+    let rr = await deployOrderBook(router.address,
+          deployContracts.lErc20DelegatorFactory.address,
+          deployContracts.WHT.address,
+          ht,
+          deployer, true, true)
     orderBook = rr.address
     orderBookC = await getContractBy(obArt.abi, orderBook)
 
@@ -113,50 +118,103 @@ describe("ctoken swap 测试", function() {
       return p.add(BigNumber.from(Math.floor(xs * 10000000000)).mul(e30).div(10000000000))
   }
 
-  const putOrder = async (dir: number, price: string, amt: BigNumberish) => {
-    console.log('put order:', dir, price, amt.toString())
-    if (dir === 0) {
-      // console.log('transfer: ', seaC.address, amt.toString())
-      //
-      await transfer(usdtC, orderBook, amt)
+  const putOrder = async (token0: string, token1: string, amtIn: BigNumberish, amtOut: BigNumberish) => {
+    const ctoken0 = await getTokenContract(token0)
+      // , ctoken1 = getTokenContract(token1)
+    let tx: any
+    if (token0 === '0x0000000000000000000000000000000000000000') {
+      tx = await orderBookC.createOrder(token0, token1, deployer, ht, amtIn, amtOut, 0, 0, {value: amtIn})
     } else {
-      await transfer(seaC, orderBook, amt)
+      await ctoken0.approve(orderBook, amtIn)
+      await ctoken0.transfer(orderBook, amtIn)
+      tx = await orderBookC.createOrder(token0, token1, deployer, deployer, amtIn, amtOut, 0, 0)
     }
 
-    let p = calcPrice(price)
-    let tx = await orderBookC.putOrder(dir, p, amt, deployer)
-    let receipt = await tx.wait()
-      , logs = receipt.logs
-      , data = logs[0].data.slice(0, 66)
-    expect(logs.length == 1)
-
-    let orderId = BigNumber.from(data).toNumber()
-    console.log('order itemId:', orderId)
-    if (dir === 0) {
-      buyItems.push(orderId)
-    } else {
-      sellItems.push(orderId)
-    }
-    return orderId
+    let receipt = await tx.wait(1)
+    // console.log('receipt:', receipt)
+    let data = receipt.events[receipt.events.length-1].data
+    let orderId = data.slice(0, 66)
+    // console.log('event data:', data)
+    console.log('put order:', orderId, BigNumber.from(orderId).toNumber())
+    return BigNumber.from(orderId).toNumber()
   }
 
-  it('putBuyOrder', async () => {
-    await putOrder(0, '0.1324', 10000)
-    await putOrder(0, '0.11234345', 11000)
-    await putOrder(0, '0.19483', 21000)
-    await putOrder(0, '0.023', 23000)
-    await putOrder(0, '1.05', 1000500)
-    await putOrder(0, '2.078', 1000500)
-    await putOrder(0, '21.3595', 210500)
-    
+  const cancelOrder = async (orderId: BigNumberish) => {
+    console.log('cancel order:', orderId)
+    await orderBookC.cancelOrder(orderId)
+  }
+
+  const getOrder = async (orderId: BigNumberish) => {
+    let order = await orderBookC.orders(+orderId.toString())
+    // console.log('%s: order id: %s ', s, orderId.toString(), order)
+    return order
+  }
+
+  it('createOrder', async () => {
+    let o1 = await putOrder(usdt, sea, 1000, 1000)
+    let order1 = await getOrder(o1)
+    console.log('order1 flag:', order1.flag.toHexString(), order1.pairAddrIdx.toHexString())
+    // console.log('order1:', order1)
+    let o2 = await putOrder(usdt, sea, 1000, 2000)
+    let order2 = await getOrder(o2)
+    console.log('order2 flag:', order2.flag.toHexString(), order2.pairAddrIdx.toHexString())
+
+    let o3 = await putOrder(usdt, sea, 1000, 1500)
+    let order3 = await getOrder(o3)
+    console.log('order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
+
+    await cancelOrder(o1)
+    order2 = await getOrder(o2)
+    console.log('after cancel order1, order2 flag:', order2.flag.toHexString(), order2.pairAddrIdx.toHexString())
+    order3 = await getOrder(o3)
+    console.log('after cancel order1, order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
+
+    await cancelOrder(o2)
+    order3 = await getOrder(o3)
+    console.log('after cancel order1 & order2, order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
+    await cancelOrder(o3)
+    order1 = await getOrder(o1)
+    console.log('after cancel, order1:', order1.flag.toHexString())
+    // await cancelOrder(o3)
+    let o4 = await putOrder(ht, sea, 1000, 1000)
+    await cancelOrder(o4)
+    let o5 = await putOrder(ht, sea, 1000, 1500)
+    await cancelOrder(o5)
+    let o6 = await putOrder(ht, sea, 1000, 2000)
+    await cancelOrder(o6)
   })
 
-  it('putSellOrder', async () => {
-    // await putOrder(1, '0.1193483', 10000)
-    await putOrder(1, '0.023132', 23000) // 8
-    await putOrder(1, '1.051238', 1000500)
-    await putOrder(1, '2.07811909', 1000500)
-    await putOrder(1, '21.35951', 210500)
+  // 对于买家来说的 tokenIn tokenOut
+  const dealOrder = async (tokenIn: string, tokenOut: string, orderId: BigNumberish, amt: BigNumberish) => {
+    let tokenC = await getTokenContract(tokenIn)
+      , tokenOutC = await getTokenContract(tokenOut)
+
+    if (tokenIn == ht) {
+      await tokenC.transfer(orderBook, {value: amt})
+      console.log('token %s, balance: %s', tokenIn, )
+      await orderBookC.fulfilOrder(orderId, amt, {value: amt})
+    } else {
+      // await token
+      console.log('tokenIn %s, balance: %s', tokenIn, await tokenC.balanceOf(deployer))
+      console.log('tokenOut %s, balance: %s', tokenIn, await tokenOutC.balanceOf(deployer))
+      await tokenC.approve(orderBook, amt)
+      await orderBookC.fulfilOrder(orderId, amt)
+      console.log('orderbook balance: %s', tokenIn, await tokenC.balanceOf(deployer))
+      console.log('tokenIn %s, balance: %s', tokenIn, await tokenC.balanceOf(deployer))
+      console.log('tokenOut %s, balance: %s', tokenIn, await tokenOutC.balanceOf(deployer))
+
+      let order = await orderBookC.orders(orderId)
+      console.log('order status:', order.flag.toHexString(), order.pairAddrIdx.toHexString())
+    }
+
+  }
+
+  it('fulfil order', async () => {
+    let o1 = await putOrder(usdt, sea, 1000, 1000)
+
+    await dealOrder(sea, usdt, o1, 200)
+    await dealOrder(sea, usdt, o1, 200)
+    await dealOrder(sea, usdt, o1, 600)
   })
 
   // it('cancelOrder', async () => {
@@ -170,13 +228,6 @@ describe("ctoken swap 测试", function() {
   //   }
   // })
 
-  it('sell', async () => {
-
-  })
-
-  it('cancelOrder', async () => {
-    
-  })
 
   // it('buy', async () => {
   //   await transfer(usdtC, buyer.address, 100000000)
@@ -193,18 +244,18 @@ describe("ctoken swap 测试", function() {
   //   console.log('after buy: sea balance of buyer:', (await seaC.balanceOf(buyer.address)).toString())
   // })
 
-  it('sell', async () => {
-    await transfer(seaC, buyer.address, 100000000)
+  // it('sell', async () => {
+  //   await transfer(seaC, buyer.address, 100000000)
     
-    let seaCB = await ethers.getContractAt(tokenABI, sea, buyer)
-    let obBuyer = await ethers.getContractAt(obABI, orderBook, buyer)
+  //   let seaCB = await ethers.getContractAt(tokenABI, sea, buyer)
+  //   let obBuyer = await ethers.getContractAt(obABI, orderBook, buyer)
 
-    console.log('before buy: usdt of deployer:', (await usdtC.balanceOf(deployer)).toString());
-    await transfer(seaCB, orderBook, 532)
-    await obBuyer.dealOrders(1, 532, [1,2,3], buyer.address)
+  //   console.log('before buy: usdt of deployer:', (await usdtC.balanceOf(deployer)).toString());
+  //   await transfer(seaCB, orderBook, 532)
+  //   await obBuyer.dealOrders(1, 532, [1,2,3], buyer.address)
 
-    console.log('after buy: usdt of deployer:', (await usdtC.balanceOf(deployer)).toString());
-    console.log('after buy: usdt balance of buyer:', (await usdtC.balanceOf(buyer.address)).toString())
-    console.log('after buy: sea balance of buyer:', (await seaC.balanceOf(buyer.address)).toString())
-  })
+  //   console.log('after buy: usdt of deployer:', (await usdtC.balanceOf(deployer)).toString());
+  //   console.log('after buy: usdt balance of buyer:', (await usdtC.balanceOf(buyer.address)).toString())
+  //   console.log('after buy: sea balance of buyer:', (await seaC.balanceOf(buyer.address)).toString())
+  // })
 });

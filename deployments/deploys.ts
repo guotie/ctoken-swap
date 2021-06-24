@@ -74,10 +74,10 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
 }
 
 // 部署 OrderBook
-export async function deployOrderBook(router: string, token0: string, token1: string, deployer: any, log: any, verify: any) {
+export async function deployOrderBook(router: string, ctokenFactory: string, _weth: string, _margin: string, deployer: any, log: any, verify: any) {
   return _deploy('OrderBook', {
       from: deployer,
-      args: [router, token0, token1, 0, 0],
+      args: [router, ctokenFactory, _weth, _margin],
       log: log,
     }, verify);
 }
@@ -331,6 +331,10 @@ export interface Tokens {
 
 export function setWEth(c: Contract) {
   wETH = c
+}
+
+export function getWETH(): Contract {
+  return wETH
 }
 
 // 获取 usdt sea doge 的合约

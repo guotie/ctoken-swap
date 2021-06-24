@@ -11,11 +11,40 @@ import "./SafeERC20.sol";
 import "./Address.sol";
 import "./RevertReasonParser.sol";
 import "./IUniswapV2Factory.sol";
+import "./ICTokenFactory.sol";
+import "./ICERC20.sol";
 
 import "hardhat/console.sol";
 
 interface IERC20Permit {
     function permit(address owner, address spender, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+}
+
+interface IRouter {
+    function swapExactTokensForTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata cpath,
+        address to,
+        uint deadline
+    ) external returns (uint[] memory amounts);
+
+    // function swapExactTokensForTokensUnderlying(
+    //     uint amountIn,
+    //     uint amountOutMin,
+    //     address[] calldata path,
+    //     address to,
+    //     uint deadline
+    // ) external ensure(deadline) returns (uint[] memory amounts);
+
+    function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
+        external
+        payable
+        returns (uint[] memory amounts);
+
+    function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
+        external
+        returns (uint[] memory amounts);
 }
 
 
@@ -50,6 +79,16 @@ contract UnoswapRouter is Permitable {
     uint256 private constant _ADDRESS_MASK =   0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff;
     uint256 private constant _REVERSE_MASK =   0x8000000000000000000000000000000000000000000000000000000000000000;
     uint256 private constant _WETH_MASK =      0x4000000000000000000000000000000000000000000000000000000000000000;
+    // 稳定币兑换
+    uint private constant _SWAP_CURVE    = 0x1000000000000000000000000000000000000000000000000000000000000000;
+    // ctoken 兑换
+    uint private constant _SWAP_COMPOUND = 0x0800000000000000000000000000000000000000000000000000000000000000;
+
+    // 对于 compound 交易所, 直接兑换 ctoken 
+    uint public constant FLAG_SWAP_DIRECT = 0x0400000000000000000000000000000000000000000000000000000000000000;
+    // 使用 router 而不是 pair 来兑换
+    uint public constant FLAG_SWAP_ROUTER = 0x0200000000000000000000000000000000000000000000000000000000000000;
+
     uint256 private constant _NUMERATOR_MASK = 0x0000000000000000ffffffff0000000000000000000000000000000000000000;
     uint256 private _WETH =           0x000000000000000000000000C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     uint256 private constant _UNISWAP_PAIR_RESERVES_CALL_SELECTOR_32 = 0x0902f1ac00000000000000000000000000000000000000000000000000000000;
@@ -57,13 +96,39 @@ contract UnoswapRouter is Permitable {
     uint256 private constant _DENOMINATOR = 1000000;
     uint256 private constant _NUMERATOR_OFFSET = 160;
 
+    address public ctokenFactory;
+
     receive() external payable {
         // solhint-disable-next-line avoid-tx-origin
         require(msg.sender != tx.origin, "ETH deposit rejected");
     }
 
-    constructor(address _weth) public {
+    constructor(address _weth, address _ctokenFactory) public {
         _WETH = uint(_weth);
+        ctokenFactory = _ctokenFactory;
+    }
+
+    // 根据 token 查找其 ctoken 地址
+    function _getCtokenAddress(address _ctokenFactory, IERC20 token) private view returns (address) {
+        address ctoken = ICTokenFactory(_ctokenFactory).getCTokenAddressPure(address(token));
+
+        if (ctoken == address(0)) {
+            // 此种情况认为 token 就是 ctoken
+            return address(token);
+        }
+        return ctoken;
+    }
+
+    // 根据 token 是否是 ctoken。 如果是 ctoken, 则可以找到其对应的token, cETH 对应的token 是 wETH
+    function _isCToken(address _ctokenFactory, address ctoken) private view returns (bool) {
+        if (address(ctoken) == address(0)) {
+            // ETH
+            return false;
+        }
+
+        address token = ICTokenFactory(_ctokenFactory).getTokenAddress(address(ctoken));
+
+        return token != address(0);
     }
 
     function unoswapWithPermit(
@@ -77,9 +142,16 @@ contract UnoswapRouter is Permitable {
         return _doSwap(address(srcToken), amount, minReturn, pools);
     }
 
+    // 因为需要交易挖矿必须通过router来交易
+    // struct MdexPoolArgs {
+    //     address router;
+    //     address[] path;
+    // }
+
     struct SwapParm {
         address srcToken;
-        uint routers;
+        address destToken;
+        uint routes;
         uint returnAmt;
         uint[] amts;
         uint[] outAmts;
@@ -92,30 +164,74 @@ contract UnoswapRouter is Permitable {
     function unoswapAll(bytes calldata data) public payable returns(uint256 returnAmount) {
         SwapParm memory param = abi.decode(data, (SwapParm));
             console.log("srcToken: ", param.srcToken);
-            console.log("routers: ", param.routers);
+            console.log("routes: ", param.routes);
             console.log("returnAmt: ", param.returnAmt);
-            for (uint i = 0; i < param.routers; i ++) {
-                console.log("amts[%d]: ", i, param.amts[i]);
-                console.log("outAmts[%d]: ", i, param.outAmts[i]);
-                console.log("minOutAmts[%d]: ", i, param.minOutAmts[i]);
-                console.log("flags[%d]: ", i, param.flags[i]);
-                bytes32[] memory pool = param.pools[i];
-                for (uint j = 0; j < pool.length; j ++) {
-                    console.log( j, uint(pool[j]));
-                }
+
+        return _unoswapAll(param);
+    }
+
+    function _unoswapAll(SwapParm memory param) private returns(uint256 returnAmount) {
+        for (uint i = 0; i < param.routes; i ++) {
+            console.log("amts[%d]: ", i, param.amts[i]);
+            console.log("outAmts[%d]: ", i, param.outAmts[i]);
+            console.log("minOutAmts[%d]: ", i, param.minOutAmts[i]);
+            console.log("flags[%d]: ", i, param.flags[i]);
+            bytes32[] memory pool = param.pools[i];
+            for (uint j = 0; j < pool.length; j ++) {
+                console.log( j, uint(pool[j]));
             }
+        }
+        // 用户卖出的币是ctoken
+        // bool ctokenIn = _isCToken(ctokenFactory, param.srcToken);
+        // // 用户买入的币是ctoken
+        // bool ctokenOut = _isCToken(ctokenFactory, param.destToken);
+        // uint exchangeRateIn = 1e18;
+        // uint exchangeRateOut = 1e18;
+
+        // if (ctokenIn) {
+        //     exchangeRateIn = _calcExchangeRate(param.srcToken);
+        // }
+        // if (ctokenOut) {
+        //     exchangeRateOut = _calcExchangeRate(param.destToken);
+        // }
+
         // uint[] memory amtOut;
-        for (uint i = 0; i < param.routers; i ++) {
+        for (uint i = 0; i < param.routes; i ++) {
             uint flag = param.flags[i];
+            uint amtOut;
 
-            // todo 
-            // bytes32[] calldata pools = new bytes32[](param.pools.length);
-
-            uint amtOut = _doSwap((param.srcToken), param.amts[i], param.minOutAmts[i], param.pools[i]);
+            if ((flag & FLAG_SWAP_ROUTER) != 0) {
+                // swap by router
+                address router = address(uint(param.pools[i][0]) & _ADDRESS_MASK);
+                uint paths = param.pools[i].length - 1;
+                address[] memory path = new address[](paths);
+                for (uint j = 0; j < paths; j ++) {
+                    path[j] = address(uint(param.pools[i][j+1]) & _ADDRESS_MASK);
+                }
+                bool ctokenSwap = (flag & _SWAP_COMPOUND) != 0;
+                _swapByRouter(router, path, param.amts[i], param.minOutAmts[i], ctokenSwap);
+            } else {
+                // todo 
+                // bytes32[] calldata pools = new bytes32[](param.pools.length);
+                require(flag == 0, "here flag should be 0");
+                amtOut = _doSwap((param.srcToken), param.amts[i], param.minOutAmts[i], param.pools[i]);
+            }
             returnAmount += amtOut;
         }
         console.log("param.ret: real ret: ", param.returnAmt, returnAmount);
         // return;
+    }
+
+    // 计算 ctoken 的 exchange rate 已经乘了 e18
+    function _calcExchangeRate(address token) private view returns (uint) {
+        ICERC20 ctoken = ICERC20(_getCtokenAddress(ctokenFactory, IERC20(token)));
+
+        uint rate = ctoken.exchangeRateStored();
+        uint supplyRate = ctoken.supplyRatePerBlock();
+        uint lastBlock = ctoken.accrualBlockNumber();
+        uint blocks = block.number.sub(lastBlock);
+        uint inc = rate.mul(supplyRate).mul(blocks);
+        return rate.add(inc);
     }
 
     function _swap(address pair, address dst, uint amt, uint feeRate, bool reversed) private returns (uint ret) {
@@ -136,11 +252,49 @@ contract UnoswapRouter is Permitable {
         }
     }
 
+    // 通过 router 来 swap
+    function _swapByRouter(address router, address[] memory path, uint amt, uint amtOut, bool ctokenSwap) private {
+        uint deadline = block.timestamp + 60;
+
+        if (path[0] == address(0)) {
+            // swapExactETHForTokens
+            // solhint-disable-next-line avoid-low-level-calls
+            if (ctokenSwap) {
+                // solhint-disable-next-line avoid-low-level-calls
+                router.call{value: amt}(abi.encodeWithSelector(IEBankV2Router.swapExactETHForTokensUnderlying.selector,
+                                                                amtOut, path, msg.sender, deadline));
+            } else {
+                // solhint-disable-next-line avoid-low-level-calls
+                router.call{value: amt}(abi.encodeWithSelector(IUniswapV2Router.swapExactETHForTokens.selector, amtOut, path, msg.sender, deadline));
+            }
+        } else {
+            if (path[path.length-1] == address(0)) {
+                // swapExactTokensForETH
+                // solhint-disable-next-line avoid-low-level-calls
+                if (ctokenSwap) {
+                    // solhint-disable-next-line avoid-low-level-calls
+                    router.call(abi.encodeWithSelector(IEBankV2Router.swapExactTokensForETHUnderlying.selector,
+                                                        amt, amtOut, path, address(this), deadline));
+                } else {
+                    // solhint-disable-next-line avoid-low-level-calls
+                    router.call(abi.encodeWithSelector(IUniswapV2Router.swapExactTokensForETH.selector, amt, amtOut, path, address(this), deadline));
+                }
+            } else {
+                if (ctokenSwap) {
+                    // solhint-disable-next-line avoid-low-level-calls
+                    router.call(abi.encodeWithSelector(IEBankV2Router.swapExactTokensForTokensUnderlying.selector,
+                                                        amt, amtOut, path, msg.sender, deadline));
+                } else {
+                    // swapExactTokensForTokens
+                    // solhint-disable-next-line avoid-low-level-calls
+                    router.call(abi.encodeWithSelector(IUniswapV2Router.swapExactTokensForTokens.selector, amt, amtOut, path, msg.sender, deadline));
+                }
+            }
+        }
+    }
+
     function _doSwap(address srcToken, uint amt, uint minOutAmt, bytes32[] memory datas) private returns (uint ret) {
         address pair = address(uint256(datas[0]) & _ADDRESS_MASK);
-        uint data;
-        uint feeRate;
-        bool reversed;
 
         // address srcReal;
         if (srcToken == address(0)) {
@@ -152,6 +306,9 @@ contract UnoswapRouter is Permitable {
             // srcReal = srcToken;
         }
 
+        uint data;
+        uint feeRate;
+        bool reversed;
         ret = amt;
         for (uint i = 0; i < datas.length - 1; i ++) {
             data = uint((datas[i]));

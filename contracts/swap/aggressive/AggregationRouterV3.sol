@@ -54,7 +54,7 @@ contract AggregationRouterV3 is Ownable, UnoswapRouter {
         uint256 returnAmount
     );
 
-    constructor(address _weth) UnoswapRouter(_weth) public {
+    constructor(address _weth, address _ctokenFactory) UnoswapRouter(_weth, _ctokenFactory) public {
         // _WETH = uint(_weth);
     }
 

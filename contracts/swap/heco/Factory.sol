@@ -36,7 +36,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     uint256 public lpFeeRate = 0;    // 分配给LP的比例: 0: 0; n: (n/(n+1))
     // address public anchorUnderlying;
     address public anchorToken;           // 手续费锚定币种
-    address public router;
+    address public router;                // 在 pair 中使用
     bytes32 public initCodeHash;
 
     // lend controller address. should be unitroller address, which is proxy of comptroller

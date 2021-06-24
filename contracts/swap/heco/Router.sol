@@ -57,18 +57,18 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     uint public feeAlloc;        // 手续费分配方案: 0: 分配给LP; 1: 不分配给LP, 平台收取后兑换为 anchorToken
 
     modifier ensure(uint deadline) {
-        require(deadline >= block.timestamp, 'Router: EXPIRED');
+        require(deadline >= block.timestamp, 'DeBankRouter: EXPIRED');
         _;
     }
 
-    constructor(address _factory, address _WHT, address _cWHT, uint _startBlock) public {
+    constructor(address _factory, address _wht, address _cwht, uint _startBlock) public {
         factory = _factory;
-        WHT = _WHT;
-        cWHT = _cWHT;
+        WHT = _wht;
+        cWHT = _cwht;
         startBlock = _startBlock;
         // heco 链上的 usdt
         quoteTokens.push(IDeBankFactory(_factory).anchorToken()); // usdt
-        quoteTokens.push(_WHT); // wht
+        quoteTokens.push(_cwht); // wht
         // quoteTokens.push();  // husd
     }
 
@@ -137,9 +137,14 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         return blockReward;
     }
 
+    function _getOrCreateCtoken(address token) private returns (address ctoken) {
+        ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddress(token);
+    }
+
     function _getCtoken(address token) private view returns (address ctoken) {
         ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
     }
+
     function _getTokenByCtoken(address ctoken) private view returns (address token) {
         token = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getTokenAddress(ctoken);
     }
@@ -180,14 +185,14 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         uint amountAMin,
         uint amountBMin
     ) internal returns (uint amountA, uint amountB) {
-        // console.log("_addLiquidity", factory);
+        console.log("_addLiquidity", factory);
         address tokenA = _getTokenByCtoken(ctokenA);
         address tokenB = _getTokenByCtoken(ctokenB);
         // create the pair if it doesn't exist yet
         if (IDeBankFactory(factory).getPair(tokenA, tokenB) == address(0)) {
             IDeBankFactory(factory).createPair(tokenA, tokenB);
         }
-        // console.log("_addLiquidity getReserves");
+        console.log("_addLiquidity getReserves");
         (uint reserveA, uint reserveB) = IDeBankFactory(factory).getReserves(tokenA, tokenB);
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
@@ -284,6 +289,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     }
 
     // tokenA tokenB 都是 token
+    // 6/23 如果 ctoken 不存在, 需要创建 ctoken
     function addLiquidityUnderlying(
         address tokenA,
         address tokenB,
@@ -296,8 +302,8 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     ) external ensure(deadline) returns (uint amountA, uint amountB, uint liquidity) {
         LiquidityLocalVars memory vars;
 
-        vars.ctokenA = _getCtoken(tokenA);
-        vars.ctokenB = _getCtoken(tokenB);
+        vars.ctokenA = _getOrCreateCtoken(tokenA);
+        vars.ctokenB = _getOrCreateCtoken(tokenB);
         vars.rateA = _cTokenExchangeRate(vars.ctokenA);
         vars.rateB = _cTokenExchangeRate(vars.ctokenB);
         vars.camountDesiredA = _amount2CAmount(amountADesired, vars.rateA);
@@ -335,7 +341,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         address to,
         uint deadline
     ) external payable ensure(deadline) returns (uint amountToken, uint amountETH, uint liquidity) {
-        address ctoken = _getCtoken(token);
+        address ctoken = _getOrCreateCtoken(token);
         LiquidityLocalVars memory vars;
         vars.rateA = _cTokenExchangeRate(ctoken);
         vars.rateB = _cTokenExchangeRate(cWHT);
@@ -982,6 +988,13 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // if (msg.value > amounts[0]) TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0]);
     }
 
+    function adminTransfer(address token, address to, uint amt) external onlyOwner {
+        if (token == address(0)) {
+          TransferHelper.safeTransferETH(to, amt);
+        } else {
+          TransferHelper.safeTransferFrom(token, address(this), to, amt);
+        }
+    }
     // **** SWAP (supporting fee-on-transfer tokens) ****
     // requires the initial amount to have already been sent to the first pair
     // function _swapSupportingFeeOnTransferTokens(address[] memory path, address _to) internal {

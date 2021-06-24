@@ -14,14 +14,99 @@
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "../aggressive/Ownable.sol";
-import "../aggressive/SafeMath.sol";
-import "../aggressive/IERC20.sol";
+// import "../aggressive/Ownable.sol";
+// import "../aggressive/SafeMath.sol";
 
 import "hardhat/console.sol";
 
 interface ISwapMining {
     function swap(address account, address input, address output, uint256 amount) external returns (bool);
+}
+
+interface IERC20 {
+    event Approval(address indexed owner, address indexed spender, uint value);
+    event Transfer(address indexed from, address indexed to, uint value);
+
+    function name() external view returns (string memory);
+
+    function symbol() external view returns (string memory);
+
+    function decimals() external view returns (uint8);
+
+    function totalSupply() external view returns (uint);
+
+    function balanceOf(address owner) external view returns (uint);
+
+    function allowance(address owner, address spender) external view returns (uint);
+
+    function approve(address spender, uint value) external returns (bool);
+
+    function transfer(address to, uint value) external returns (bool);
+
+    function transferFrom(address from, address to, uint value) external returns (bool);
+}
+
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address payable) {
+        return msg.sender;
+    }
+
+    function _msgData() internal view virtual returns (bytes memory) {
+        this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
+        return msg.data;
+    }
+}
+
+abstract contract Ownable is Context {
+    address private _owner;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    /**
+     * @dev Initializes the contract setting the deployer as the initial owner.
+     */
+    constructor () internal {
+        address msgSender = _msgSender();
+        _owner = msgSender;
+        emit OwnershipTransferred(address(0), msgSender);
+    }
+
+    /**
+     * @dev Returns the address of the current owner.
+     */
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
+    /**
+     * @dev Throws if called by any account other than the owner.
+     */
+    modifier onlyOwner() {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+        _;
+    }
+
+    /**
+     * @dev Leaves the contract without owner. It will not be possible to call
+     * `onlyOwner` functions anymore. Can only be called by the current owner.
+     *
+     * NOTE: Renouncing ownership will leave the contract without an owner,
+     * thereby removing any functionality that is only available to the owner.
+     */
+    function renounceOwnership() public virtual onlyOwner {
+        emit OwnershipTransferred(_owner, address(0));
+        _owner = address(0);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        emit OwnershipTransferred(_owner, newOwner);
+        _owner = newOwner;
+    }
 }
 
 // 存储
@@ -73,7 +158,7 @@ contract OBStorage is Ownable {
 
     // token 最低挂单量
     mapping(address => uint) public minAmounts;
-    mapping(address => mapping(address => uint)) balanceOf;   // 代持用户的币
+    mapping(address => mapping(address => uint)) public balanceOf;   // 代持用户的币
 
     // orders
     mapping (uint => OrderItem) public orders;
@@ -145,9 +230,45 @@ interface IOrderBook {
     event CancelOrder(address indexed owner, uint orderId);
 }
 
-contract OrderBook is OBStorage, IOrderBook {
+contract ReentrancyGuard {
+    bool private _notEntered;
+
+    constructor () internal {
+        // Storing an initial non-zero value makes deployment a bit more
+        // expensive, but in exchange the refund on every call to nonReentrant
+        // will be lower in amount. Since refunds are capped to a percetange of
+        // the total transaction's gas, it is best to keep them low in cases
+        // like this one, to increase the likelihood of the full refund coming
+        // into effect.
+        _notEntered = true;
+    }
+
+    /**
+     * @dev Prevents a contract from calling itself, directly or indirectly.
+     * Calling a `nonReentrant` function from another `nonReentrant`
+     * function is not supported. It is possible to prevent this from happening
+     * by making the `nonReentrant` function external, and make it call a
+     * `private` function that does the actual work.
+     */
+    modifier nonReentrant() {
+        // On the first call to nonReentrant, _notEntered will be true
+        require(_notEntered, "ReentrancyGuard: reentrant call");
+
+        // Any calls to nonReentrant after this point will fail
+        _notEntered = false;
+
+        _;
+
+        // By storing the original value once again, a refund is triggered (see
+        // https://eips.ethereum.org/EIPS/eip-2200)
+        _notEntered = true;
+    }
+}
+
+contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     using SafeMath for uint;
     using SafeMath for uint256;
+    uint private constant _ORDER_CLOSED = 0x00000000000000000000000000000001;   // 128 bit
 
     constructor(address _router, address _ctokenFactory, address _wETH, address _margin) public {
       router = _router;
@@ -171,11 +292,6 @@ contract OrderBook is OBStorage, IOrderBook {
 
     function setMinOrderAmount(address token, uint amt) external onlyOwner {
       minAmounts[token] = amt;
-    }
-
-
-    function closeOrder(uint orderId) public {
-      OrderItem memory order = orders[orderId];
     }
 
     function _putOrder(OrderItem storage order) internal {
@@ -207,7 +323,7 @@ contract OrderBook is OBStorage, IOrderBook {
     }
 
     function _removeOrder(OrderItem memory order) private {
-        uint orderId = order.orderId;
+        // uint orderId = order.orderId;
         uint pairIdx = pairIndex(order.pairAddrIdx);
         uint addrIdx = addrIndex(order.pairAddrIdx);
         address owner = order.owner;
@@ -215,37 +331,40 @@ contract OrderBook is OBStorage, IOrderBook {
         bool margin = isMargin(order.flag);
         
         if (margin) {
-            rIdx = marginOrders[owner][marginOrders[owner].length - 1];
-            marginOrders[owner][addrIdx] = rIdx;
-            orders[rIdx].pairAddrIdx = updateAddrIdx(orders[rIdx].pairAddrIdx, addrIdx);
+            if ((marginOrders[owner].length > 1) && (addrIdx != marginOrders[owner].length-1)) {
+              rIdx = marginOrders[owner][marginOrders[owner].length - 1];
+              marginOrders[owner][addrIdx] = rIdx;
+              orders[rIdx].pairAddrIdx = updateAddrIdx(orders[rIdx].pairAddrIdx, addrIdx);
+            }
             marginOrders[owner].pop();
         } else {
-            rIdx = addressOrders[owner][addressOrders[owner].length - 1];
-            addressOrders[owner][addrIdx] = rIdx;
-            orders[rIdx].pairAddrIdx = updateAddrIdx(orders[rIdx].pairAddrIdx, addrIdx);
+            if ((addressOrders[owner].length > 1) && (addrIdx != addressOrders[owner].length-1)) {
+              rIdx = addressOrders[owner][addressOrders[owner].length - 1];
+              addressOrders[owner][addrIdx] = rIdx;
+              orders[rIdx].pairAddrIdx = updateAddrIdx(orders[rIdx].pairAddrIdx, addrIdx);
+            }
             addressOrders[owner].pop();
         }
 
-        rIdx = pairOrders[order.pair][pairOrders[order.pair].length - 1];
-        pairOrders[order.pair][pairIdx] = rIdx;
-        orders[rIdx].pairAddrIdx = updatePairIdx(orders[rIdx].pairAddrIdx, pairIdx);
-
+        if ((pairOrders[order.pair].length > 1) && (pairIdx != pairOrders[order.pair].length-1)) {
+          rIdx = pairOrders[order.pair][pairOrders[order.pair].length - 1];
+          pairOrders[order.pair][pairIdx] = rIdx;
+          orders[rIdx].pairAddrIdx = updatePairIdx(orders[rIdx].pairAddrIdx, pairIdx);
+        }
         pairOrders[order.pair].pop();
-
-        delete orders[orderId];
     }
 
     // 在router中已经把token转入
     function createOrder(
         address srcToken,
         address destToken,
-        address from,           // 兑换得到的token发送地址 未使用
-        address to,           // 兑换得到的token发送地址 未使用
+        address from,           // 兑换得到的token发送地址 
+        address to,             // 兑换得到的token发送地址 
         uint amountIn,
         uint guaranteeAmountOut,       // 
-        uint timestamp,          // 挂单时间
+        // uint timestamp,          // 挂单时间
         uint expiredAt,          // 过期时间
-        uint flag) public payable whenOpen returns (uint) {
+        uint flag) public payable whenOpen nonReentrant returns (uint) {
       require(srcToken != destToken, "identical token");
       require(expiredAt == 0 || expiredAt > block.timestamp, "invalid param expiredAt");
 
@@ -261,7 +380,6 @@ contract OrderBook is OBStorage, IOrderBook {
 
       {
         // 最低挂单量限制
-        // uint minAmt = ;
         require(amountIn > minAmounts[srcToken], "less than min amount");
       }
       uint idx = orderId ++;
@@ -274,9 +392,7 @@ contract OrderBook is OBStorage, IOrderBook {
       order.tokenAmt.amountIn = amountIn;
       order.tokenAmt.fulfiled = 0;
       order.tokenAmt.guaranteeAmountOut = guaranteeAmountOut;
-      // order.tokenAmt.guaranteeAmountOutLeft = guaranteeAmountOutLeft;
-      order.timestamp = maskTimestamp(timestamp, expiredAt);
-      // order.expiredAt = expiredAt;
+      order.timestamp = maskTimestamp(block.timestamp, expiredAt);
       order.flag = flag;
 
       // (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
@@ -299,11 +415,11 @@ contract OrderBook is OBStorage, IOrderBook {
     }
 
     // 增加参数 address to, 该参数通过 router 合约传入， 并验证 to == item.owner 
-    function cancelOrder(uint orderId) public {
-      OrderItem memory order = orders[orderId];
+    function cancelOrder(uint orderId) public nonReentrant {
+      OrderItem storage order = orders[orderId];
 
       if (isMargin(order.flag)) {
-        require(msg.sender == marginAddr || msg.sender == owner(), "cancelOrder: no auth");
+        require(msg.sender == owner() || msg.sender == marginAddr, "cancelMarginOrder: no auth");
       } else {
         require(msg.sender == owner() || msg.sender == order.owner, "cancelOrder: no auth");
       }
@@ -313,13 +429,15 @@ contract OrderBook is OBStorage, IOrderBook {
       } else {
         TransferHelper.safeTransfer(srcToken, order.owner, order.tokenAmt.fulfiled);
       }
+      emit CancelOrder(order.owner, orderId);
+      order.flag |= _ORDER_CLOSED;
       _removeOrder(order);
     }
 
     // 剩余可成交部分
     function _amountRemaining(uint amtTotal, uint fulfiled) internal pure returns (uint) {
         // (amtTotal - fulfiled) * (1 - fee)
-        return (amtTotal - fulfiled);
+        return amtTotal.sub(fulfiled);
     }
 
     // buyAmt: 待买走的挂卖token的数量, 未扣除手续费
@@ -347,12 +465,26 @@ contract OrderBook is OBStorage, IOrderBook {
     }
 
     // order 成交, 收取成交后的币的手续费
-    // todo 
-    function fulfilOrder(uint orderId, uint amtToTaken) external payable whenOpen {
+    // todo
+    function fulfilOrder(uint orderId, uint amtToTaken) external payable whenOpen nonReentrant returns (bool) {
       OrderItem storage order = orders[orderId];
-      uint left = _amountRemaining(order.tokenAmt.amountIn, order.tokenAmt.fulfiled);
+      uint expired = getExpiredAt(order.timestamp);
 
-      require(left >= amtToTaken, "not enough");
+      if ((expired != 0) && (expired < block.timestamp)) {
+        // 已过期
+        cancelOrder(orderId);
+        return false;
+      }
+
+      if ((order.flag & _ORDER_CLOSED) > 0) {
+          return false;
+      }
+
+      uint left = order.tokenAmt.amountIn.sub(order.tokenAmt.fulfiled);
+
+      if(left < amtToTaken) {
+        return false;
+      } // , "not enough");
 
       address destToken = order.tokenAmt.destToken;
       // 挂单者在不扣除手续费的情况下得到的币的数量
@@ -376,8 +508,10 @@ contract OrderBook is OBStorage, IOrderBook {
       emit FulFilOrder(order.owner, msg.sender, orderId, amtToTaken, amtDest, left);
       if (left == 0) {
         //
+        order.flag |= _ORDER_CLOSED;
         _removeOrder(order);
       }
+      return true;
     }
 
     // function fulfilOrders(uint[] memory orderIds, uint[] memory amtToTaken) external whenOpen {
@@ -405,7 +539,6 @@ contract OrderBook is OBStorage, IOrderBook {
         balanceOf[token][msg.sender] = total.sub(amt);
     }
 
-    // 将手续费收入转移
     function adminTransfer(address token, address to, uint amt) external onlyOwner {
         if (token == address(0)) {
           TransferHelper.safeTransferETH(to, amt);
@@ -414,98 +547,6 @@ contract OrderBook is OBStorage, IOrderBook {
         }
     }
 
-  // 能买到多少
-  // function _buyAmt(uint amt, uint price) internal pure returns (uint) {
-  //   return amt * priceRatio / price;
-  // }
-
-  // router swap 应该已经把币(扣除手续费)转进来，且已经收了手续费   _amount 为扣除手续费后的
-  // 撮合成交
-  // pair: token0/token1  price = token1/token0
-  // todo events
-  // function dealOrders(uint direction, uint _amount, uint[] memory items, address to) public {
-    // uint amount = _amount * (10000 - feeRate) / 10000;
-    // uint amount = _amount;
-    // uint total;
-
-    // if (direction == 0) {
-    //   // 买入 操作的是 sellOrders
-    //   console.log("dir = 0, buy order");
-    //   for (uint i = 0; amount > 0 && i < items.length; i ++) {
-    //     uint _itemId = items[i];
-    //     OrderItem storage item = sellOrders[_itemId];
-    //     console.log(_itemId, 0, item.amount);
-    //     if (item.amount > 0) {
-    //       uint money = item.amount.mul(0).div(priceRatio);
-    //       console.log("amount: %d money: %d", amount, money);
-    //       if (amount >= money) {
-    //         // 这个订单全部被买走
-    //         // 买家得到的token0数量
-    //         uint amt0 = item.minDestAmount;
-    //         console.log("amt0: %d total: %d", amt0, total);
-    //         total = total + amt0;
-    //         amount = amount - money;
-    //           // transfer to order book owner
-    //         IERC20(token1).transfer(item.owner, money);
-            
-    //         delete sellOrders[_itemId];
-    //       } else {
-    //         uint amt0 = item.minDestAmount;
-    //         total += amt0;
-    //         item.amount -= amt0;
-    //           // transfer to order book owner
-    //         IERC20(token1).transfer(item.owner, amount);
-    //         // transfer to order book owner
-    //         break;
-    //       }
-    //     } else {
-    //       //
-    //       delete sellOrders[_itemId];
-    //     }
-    //   }
-    //   if (total > 0) {
-    //     token0.transfer(to, total);
-    //   }
-    //   console.log("buy:", total);
-    // } else {
-      // 卖出 操作的是 buyOrders
-      // for (uint i = 0; amount > 0 && i < items.length; i ++) {
-      //   //
-      //   uint _itemId = items[i];
-      //   OrderItem storage item = buyOrders[_itemId];
-      //   if (item.amount > 0) {
-      //     uint q = item.amount * priceRatio / item.price;
-      //     if (amount >= q) {
-      //       uint amt1 = q * item.price / priceRatio;
-      //       amount -= q;
-      //       total = total + amt1;
-      //       IERC20(token0).transfer(item.owner, q);
-      //       delete buyOrders[_itemId];
-      //     } else {
-      //       uint amt1 = amount * item.price / priceRatio;
-      //       total += amt1;
-      //       item.amount -= amt1;
-      //       IERC20(token0).transfer(item.owner, amount);
-      //       break;
-      //     }
-      //   } else {
-      //     delete buyOrders[_itemId];
-      //   }
-      // }
-    //   if (total > 0) {
-    //     token1.transfer(to, total);
-    //   }
-    //   console.log("sell got:", total);
-    // }
-  // }
-
-  ////////////////////////////////////////////////////////////////////
-  // 查询可成交的价格的订单, 返回 orderItem[]. 应该在外部调用，节省手续费
-  function getDealableOrderItems(uint direction, uint price, uint amount) external view returns (uint[] memory) {
-    uint[] memory items;
-
-    return items;
-  }
 }
 
 // helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false
@@ -529,7 +570,152 @@ library TransferHelper {
     }
 
     function safeTransferETH(address to, uint value) internal {
-        (bool success,) = to.call.value(value)(new bytes(0));
+        (bool success,) = to.call{value: value}(new bytes(0));
         require(success, 'TransferHelper: ETH_TRANSFER_FAILED');
+    }
+}
+
+
+library SafeMath {
+    uint256 constant WAD = 10 ** 18;
+    uint256 constant RAY = 10 ** 27;
+
+    function wad() public pure returns (uint256) {
+        return WAD;
+    }
+
+    function ray() public pure returns (uint256) {
+        return RAY;
+    }
+
+    function add(uint256 a, uint256 b) internal pure returns (uint256) {
+        uint256 c = a + b;
+        require(c >= a, "SafeMath: addition overflow");
+
+        return c;
+    }
+
+    function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+        return sub(a, b, "SafeMath: subtraction overflow");
+    }
+
+    function sub(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+        require(b <= a, errorMessage);
+        uint256 c = a - b;
+
+        return c;
+    }
+
+    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
+        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the
+        // benefit is lost if 'b' is also tested.
+        // See: https://github.com/OpenZeppelin/openzeppelin-contracts/pull/522
+        if (a == 0) {
+            return 0;
+        }
+
+        uint256 c = a * b;
+        require(c / a == b, "SafeMath: multiplication overflow");
+
+        return c;
+    }
+
+    function div(uint256 a, uint256 b) internal pure returns (uint256) {
+        return div(a, b, "SafeMath: division by zero");
+    }
+
+    function div(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+        // Solidity only automatically asserts when dividing by 0
+        require(b > 0, errorMessage);
+        uint256 c = a / b;
+        // assert(a == b * c + a % b); // There is no case in which this doesn't hold
+
+        return c;
+    }
+
+    function mod(uint256 a, uint256 b) internal pure returns (uint256) {
+        return mod(a, b, "SafeMath: modulo by zero");
+    }
+
+    function mod(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
+        require(b != 0, errorMessage);
+        return a % b;
+    }
+
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a <= b ? a : b;
+    }
+
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a >= b ? a : b;
+    }
+
+    function sqrt(uint256 a) internal pure returns (uint256 b) {
+        if (a > 3) {
+            b = a;
+            uint256 x = a / 2 + 1;
+            while (x < b) {
+                b = x;
+                x = (a / x + x) / 2;
+            }
+        } else if (a != 0) {
+            b = 1;
+        }
+    }
+
+    function wmul(uint256 a, uint256 b) internal pure returns (uint256) {
+        return mul(a, b) / WAD;
+    }
+
+    function wmulRound(uint256 a, uint256 b) internal pure returns (uint256) {
+        return add(mul(a, b), WAD / 2) / WAD;
+    }
+
+    function rmul(uint256 a, uint256 b) internal pure returns (uint256) {
+        return mul(a, b) / RAY;
+    }
+
+    function rmulRound(uint256 a, uint256 b) internal pure returns (uint256) {
+        return add(mul(a, b), RAY / 2) / RAY;
+    }
+
+    function wdiv(uint256 a, uint256 b) internal pure returns (uint256) {
+        return div(mul(a, WAD), b);
+    }
+
+    function wdivRound(uint256 a, uint256 b) internal pure returns (uint256) {
+        return add(mul(a, WAD), b / 2) / b;
+    }
+
+    function rdiv(uint256 a, uint256 b) internal pure returns (uint256) {
+        return div(mul(a, RAY), b);
+    }
+
+    function rdivRound(uint256 a, uint256 b) internal pure returns (uint256) {
+        return add(mul(a, RAY), b / 2) / b;
+    }
+
+    function wpow(uint256 x, uint256 n) internal pure returns (uint256) {
+        uint256 result = WAD;
+        while (n > 0) {
+            if (n % 2 != 0) {
+                result = wmul(result, x);
+            }
+            x = wmul(x, x);
+            n /= 2;
+        }
+        return result;
+    }
+
+    function rpow(uint256 x, uint256 n) internal pure returns (uint256) {
+        uint256 result = RAY;
+        while (n > 0) {
+            if (n % 2 != 0) {
+                result = rmul(result, x);
+            }
+            x = rmul(x, x);
+            n /= 2;
+        }
+        return result;
     }
 }

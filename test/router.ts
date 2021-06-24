@@ -262,7 +262,7 @@ describe("ctoken router 测试", function() {
     const pair = await getPairContract(ctoken0.address, ctoken1.address)
     const b0 = await pair.balanceOf(deployer)
     console.log('before mint, LP %s balance: %s', pair.address, b0.toString())
-    const tx = await router.addLiquidity(ctoken0.address, ctoken1.address, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(6))
+    const tx = await router.addLiquidity(ctoken0.address, ctoken1.address, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(60), {gasLimit: 3000000})
     await tx.wait(1);
     const b1 = await pair.balanceOf(deployer)
     console.log('after mint, LP %s balance: %s', pair.address, b1.toString())
@@ -535,29 +535,29 @@ describe("ctoken router 测试", function() {
     await swapRouterMintToken(sea, usdt, amt1, amt0, 0, 0)
   })
 
-  it('router-removeLiquidity', async () => {
-    // await swapBurnCToken(cusdt, csea, '10000', true)
-    // await swapBurnCToken(usdt, sea,   '10000', false)
-    await swapBurnCToken(cusdt, csea,   null, true)
-    // await swapBurnCToken(usdt, sea,   null, false)
-  })
+  // it('router-removeLiquidity', async () => {
+  //   // await swapBurnCToken(cusdt, csea, '10000', true)
+  //   // await swapBurnCToken(usdt, sea,   '10000', false)
+  //   await swapBurnCToken(cusdt, csea,   null, true)
+  //   // await swapBurnCToken(usdt, sea,   null, false)
+  // })
   
 
-  it('router-addETHLiquidity', async () => {
-    logHr('addETHLiquidity')
+  // it('router-addETHLiquidity', async () => {
+  //   logHr('addETHLiquidity')
 
-    let amt0 =  '10000000'
-    let amt1 =  '50000000'
+  //   let amt0 =  '10000000'
+  //   let amt1 =  '50000000'
 
-    await swapRouterMintCtoken(usdt, wht.address, amt0, amt1, amt0, amt1)
-    await swapRouterMintCtoken(usdt, wht.address, amt0, amt1, amt0, amt1)
-    await swapRouterMintCtoken(wht.address, usdt, amt1, amt0, amt1, amt0)
-    // await swapRouterMintCtoken(usdt, wht.address, amt0, amt1, amt0, amt1)
+  //   await swapRouterMintCtoken(usdt, wht.address, amt0, amt1, amt0, amt1)
+  //   await swapRouterMintCtoken(usdt, wht.address, amt0, amt1, amt0, amt1)
+  //   await swapRouterMintCtoken(wht.address, usdt, amt1, amt0, amt1, amt0)
+  //   // await swapRouterMintCtoken(usdt, wht.address, amt0, amt1, amt0, amt1)
 
-    amt0 = '200000000'
-    amt1 = '750000000'
-    await swapRouterMintToken(usdt, wht.address, amt0, amt1, amt0, amt1)
-  })
+  //   amt0 = '200000000'
+  //   amt1 = '750000000'
+  //   await swapRouterMintToken(usdt, wht.address, amt0, amt1, amt0, amt1)
+  // })
 
   // it('router-removeETHLiquidity', async () => {
   //   // await swapBurnCToken(cusdt, csea, '10000', true)
@@ -611,13 +611,13 @@ describe("ctoken router 测试", function() {
     //     await swapExactTokensForTokensUnderlying(usdt, wht.address, '123456', 0)
     // })
 
-    it('swapETHForExactTokensUnderlying', async () => {
-        // await swapTokensForExactTokensUnderlying(wht.address, usdt, '10000')
-        // await swapTokensForExactTokensUnderlying(wht.address, usdt, '10000')
-        // await swapTokensForExactTokensUnderlying(wht.address, usdt, '10000')
+    // it('swapETHForExactTokensUnderlying', async () => {
+    //     // await swapTokensForExactTokensUnderlying(wht.address, usdt, '10000')
+    //     // await swapTokensForExactTokensUnderlying(wht.address, usdt, '10000')
+    //     // await swapTokensForExactTokensUnderlying(wht.address, usdt, '10000')
 
-        await swapTokensForExactTokensUnderlying(usdt, wht.address, '10000')
-        await swapTokensForExactTokensUnderlying(usdt, wht.address, '10000')
-        await swapTokensForExactTokensUnderlying(usdt, wht.address, '10000')
-    })
+    //     await swapTokensForExactTokensUnderlying(usdt, wht.address, '10000')
+    //     await swapTokensForExactTokensUnderlying(usdt, wht.address, '10000')
+    //     await swapTokensForExactTokensUnderlying(usdt, wht.address, '10000')
+    // })
 });

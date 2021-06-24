@@ -12,10 +12,13 @@ import "./Address.sol";
 import "./IWETH.sol";
 import "./IUniswapV2Factory.sol";
 import "./IUniswapV2Exchange.sol";
+import "./ICTokenFactory.sol";
+import "./ICERC20.sol";
 
 import "hardhat/console.sol";
 
 contract OneSplit is Ownable {
+    using SafeMath for uint;
     using SafeMath for uint256;
     // using DisableFlags for uint256;
 
@@ -25,18 +28,39 @@ contract OneSplit is Ownable {
     // using ChaiHelper for IChai;
 
     IWETH public weth; // = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address public ctokenFactory;
 
-    IUniswapV2Factory[] public factories = [
-      IUniswapV2Factory(0x6Cf6749FE8Be5Db551a9962504F10a8467361754),
-      IUniswapV2Factory(0x1eA875068D325AF621Dfd9B63C461E7536149b1F)
-    ];
+    struct SwapAddr {
+        address router;        // router 
+        uint256 flag; // pool | flag, ctokenFactory | flag
+    }
+
+    SwapAddr[] public swaps;
+    // IUniswapV2Router[] public routers; // = [];
+    //   IUniswapV2Factory(0x6Cf6749FE8Be5Db551a9962504F10a8467361754),
+    //   IUniswapV2Factory(0x1eA875068D325AF621Dfd9B63C461E7536149b1F)
+    // ];
     // IUniswapV2Factory mdexFactory = 0xb0b670fc1F7724119963018DB0BfA86aDb22d941;
     // IUniswapV2Factory bxhFactory = 0xB6B1fE87cAa52D968832a5053116af08f4601475;
+    uint256 private constant _ADDRESS_MASK =   0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff;
+    uint256 private constant _FLAG_MASK    =   0xffffffffffffffffffffffff0000000000000000000000000000000000000000;
+
     uint256 private constant _REVERSE_MASK =   0x8000000000000000000000000000000000000000000000000000000000000000;
     uint256 private constant _WETH_MASK =      0x4000000000000000000000000000000000000000000000000000000000000000;
 
-    constructor(address _weth) public {
+    // 稳定币兑换
+    uint private constant _SWAP_CURVE    = 0x1000000000000000000000000000000000000000000000000000000000000000;
+    // ctoken 兑换
+    uint private constant _SWAP_COMPOUND = 0x0800000000000000000000000000000000000000000000000000000000000000;
+
+    // 对于 compound 交易所, 直接兑换 ctoken 
+    uint public constant FLAG_SWAP_DIRECT = 0x0400000000000000000000000000000000000000000000000000000000000000;
+    // 使用 router 而不是 pair 来兑换
+    uint public constant FLAG_SWAP_ROUTER = 0x0200000000000000000000000000000000000000000000000000000000000000;
+
+    constructor(address _weth, address _ctokenFactory) public {
         weth = IWETH(_weth);
+        ctokenFactory = _ctokenFactory;
     }
 
     struct Args {
@@ -46,7 +70,7 @@ contract OneSplit is Ownable {
         uint256 amount;
         uint256 parts;
         uint256 flags;
-        // uint256 slip;  // 分母 10000
+        uint256 slip;  // 分母 10000
         uint256 destTokenEthPriceTimesGasPrice;
     }
 
@@ -63,7 +87,8 @@ contract OneSplit is Ownable {
 
     struct SwapParm {
         address srcToken;
-        uint routers;
+        address destToken;
+        uint routes;
         uint returnAmt;
         uint[] amts;
         uint[] outAmts;
@@ -72,22 +97,50 @@ contract OneSplit is Ownable {
         bytes32[][] pools;
     }
 
-    // function addFactory(address _factory) external onlyOwner {
-    //     factories[factories.length] = _factory;
-    // }
-
-    function resetFactories(address[] memory _factories) external onlyOwner {
-        uint total = factories.length;
+    function resetSwaps() external onlyOwner {
+        uint total = swaps.length;
         for (uint i = 0; i < total; i ++) {
-            factories.pop();
-        }
-
-        factories = new IUniswapV2Factory[](_factories.length);
-        for (uint i = 0; i < _factories.length; i ++) {
-            factories[i] = IUniswapV2Factory(_factories[i]);
+            swaps.pop();
         }
     }
 
+    function addUniswap(address _router, uint _flag) external onlyOwner {
+        swaps.push(SwapAddr({
+            router: _router, 
+            flag: _flag
+        }));
+    }
+
+    function addCurveSwap(address _pool, uint _flag) external onlyOwner {
+        swaps.push(SwapAddr({
+            router: _pool,
+            flag: _SWAP_CURVE | _flag
+        }));
+    }
+
+    // compound 交易所必须使用 router 交易 !!!
+    function addCompoundSwap(address _router, address _ctokenFactory, uint _flag) external onlyOwner {
+        swaps.push(SwapAddr({
+            router: _router,
+            flag: uint(_ctokenFactory) | _SWAP_COMPOUND | FLAG_SWAP_ROUTER | _flag
+        }));
+    }
+
+    // ctoken, midToken 输入输出都是 ctoken
+    // function getExpectedReturnWithGasCToken(Args memory args) 
+    //     public
+    //     view
+    //     returns(
+    //         uint256 returnAmount,
+    //         uint256 estimateGasAmount,
+    //         uint256[] memory distribution,
+    //         bytes memory data
+    //     ) {
+
+    // }
+
+    // token, midTokens 都是 token
+    // amount 也是以 token 的数量
     function getExpectedReturnWithGas(Args memory args)
         public
         view
@@ -97,42 +150,39 @@ contract OneSplit is Ownable {
             uint256[] memory distribution,
             bytes memory data
         ) {
-        uint routers = (1 + args.midTokens.length) * factories.length;
+        uint routes = (1 + args.midTokens.length) * swaps.length;
         uint256[] memory amounts = _linearInterpolation(args.amount, args.parts);
-        int256[][] memory matrix = new int256[][](routers);
-        uint256[] memory gases = new uint256[](routers);
+        int256[][] memory matrix = new int256[][](routes);
+        uint256[] memory gases = new uint256[](routes);
 
+        console.log("before _getFactoryResults", swaps.length);
         {
           CalcVars memory localVar;
+          // todo fromToken destToken 转换为 token
           localVar.fromToken = args.fromToken;
           localVar.destToken = args.destToken;
-          localVar.amounts = amounts;
-          localVar.flags = args.flags;
+          localVar.amounts = amounts; // 是否需要根据 amount
           localVar.destTokenEthPriceTimesGasPrice = args.destTokenEthPriceTimesGasPrice;
 
           uint n = 0;
           // bool atLeastOnePositive = false;
-          for (uint i = 0; i < factories.length; i ++ ) {
-              localVar.factory = factories[i];
+          for (uint i = 0; i < swaps.length; i ++ ) {
+              console.log("swa[%d].router:", i, swaps[i].router);
+              localVar.factory = IUniswapV2Router(swaps[i].router).factory();
+              console.log("factory", address(localVar.factory));
+              localVar.flags = swaps[i].flag;
               _getFactoryResults(localVar, args.midTokens, matrix, gases, n);
               // bool pos = _getFactoryResults(localVar, midTokens, matrix, n, destTokenEthPriceTimesGasPrice);
               // atLeastOnePositive = atLeastOnePositive || pos;
-              n = 1 + args.midTokens.length;
-              // (uint256[] memory amts, uint gas) = _calculateUniswapV2(localVar);
-              // rets[n] = amts;
-              // n ++;
-              // for (uint j = 0; j < midTokens.length; j ++) {
-              //     localVar.midToken = midTokens[j];
-              //     (uint256[] memory amts, uint gas) = _calculateUniswapV2OverMidToken(localVar);
-              //     rets[n] = amts;
-              //     n ++;
-              // }
+              n += 1 + args.midTokens.length;
           }
         }
 
-        console.log("before _findBestDistribution");
+        console.log("before _findBestDistribution:", args.parts, matrix.length);
         
         (, distribution) = _findBestDistribution(args.parts, matrix);
+
+        console.log("before _getReturnAndGasByDistribution");
 
         (returnAmount, estimateGasAmount, data) = _getReturnAndGasByDistribution(args, distribution, matrix, gases);
         //     Args({
@@ -160,16 +210,17 @@ contract OneSplit is Ownable {
         // uint routes;
         for (uint i = 0; i < distribution.length; i ++) {
             if (distribution[i] > 0) {
-                param.routers ++;
+                param.routes ++;
             }
         }
 
         param.srcToken = address(args.fromToken);
-        param.amts = new uint[](param.routers);
-        param.outAmts = new uint[](param.routers);
-        param.minOutAmts = new uint[](param.routers);
-        param.flags = new uint[](param.routers);
-        param.pools = new bytes32[][](param.routers);
+        param.destToken = address(args.destToken);
+        param.amts = new uint[](param.routes);
+        param.outAmts = new uint[](param.routes);
+        param.minOutAmts = new uint[](param.routes);
+        param.flags = new uint[](param.routes);
+        param.pools = new bytes32[][](param.routes);
 
         uint total;
         uint idx;
@@ -182,43 +233,35 @@ contract OneSplit is Ownable {
                 int256 value = matrix[i][distribution[i]] + int256(gases[i].mul(args.destTokenEthPriceTimesGasPrice).div(1e18));
                 returnAmount = returnAmount.add(uint256(value));
 
-                if (idx == param.routers - 1) {
+                if (idx == param.routes - 1) {
                     // 弥补精度
                     param.amts[idx] = args.amount - total;
                 } else {
                     param.amts[idx] = args.amount.mul(distribution[i]).div(args.parts);
                 }
-                param.outAmts[idx] = uint256(value);
-                param.minOutAmts[idx] = uint256(value);  // .mul(10000 - args.slip).div(10000);
-                // param.minOutAmts[idx] = uint256(value).mul(10000 - args.slip).div(10000);
-                total += param.amts[idx];
-                // uint units = args.midTokens.length + 1;
-                if (i % (args.midTokens.length+1) == 0) {
-                    // 没有中间交易对
-                    //bytes32[] memory data = 
-                    param.pools[idx] = _buildPoolData(PairParam({
-                      factory: factories[i/(args.midTokens.length+1)],
-                      srcToken: args.fromToken,
-                      midToken: IERC20(0),
-                      destToken: args.destToken,
-                      feeRate: 997000
-                      })
-                      );
-                    //  = new bytes32[](1); // 
-                } else {
+
+                {
+                    param.outAmts[idx] = uint256(value);
+                    param.minOutAmts[idx] = uint256(value).mul(10000 - args.slip).div(10000);
+                    total += param.amts[idx];
+                }
+
+                PairParam memory pp;
+                uint units = args.midTokens.length + 1;
+                pp.router = IUniswapV2Router(swaps[i/units].router);
+                pp.flag = args.flags | swaps[i/units].flag;
+                pp.srcToken = args.fromToken;
+                pp.destToken = args.destToken;
+                pp.feeRate = 997000;
+                    // uint units = args.midTokens.length+1;
+                    // uint flag = args.flags | swaps[i/(args.midTokens.length+1)].flag;
+                if ((i % units) != 0) {
                     // 有中间交易对的情况
                     // param.pools[idx] = 
-                    uint units = args.midTokens.length+1;
-                    // IERC20 midToken = args.midTokens[(i%units)-1];
-                    param.pools[idx] = _buildPoolData(PairParam({
-                      factory: factories[i/(units)],
-                      srcToken: args.fromToken,
-                      midToken: args.midTokens[(i%units)-1],
-                      destToken: args.destToken,
-                      feeRate: 997000
-                    })
-                    );
+                    pp.midToken = args.midTokens[(i%units)-1];
                 }
+                param.pools[idx] = _buildPoolData(pp);
+                param.flags[idx] = uint(swaps[i/units].flag & _FLAG_MASK);
 
                 idx ++;
             }
@@ -229,23 +272,82 @@ contract OneSplit is Ownable {
     }
 
     struct PairParam {
-      IUniswapV2Factory factory;
+      IUniswapV2Router router;
+      uint flag;
       IERC20 srcToken;
       IERC20 midToken;
       IERC20 destToken;
       uint feeRate;
     }
 
-    // feeRate 的分母是 1000_000
-    function _buildPoolData(PairParam memory pairParam) private view returns (bytes32[] memory) {
-        bytes32[] memory data;
-        
+    // 使用 router 来 swap
+    // 
+    function _buildRouterData(PairParam memory pairParam, bool useCtoken) private view returns (bytes32[] memory) {
         uint feeRate = pairParam.feeRate << 160;
         //console.log("_buildPoolData:", feeRate);
         IERC20 fromTokenReal = pairParam.srcToken.isETH() ? weth : pairParam.srcToken;
         IERC20 destTokenReal = pairParam.destToken.isETH() ? weth : pairParam.destToken;
+        IERC20 midToken = pairParam.midToken;
+        if (useCtoken) {
+            address _ctokenFactory = address(pairParam.flag & _ADDRESS_MASK);
+            midToken = IERC20(_getCtokenAddress(_ctokenFactory, midToken));
+            fromTokenReal = IERC20(_getCtokenAddress(_ctokenFactory, fromTokenReal));
+            destTokenReal = IERC20(_getCtokenAddress(_ctokenFactory, destTokenReal));
+        }
+
+        bytes32[] memory data;
+        if (address(pairParam.midToken) == address(0)) {
+            data = new bytes32[](3); //  router + path[2]
+            // data[0] = bytes32(pairParam.flag & _FLAG_MASK);
+            data[0] = bytes32(uint(address(pairParam.router)));
+            data[1] = bytes32(uint(address(fromTokenReal)));
+            data[2] = bytes32(uint(address(destTokenReal)));
+        } else {
+            data = new bytes32[](4); //  router + path[3]
+            // data[0] = bytes32(pairParam.flag & _FLAG_MASK);
+            data[0] = bytes32(uint(address(pairParam.router)));
+            data[1] = bytes32(uint(address(fromTokenReal)));
+            data[2] = bytes32(uint(address(midToken)));
+            data[3] = bytes32(uint(address(destTokenReal)));
+        }
+
+        return data;
+    }
+
+    // 根据 token 查找其 ctoken 地址
+    function _getCtokenAddress(address _ctokenFactory, IERC20 token) private view returns (address) {
+        address ctoken = ICTokenFactory(_ctokenFactory).getCTokenAddressPure(address(token));
+
+        if (ctoken == address(0)) {
+            // 此种情况认为 token 就是 ctoken
+            return address(0); // address(token);
+        }
+        return ctoken;
+    }
+
+    // pair  交易方式: flag, pair|flag
+    // router 交易方式: flag, router, []path
+    // useCtoken: 是否是兑换ctoken, 在兑换的时候处理该标识
+    // feeRate 的分母是 1000_000
+    function _buildPoolData(PairParam memory pairParam) private view returns (bytes32[] memory) {
+        bytes32[] memory data;
+        bool useRouter = (pairParam.flag & FLAG_SWAP_ROUTER) != 0;
+        bool useCtoken = (pairParam.flag & FLAG_SWAP_DIRECT) != 0;
+        
+        if (useRouter) {
+            return _buildRouterData(pairParam, useCtoken);
+        }
+
+        uint feeRate = pairParam.feeRate << 160;
+        //console.log("_buildPoolData:", feeRate);
+        IERC20 fromTokenReal = pairParam.srcToken.isETH() ? weth : pairParam.srcToken;
+        IERC20 destTokenReal = pairParam.destToken.isETH() ? weth : pairParam.destToken;
+        // if (useCtoken) {
+        //     // 不需要处理 path 都是 token token/token 的 pair 地址与 ctoken/ctoken 的 pair 地址相同
+        // }
         address[] memory path;
 
+        // data[0] = flag
         if (address(pairParam.midToken) == address(0)) {
             data = new bytes32[](1);
             path = new address[](2);
@@ -254,16 +356,24 @@ contract OneSplit is Ownable {
         } else {
             data = new bytes32[](2);
             path = new address[](3);
-            path[0] = address(fromTokenReal);
-            path[1] = address(pairParam.midToken);
-            path[2] = address(destTokenReal);
+            if (useCtoken) {
+                address _ctokenFactory = address(pairParam.flag & _ADDRESS_MASK);
+                path[0] = _getCtokenAddress(_ctokenFactory, fromTokenReal);
+                path[1] = _getCtokenAddress(_ctokenFactory, pairParam.midToken);
+                path[2] = _getCtokenAddress(_ctokenFactory, destTokenReal);
+            } else {
+                path[0] = address(fromTokenReal);
+                path[1] = address(pairParam.midToken);
+                path[2] = address(destTokenReal);
+            }
         }
+        // data[0] = bytes32(pairParam.flag & _FLAG_MASK);
 
         for (uint i = 0; i < path.length - 1; i ++) {
             address t0 = path[i];
             address t1 = path[i+1];
 
-            address pair = address(pairParam.factory.getPair(IERC20(t0), IERC20(t1)));
+            address pair = address(pairParam.router.factory().getPair(IERC20(t0), IERC20(t1)));
             require(pair != address(0), "pair not exist");
             console.log("t0: %s t1: %s pair: %s", t0, t1, pair);
             uint pool = uint(pair);
@@ -321,17 +431,6 @@ contract OneSplit is Ownable {
           localVar.atLeastOnePositive = true;
         }
     }
-
-    // function _getReserves(IERC20[] memory midTokens) private returns (function(IUniswapV2Factory,IERC20,IERC20,uint256,uint256,uint256) view returns(uint256[] memory, uint256)[] memory) {
-    //   function(IUniswapV2Factory,IERC20,IERC20,uint256,uint256,uint256) view returns(uint256[] memory, uint256)[] memory reserves = new function(IUniswapV2Factory,IERC20,IERC20,uint256,uint256,uint256) view returns(uint256[] memory, uint256)[]();
-
-    //   for (uint i = 0; i < factories.length; i ++ ) {
-    //       reserves.push();
-    //       for (uint j = 0; j < midTokens.length; j ++) {
-
-    //       }
-    //   }
-    // }
 
     function _findBestDistribution(
         uint256 s,                // parts
@@ -396,22 +495,51 @@ contract OneSplit is Ownable {
         );
     }
 
-    function _calculateUniswapV2(CalcVars memory lvar) internal view returns(uint256[] memory rets, uint256 gas) {
-        IUniswapV2Factory factory = lvar.factory;
-        IERC20 fromToken = lvar.fromToken;
-        IERC20 destToken = lvar.destToken;
-        uint256[] memory amounts = lvar.amounts;
-        // uint256 /*flags*/
-        rets = new uint256[](amounts.length);
+    // 计算 ctoken 的 exchange rate
+    function _calcExchangeRate(ICERC20 ctoken) private view returns (uint) {
+        uint rate = ctoken.exchangeRateStored();
+        uint supplyRate = ctoken.supplyRatePerBlock();
+        uint lastBlock = ctoken.accrualBlockNumber();
+        uint blocks = block.number.sub(lastBlock);
+        uint inc = rate.mul(supplyRate).mul(blocks);
+        return rate.add(inc);
+    }
 
-        IERC20 fromTokenReal = fromToken.isETH() ? weth : fromToken;
-        IERC20 destTokenReal = destToken.isETH() ? weth : destToken;
-        IUniswapV2Exchange exchange = factory.getPair(fromTokenReal, destTokenReal);
+    // 使用 token 来计算收益
+    function _calculateUniswapV2(CalcVars memory lvar) internal view returns(uint256[] memory rets, uint256 gas) {
+        // IUniswapV2Factory factory = lvar.factory;
+        bool compound = (lvar.flags & _SWAP_COMPOUND) != 0;
+        uint exchangeRateFrom;
+        uint exchangeRateDest;
+        // uint256[] memory amounts = lvar.amounts;
+        // uint256 /*flags*/
+        rets = new uint256[](lvar.amounts.length);
+
+        IERC20 fromTokenReal = lvar.fromToken.isETH() ? weth : lvar.fromToken;
+        IERC20 destTokenReal = lvar.destToken.isETH() ? weth : lvar.destToken;
+        if (compound) {
+            address _ctokenFactory = address(lvar.flags & _ADDRESS_MASK);
+            fromTokenReal = IERC20(_getCtokenAddress(_ctokenFactory, fromTokenReal));
+            destTokenReal = IERC20(_getCtokenAddress(_ctokenFactory, destTokenReal));
+            // 不会返回 0
+            if ((address(fromTokenReal) == address(0)) || (address(destTokenReal) == address(0))) {
+                // gas = 50_000;
+                return (rets, 50_000);
+            }
+
+            exchangeRateFrom = _calcExchangeRate(ICERC20(address(fromTokenReal)));
+            exchangeRateDest = _calcExchangeRate(ICERC20(address(destTokenReal)));
+        }
+
+        IUniswapV2Exchange exchange = lvar.factory.getPair(fromTokenReal, destTokenReal);
         if (exchange != IUniswapV2Exchange(0)) {
             uint256 fromTokenBalance = fromTokenReal.uniBalanceOf(address(exchange));
             uint256 destTokenBalance = destTokenReal.uniBalanceOf(address(exchange));
-            for (uint i = 0; i < amounts.length; i++) {
-                rets[i] = _calculateUniswapFormula(fromTokenBalance, destTokenBalance, amounts[i]);
+            for (uint i = 0; i < lvar.amounts.length; i++) {
+                rets[i] = _calculateUniswapFormula(fromTokenBalance, destTokenBalance, lvar.amounts[i]);
+                if (compound) {
+                    rets[i] = rets[i].mul(exchangeRateDest).div(exchangeRateFrom);
+                }
             }
             return (rets, 50_000);
         }

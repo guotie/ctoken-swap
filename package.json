@@ -11,6 +11,7 @@
     "test:all": "hardhat test",
     "test": "hardhat test",
     "clean": "hardhat clean",
+    "flatten": "ts-node scripts/flatten.ts",
     "compile": "hardhat compile"
   },
   "author": "bit.god@yandex.com",

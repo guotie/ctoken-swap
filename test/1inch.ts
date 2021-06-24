@@ -2,7 +2,7 @@ const { expect } = require("chai");
 
 import { BigNumber, BigNumberish, Contract } from 'ethers'
 
-import { getAbiByContractName, deployTokens, getTokenContract, setWEth, deployWHT } from '../deployments/deploys'
+import { deployAll, getAbiByContractName, deployTokens, getTokenContract, setWEth, deployWHT, getWETH } from '../deployments/deploys'
 import { getContractAt, getContractBy, getContractByNameAddr } from '../utils/contracts'
 import createCToken from './shared/ctoken'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
@@ -33,7 +33,7 @@ describe("1inch", function() {
   let cunoswap: Contract
 
   this.timeout(600000);
-  const deployFactory = async (deployer: any, salt: string) => {
+  const deployFactory = async (deployer: any, salt: string, _wht: string) => {
       // let salt = new Date().getTime()
       let dr = await deploy('MdexFactory', {
         from: deployer,
@@ -41,22 +41,28 @@ describe("1inch", function() {
         log: true,
         deterministicDeployment: salt + '', //
       })
-      console.log('factory address:', dr.address, salt)
+      let router = await deploy('MdexRouter', {
+        from: deployer,
+        args: [dr.address, _wht],
+        log: true,
+        deterministicDeployment: salt + '', //
+      })
+      console.log('factory/router address:', dr.address, router.address, salt)
 
-      return dr.address
+      return { factory: dr.address, router: router.address }
       // newlyDeployed 是否是新部署
   }
 
-  const deployUnoswap = async (deployer: any, wethAddr: string) => {
+  const deployUnoswap = async (deployer: any, wethAddr: string, _ctokenFactory: string) => {
     return deploy('UnoswapRouter', {
       from: deployer,
-      args: [wethAddr],
+      args: [wethAddr, _ctokenFactory],
       log: true,
     })
   }
 
-  const deployOneSplit = async (deployer: any, wethAddr: string) => {
-    let args = [wethAddr]
+  const deployOneSplit = async (deployer: any, wethAddr: string, _ctokenFactory: string) => {
+    let args = [wethAddr, _ctokenFactory]
     let result = await deploy('OneSplit', {
       from: deployer,
       args: args,
@@ -86,7 +92,9 @@ describe("1inch", function() {
     const deployer = namedSigners[0].address
     // const whtABI = await getAbiByContractName('WHT')
 
-    wht = await deployWHT(namedSigners[0], true, true)
+    let dcs = await deployAll()
+
+    wht = getWETH() //await deployWHT(namedSigners[0], true, true)
     console.log('wht address:', wht.address);
 
     await depositWHT(BigNumber.from(10).mul(e18))
@@ -100,20 +108,29 @@ describe("1inch", function() {
     })
     admin = deployer
 
-    let f1 = await deployFactory(deployer, '0x10')
-    let f2 = await deployFactory(deployer, '0x20')
-    await deployOneSplit(deployer, wht.address)
+    let fr1 = await deployFactory(deployer, '0x10', wht.address)
+    let fr2 = await deployFactory(deployer, '0x20', wht.address)
+    let f1 = fr1.factory
+      , f2 = fr2.factory
+      , r1 = fr1.router
+      , r2 = fr2.router
+
+    await deployOneSplit(deployer, wht.address, dcs.lErc20DelegatorFactory.address)
 
     inch = await getContractByNameAddr('OneSplit', inchAddr) // '0xe8a1620429b7752484239b54f9f30e73ea634a33')
 
     console.log('reset factories')
-    await inch.resetFactories([f1, f2])
-    let fs0 = await inch.factories(0)
-    let fs1 = await inch.factories(1)
-    console.log('factories: ', fs0, fs1)
+    // await inch.resetFactories([f1, f2])
+    await inch.addUniswap(r1, 0)
+    await inch.addUniswap(r2, '0x0200000000000000000000000000000000000000000000000000000000000000')
+    await inch.addCompoundSwap(dcs.router.address, dcs.lErc20DelegatorFactory.address, '0x0200000000000000000000000000000000000000000000000000000000000000')
+
+    // let fs0 = await inch.factories(0)
+    // let fs1 = await inch.factories(1)
+    // console.log('factories: ', fs0, fs1)
     // await depositWHT('2000000000000000000')
-    let fc0 = await getContractByNameAddr('MdexFactory', fs0)
-    let fc1 = await getContractByNameAddr('MdexFactory', fs1)
+    let fc0 = await getContractByNameAddr('MdexFactory', f1)
+    let fc1 = await getContractByNameAddr('MdexFactory', f2)
 
     
     let tokens = await deployTokens(false)
@@ -133,9 +150,37 @@ describe("1inch", function() {
     await addLiquidity(fc1, cusdt, wht, '1000', '1')
     await addLiquidity(fc1, csea, wht, '1000', '1')
 
-    let dr = await deployUnoswap(deployer, wht.address)
+    const router = new ethers.Contract(dcs.router.address, dcs.router.abi, namedSigners[0])
+    await addLiquidityUnderlying(router, cusdt, csea, '2000', '10000', deployer)
+    await addLiquidityUnderlying(router, cusdt, wht, '2000', '2', deployer)
+    await addLiquidityUnderlying(router, csea, wht, '2000', '2', deployer)
+
+    let dr = await deployUnoswap(deployer, wht.address, dcs.lErc20DelegatorFactory.address)
     cunoswap = new ethers.Contract(dr.address, dr.abi, namedSigners[0])
   })
+
+  const deadlineTs = (second: number) => {
+    return (new Date()).getTime() + second * 1000
+  }
+    // compound
+    const addLiquidityUnderlying = async (router: Contract, token0: Contract, token1: Contract, amt0: BigNumberish, amt1: BigNumberish, deployer: string) => {
+      amt0 = BigNumber.from(amt0).mul(e18)
+      amt1 = BigNumber.from(amt1).mul(e18)
+
+      if (token0.address === wht.address) {
+        await token1.approve(router.address, amt1)
+        await router.addLiquidityETHUnderlying(token1.address, amt1, 0, 0, deployer, deadlineTs(60), {value: amt0})
+      } else if (token1.address === wht.address) {
+        await token0.approve(router.address, amt0)
+        await router.addLiquidityETHUnderlying(token0.address, amt0, 0, 0, deployer, deadlineTs(60), {value: amt1})
+      } else {
+        console.log('addLiquidityUnderlying:', token0.address, token1.address)
+        await token0.approve(router.address, amt0)
+        await token1.approve(router.address, amt1)
+        console.log('addLiquidityUnderlying....')
+        await router.addLiquidityUnderlying(token0.address, token1.address, amt0, amt1, 0, 0, deployer, deadlineTs(60))
+      }
+    }
 
     const addLiquidity = async (factory: Contract, token0: Contract, token1: Contract, amt0: BigNumberish, amt1: BigNumberish) => {
       console.log('token0: %s token1: %s', token0.address, token1.address)
@@ -154,31 +199,33 @@ describe("1inch", function() {
     }
 
 
-    // it('inch-ht-token', async () => {
-    //   let amt = BigNumber.from('1000000000000000')
-    //   let args = {
-    //     fromToken: '0x0000000000000000000000000000000000000000',
-    //     destToken: sea,
-    //     midTokens: [],
-    //     amount: amt,
-    //     parts: 50,
-    //     flags: 0,
-    //     // slip: 0,
-    //     destTokenEthPriceTimesGasPrice: 0,
-    //   }
-    //   let tx = await inch.getExpectedReturnWithGas(args)
-    //   console.log('tx: returnAmt=%s estimateGas=%s', tx.returnAmount.toString(), tx.estimateGasAmount.toString())
-    //   for (let i = 0; i < tx.distribution.length; i ++) {
-    //     console.log('tx distribution %d: %s', i, tx.distribution[i].toString())
-    //   }
-    //   let data = tx.data.slice(2)
-    //   console.log(data)
+    /*
+    it('inch-ht-token', async () => {
+      let amt = BigNumber.from('1000000000000000')
+      let args = {
+        fromToken: '0x0000000000000000000000000000000000000000',
+        destToken: sea,
+        midTokens: [],
+        amount: amt,
+        parts: 50,
+        flags: 0,
+        slip: 1,
+        destTokenEthPriceTimesGasPrice: 0,
+      }
+      let tx = await inch.getExpectedReturnWithGas(args)
+      console.log('tx: returnAmt=%s estimateGas=%s', tx.returnAmount.toString(), tx.estimateGasAmount.toString())
+      for (let i = 0; i < tx.distribution.length; i ++) {
+        console.log('tx distribution %d: %s', i, tx.distribution[i].toString())
+      }
+      let data = tx.data.slice(2)
+      console.log(data)
 
-    //   // await cusdt.approve(cunoswap.address, amt)
-    //   // await csea.permit(cunoswap.address, amt)
-    //   await cunoswap.unoswapAll(tx.data, {value: amt})
-    // })
+      // await cusdt.approve(cunoswap.address, amt)
+      // await csea.permit(cunoswap.address, amt)
+      await cunoswap.unoswapAll(tx.data, {value: amt})
+    })
 
+    
     it('inch-token-ht', async () => {
       let amt = BigNumber.from('1000000000000000')
       let args = {
@@ -188,7 +235,7 @@ describe("1inch", function() {
         amount: amt,
         parts: 50,
         flags: 0,
-        // slip: 0,
+        slip: 1,
         destTokenEthPriceTimesGasPrice: 0,
       }
       let tx = await inch.getExpectedReturnWithGas(args)
@@ -203,8 +250,8 @@ describe("1inch", function() {
       await csea.approve(cunoswap.address, amt)
       await cunoswap.unoswapAll(tx.data, {value: amt})
     })
+    
 
-/*
     it('inch-token-token', async () => {
         let amt = BigNumber.from('1000000000000000')
         let args = {
@@ -214,7 +261,7 @@ describe("1inch", function() {
           amount: amt,
           parts: 50,
           flags: 0,
-          // slip: 0,
+          slip: 0,
           destTokenEthPriceTimesGasPrice: 0,
         }
         let tx = await inch.getExpectedReturnWithGas(args)
@@ -229,17 +276,18 @@ describe("1inch", function() {
         // await csea.permit(cunoswap.address, amt)
         await cunoswap.unoswapAll(tx.data)
     })
-*/
+    */
+    
     it('inch-token-token-midtoken', async () => {
         let amt = BigNumber.from('1000000000000000')
         let args = {
           fromToken: sea,
           destToken: usdt,
-          midTokens: [wht.address],
+          midTokens: [], // [wht.address],
           amount: amt,
           parts: 50,
           flags: 0,
-          // slip: 0,
+          slip: 0,
           destTokenEthPriceTimesGasPrice: 0,
         }
         let tx = await inch.getExpectedReturnWithGas(args)
