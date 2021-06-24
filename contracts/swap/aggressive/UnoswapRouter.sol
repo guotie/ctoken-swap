@@ -256,6 +256,7 @@ contract UnoswapRouter is Permitable {
     function _swapByRouter(address router, address[] memory path, uint amt, uint amtOut, bool ctokenSwap) private {
         uint deadline = block.timestamp + 60;
 
+        console.log("_swapByRouter:", router, amt, amtOut);
         if (path[0] == address(0)) {
             // swapExactETHForTokens
             // solhint-disable-next-line avoid-low-level-calls

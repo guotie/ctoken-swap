@@ -495,6 +495,17 @@ contract OneSplit is Ownable {
         );
     }
 
+    function _calculateUniswapFormulaCompound(uint256 fromBalance, uint256 toBalance, uint256 amount, uint rateIn, uint rateOut) internal pure returns(uint256) {
+        if (amount == 0) {
+            return 0;
+        }
+        amount = amount.mul(1e18).div(rateIn);
+        uint amtOut = amount.mul(toBalance).mul(997).div(
+                fromBalance.mul(1000).add(amount.mul(997))
+            );
+        return amtOut.mul(rateOut).div(1e18);
+    }
+
     // 计算 ctoken 的 exchange rate
     function _calcExchangeRate(ICERC20 ctoken) private view returns (uint) {
         uint rate = ctoken.exchangeRateStored();
@@ -529,6 +540,8 @@ contract OneSplit is Ownable {
 
             exchangeRateFrom = _calcExchangeRate(ICERC20(address(fromTokenReal)));
             exchangeRateDest = _calcExchangeRate(ICERC20(address(destTokenReal)));
+
+            console.log("compound exchange rat:", exchangeRateFrom, exchangeRateDest);
         }
 
         IUniswapV2Exchange exchange = lvar.factory.getPair(fromTokenReal, destTokenReal);
@@ -536,9 +549,10 @@ contract OneSplit is Ownable {
             uint256 fromTokenBalance = fromTokenReal.uniBalanceOf(address(exchange));
             uint256 destTokenBalance = destTokenReal.uniBalanceOf(address(exchange));
             for (uint i = 0; i < lvar.amounts.length; i++) {
-                rets[i] = _calculateUniswapFormula(fromTokenBalance, destTokenBalance, lvar.amounts[i]);
                 if (compound) {
-                    rets[i] = rets[i].mul(exchangeRateDest).div(exchangeRateFrom);
+                    rets[i] = _calculateUniswapFormulaCompound(fromTokenBalance, destTokenBalance, lvar.amounts[i], exchangeRateFrom, exchangeRateDest);
+                } else {
+                    rets[i] = _calculateUniswapFormula(fromTokenBalance, destTokenBalance, lvar.amounts[i]);
                 }
             }
             return (rets, 50_000);

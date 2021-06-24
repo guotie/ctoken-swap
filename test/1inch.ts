@@ -86,6 +86,7 @@ describe("1inch", function() {
       await wht.deposit({value: value})
   }
 
+  const logHr = (s: string) => console.log('--------------------------  ' + s + '  --------------------------')
   before(async () => {
     // 
     const namedSigners = await ethers.getSigners()
@@ -157,6 +158,8 @@ describe("1inch", function() {
 
     let dr = await deployUnoswap(deployer, wht.address, dcs.lErc20DelegatorFactory.address)
     cunoswap = new ethers.Contract(dr.address, dr.abi, namedSigners[0])
+
+    logHr('done')
   })
 
   const deadlineTs = (second: number) => {
