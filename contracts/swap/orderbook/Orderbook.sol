@@ -17,7 +17,7 @@ pragma experimental ABIEncoderV2;
 // import "../aggressive/Ownable.sol";
 // import "../aggressive/SafeMath.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface ISwapMining {
     function swap(address account, address input, address output, uint256 amount) external returns (bool);
@@ -211,6 +211,13 @@ interface IWHT {
     function withdraw(uint) external;
 }
 
+interface IMarginHolding {
+  // owner: 杠杆用户
+  // fulfiled: 买到的token数量
+  // amt: 卖出的token数量
+  function onFulfiled(address owner, uint fulfiled, uint amt) external;
+}
+
 interface IOrderBook {
     event CreateOrder(address indexed owner,
           address indexed srcToken,
@@ -270,10 +277,14 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     using SafeMath for uint256;
     uint private constant _ORDER_CLOSED = 0x00000000000000000000000000000001;   // 128 bit
 
+    // _router: swap 路由
+    // _ctokenFactory: ctoken 工厂
+    // _wETH: eth/bnb/ht 白手套
+    // _margin: 代持合约地址
     constructor(address _router, address _ctokenFactory, address _wETH, address _margin) public {
       router = _router;
-      wETH = _wETH;
       ctokenFactory = _ctokenFactory;
+      wETH = _wETH;
       marginAddr = _margin;
     }
 
@@ -354,7 +365,8 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         pairOrders[order.pair].pop();
     }
 
-    // 在router中已经把token转入
+    // 创建订单
+    // 调用前需要 approve
     function createOrder(
         address srcToken,
         address destToken,
@@ -400,9 +412,31 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
 
       _putOrder(order);
 
-      return orderId;
+      return idx;
     }
 
+    // 获取所有订单列表
+    function getAllOrders() public view returns(OrderItem[] memory orders) {
+      uint total = 0;
+      uint id = 0;
+      for (uint i = 0; i < orderId; i ++) {
+        OrderItem memory order = orders[i];
+        if ((order.flag & _ORDER_CLOSED) == 0) {
+          total ++;
+        }
+      }
+
+      orders = new OrderItem[](total);
+      for (uint i = 0; i < orderId; i ++) {
+        OrderItem memory order = orders[i];
+        if ((order.flag & _ORDER_CLOSED) == 0) {
+          orders[id] = order;
+          id ++;
+        }
+      }
+    }
+
+    // 交易对hash
     function pairFor(address srcToken, address destToken) public view returns(uint pair) {
       if (srcToken == address(0)) {
           srcToken = wETH;
@@ -446,7 +480,8 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       // bool margin = isMargin(order.flag);
 
       if (margin) {
-        // todo 回调
+        // 回调
+        IMarginHolding(marginAddr).onFulfiled(maker, outAmt, buyAmt);
       } else {
         balanceOf[destToken][maker] += outAmt;
       }
@@ -465,7 +500,8 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     }
 
     // order 成交, 收取成交后的币的手续费
-    // todo
+    // 普通订单, maker 成交的币由合约代持; taker 的币发给用户
+    //
     function fulfilOrder(uint orderId, uint amtToTaken) external payable whenOpen nonReentrant returns (bool) {
       OrderItem storage order = orders[orderId];
       uint expired = getExpiredAt(order.timestamp);

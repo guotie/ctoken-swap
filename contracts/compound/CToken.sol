@@ -84,11 +84,11 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return Whether or not the transfer succeeded
      */
     function transferTokens(address spender, address src, address dst, uint tokens) internal returns (uint) {
-        console.log("transfer ctoken:", spender, src, dst);
+        // console.log("transfer ctoken:", spender, src, dst);
         /* Fail if transfer not allowed */
         uint allowed = 0; // comptroller.transferAllowed(address(this), src, dst, tokens);
         if (allowed != 0) {
-            console.log("not allow transfer");
+            // console.log("not allow transfer");
             return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.TRANSFER_COMPTROLLER_REJECTION, allowed);
         }
 
@@ -399,7 +399,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return (error code, calculated exchange rate scaled by 1e18)
      */
     function exchangeRateStoredInternal() internal view returns (MathError, uint) {
-        console.log('exchangeRateStoredInternal address: %s', address(this));
+        // console.log('exchangeRateStoredInternal address: %s', address(this));
 
         uint _totalSupply = totalSupply;
         if (_totalSupply == 0) {
@@ -407,7 +407,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
              * If there are no tokens minted:
              *  exchangeRate = initialExchangeRate
              */
-             console.log('initialExchangeRateMantissa: %d', initialExchangeRateMantissa);
+            //  console.log('initialExchangeRateMantissa: %d', initialExchangeRateMantissa);
             return (MathError.NO_ERROR, initialExchangeRateMantissa);
         } else {
             /*
@@ -433,8 +433,8 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
             // console.log("exchangeRateStoredInternal: totalBorrows: %d", totalBorrows);
             // console.log("exchangeRateStoredInternal: totalReserves: %d", totalReserves);
             // console.log("exchangeRateStoredInternal: totalSupply: %d", totalSupply);
-            console.log("exchangeRateStoredInternal: exchangeRate: %d", exchangeRate.mantissa);
-            console.log(totalCash, totalBorrows, totalReserves, _totalSupply);
+            // console.log("exchangeRateStoredInternal: exchangeRate: %d", exchangeRate.mantissa);
+            // console.log(totalCash, totalBorrows, totalReserves, _totalSupply);
             return (MathError.NO_ERROR, exchangeRate.mantissa);
         }
     }
@@ -574,7 +574,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* Fail if mint not allowed */
         uint allowed = comptroller.mintAllowed(address(this), minter, mintAmount);
         if (allowed != 0) {
-            console.log("token not allowed");
+            // console.log("token not allowed");
             return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.MINT_COMPTROLLER_REJECTION, allowed), 0);
         }
 
@@ -609,7 +609,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          *  mintTokens = actualMintAmount / exchangeRate
          */
         (vars.mathErr, vars.mintTokens) = divScalarByExpTruncate(vars.actualMintAmount, Exp({mantissa: vars.exchangeRateMantissa}));
-        console.log("mintAmount: %d exchangeRate: %d mintTokens: %d", vars.actualMintAmount, vars.exchangeRateMantissa, vars.mintTokens);
+        // console.log("mintAmount: %d exchangeRate: %d mintTokens: %d", vars.actualMintAmount, vars.exchangeRateMantissa, vars.mintTokens);
         require(vars.mathErr == MathError.NO_ERROR, "MINT_EXCHANGE_CALCULATION_FAILED");
 
         /*
@@ -695,7 +695,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* exchangeRate = invoke Exchange Rate Stored() */
         (vars.mathErr, vars.exchangeRateMantissa) = exchangeRateStoredInternal();
         if (vars.mathErr != MathError.NO_ERROR) {
-            console.log('redeemFresh: exchangeRateStoredInternal failed');
+            // console.log('redeemFresh: exchangeRateStoredInternal failed');
             return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr));
         }
 
@@ -710,7 +710,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
             (vars.mathErr, vars.redeemAmount) = mulScalarTruncate(Exp({mantissa: vars.exchangeRateMantissa}), redeemTokensIn);
             if (vars.mathErr != MathError.NO_ERROR) {
-                console.log('redeemFresh: mulScalarTruncate failed');
+                // console.log('redeemFresh: mulScalarTruncate failed');
                 return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_TOKENS_CALCULATION_FAILED, uint(vars.mathErr));
             }
         } else {

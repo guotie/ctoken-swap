@@ -185,14 +185,14 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         uint amountAMin,
         uint amountBMin
     ) internal returns (uint amountA, uint amountB) {
-        console.log("_addLiquidity", factory);
+        // console.log("_addLiquidity", factory);
         address tokenA = _getTokenByCtoken(ctokenA);
         address tokenB = _getTokenByCtoken(ctokenB);
         // create the pair if it doesn't exist yet
         if (IDeBankFactory(factory).getPair(tokenA, tokenB) == address(0)) {
             IDeBankFactory(factory).createPair(tokenA, tokenB);
         }
-        console.log("_addLiquidity getReserves");
+        // console.log("_addLiquidity getReserves");
         (uint reserveA, uint reserveB) = IDeBankFactory(factory).getReserves(tokenA, tokenB);
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);

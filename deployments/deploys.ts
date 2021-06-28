@@ -36,6 +36,9 @@ export interface DeployContracts {
   WHT: ContractAddrAbi
   cWHT: ContractAddrAbi
   router: ContractAddrAbi
+  orderbook: ContractAddrAbi
+  onesplit: ContractAddrAbi
+  unoswapRouter: ContractAddrAbi
 }
 
 // wETH 的地址
@@ -288,6 +291,24 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   const mdexFactoryCont = new ethers.Contract(mdexFactory.address, mdexFactory.abi, namedSigners[0])
   await mdexFactoryCont.setRouter(router.address)
 
+  const onesplit = await _deploy('OneSplit', {
+    from: deployer,
+    args: [wht.address, lercFactoryDeployed.address],
+    log: log,
+  }, verify)
+
+  const orderbook = await _deploy('OrderBook', {
+    from: deployer,
+    args: [router.address, lercFactoryDeployed.address, wht.address, zeroAddress],
+    log: log
+  }, verify)
+
+  const unoswapRouter = await _deploy('', {
+    from: deployer,
+    args: [wht.address, lercFactoryDeployed.address],
+    log: log
+  }, verify)
+
   /////////////////////////////////////////////////////////////////////////////////////////////////////
   // deploy bank margin
   // 1. deploy margin goblin 每个交易对一个 goblin， MdxStrategyAddTwoSidesOptimal
@@ -307,6 +328,9 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     console.log('deploy lerc20DelegatorFactory at: ', lercFactoryDeployed.address)
     console.log('deploy CETH at: ', lht.address)
     console.log('deploy router at: ', router.address)
+    console.log('deploy onesplit at: ', onesplit.address)
+    console.log('deploy orderbook at: ', orderbook.address)
+    console.log('deploy unoswapRouter at: ', unoswapRouter.address)
   }
 
   return {
@@ -320,8 +344,13 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     cWHT: { address: lht.address, abi: await getAbiByContractName('LHT')},
     lErc20DelegatorFactory: { address: lercFactoryDeployed.address, abi: await getAbiByContractName('LErc20DelegatorFactory') },
     router: { address: router.address, abi: await getAbiByContractName('DeBankRouter') },
+    onesplit: { address: onesplit.address, abi: await getAbiByContractName('OneSplit') },
+    orderbook: { address: orderbook.address, abi: await getAbiByContractName('OrderBook') },
+    unoswapRouter: { address: unoswapRouter.address, abi: await getAbiByContractName('UnoswapRouter') },
   }
 }
+
+export const zeroAddress = '0x0000000000000000000000000000000000000000'
 
 // 测试 token USDT, SEA, DOGE, SHIB
 export interface Tokens {

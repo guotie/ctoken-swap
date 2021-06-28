@@ -161,7 +161,10 @@ describe("ctoken router 测试", function() {
       let overrides = {value: amount.toString()}
       tx = await cwhtCT.functions.mint(overrides)
     } else {
-      tx = await ctoken.functions.mint(amount)
+      let gas = await ctoken.estimateGas.mint(amount)
+      // 在 hecotest 上会失败， 为什么??? 2021/06/25
+      console.log('ctoken mint estimate gas:', gas.toString())
+      tx = await ctoken.functions.mint(amount, {gasLimit: gas})
     }
     await token.approve(ctoken.address, 0)
     await tx.wait(2)
@@ -262,7 +265,9 @@ describe("ctoken router 测试", function() {
     const pair = await getPairContract(ctoken0.address, ctoken1.address)
     const b0 = await pair.balanceOf(deployer)
     console.log('before mint, LP %s balance: %s', pair.address, b0.toString())
-    const tx = await router.addLiquidity(ctoken0.address, ctoken1.address, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(60), {gasLimit: 3000000})
+    let gas = await router.estimateGas.addLiquidity(ctoken0.address, ctoken1.address, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(60))
+    console.log('addLiquidity estimate gas:', gas.toString())
+    const tx = await router.addLiquidity(ctoken0.address, ctoken1.address, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(60), {gasLimit: gas})
     await tx.wait(1);
     const b1 = await pair.balanceOf(deployer)
     console.log('after mint, LP %s balance: %s', pair.address, b1.toString())
@@ -288,7 +293,9 @@ describe("ctoken router 测试", function() {
       await tx.wait(1);
     } else {
       console.log('!!!token1 is wETH!!!')
-      let overrides = {value: amt1Desired}
+      let gas = await router.estimateGas.addLiquidityETHUnderlying(token0, amt0Desired, amt0Min, amt1Min, deployer, deadlineTs(6))
+      console.log('addLiquidityETHUnderlying estimate gas:', gas.toString())
+      let overrides = {value: amt1Desired, gasLimit: gas}
       const tx = await router.addLiquidityETHUnderlying(token0, amt0Desired, amt0Min, amt1Min, deployer, deadlineTs(6), overrides)
       await tx.wait(1);
     }
@@ -515,18 +522,18 @@ describe("ctoken router 测试", function() {
   }
 
   
-  // 将字符串转换为 BigNumebr
-  const humanAmount = (amt: string, token = '') => {
+  // // 将字符串转换为 BigNumebr
+  // const humanAmount = (amt: string, token = '') => {
 
-  }
+  // }
 
   it('router-addLiquidity', async () => {
     console.log('---------------------------------------------------------------------')
     let amt0 =  '1000000'
     let amt1 =  '5000000'
 
-    await swapRouterMintCtoken(usdt, sea, amt0, amt1, amt0, amt1)
-    await swapRouterMintCtoken(sea, usdt, amt1, amt0, amt1, amt0)
+    // await swapRouterMintCtoken(usdt, sea, amt0, amt1, amt0, amt1)
+    // await swapRouterMintCtoken(sea, usdt, amt1, amt0, amt1, amt0)
 
     // const pair = await mdexFactory.pairFor(usdt, sea)
     amt0 = '100000000'

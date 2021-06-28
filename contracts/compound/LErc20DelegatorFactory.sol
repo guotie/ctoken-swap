@@ -24,7 +24,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
         initCodeHash = keccak256(abi.encodePacked(type(LErc20Delegator).creationCode));
 
         // bytes32 0x71a762e9b044ae662a0d792ceaa9aaa4bf09c9ecdd90967035ae11e75f841390
-        console.logBytes32(initCodeHash);
+        // console.log('LErc20DelegatorFactory initcode:', initCodeHash);
     }
     
     //可以设置
@@ -93,6 +93,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
 
         addNewCToken(token_, delegator);
         // bytes4(keccak256(bytes('_supportMarket(address)')))
+        // solhint-disable-next-line
         address(comptroller).call(abi.encodeWithSelector(bytes4(keccak256(bytes('_supportMarket(address)'))), delegator));
         emit NewDelegator(token_, address(delegator));
         return delegator;
@@ -100,6 +101,8 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     
     //像comportable 添加新币 对应关系
     function addNewCToken(address token,address cToken) public returns (uint){
+        require(msg.sender == admin_, "no auth");
+
         //包含两个币互相对应关系
         tokenKeyMapping[token] = cToken;
         cTokenKeyMapping[cToken] = token;
