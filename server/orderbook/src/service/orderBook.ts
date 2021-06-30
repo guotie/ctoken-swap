@@ -299,7 +299,8 @@ export class OrderBookService {
   }
 
   price(amtIn: BigNumber, amtOut: BigNumber): BigNumber {
-    return amtIn.mul(this.E18).div(amtOut)
+    // return amtIn.mul(this.E18).div(amtOut)
+    return amtOut.mul(this.E18).div(amtIn)
   }
 
   // 根据token获取交易对key
@@ -326,15 +327,33 @@ export class OrderBookService {
     let tree = this._orders.get(pair)
     let orders = new std.List()
 
-    for (let start = tree.begin(); start != tree.end(); start = start.next()) {
+    for (let start = tree.begin(); start !== tree.end(); start = start.next()) {
       let items = start.value.second;
 
-      for (let item = items.begin(); item != items.end(); item = item.next()) {
+      for (let item = items.begin(); item !== items.end(); item = item.next()) {
         orders.push(item.value)
       }
     }
 
     return orders
+  }
+
+  cloneOrder(item: OrderItem): OrderItem {
+    return {
+      orderId: item.orderId,
+      owner: item.owner,
+      to: item.to,
+      pair: item.pair,
+      timestamp: item.timestamp,
+      expiredAt: item.timestamp,
+      flag: item.flag,
+      // TokenAmount
+      srcToken: item.srcToken,
+      destToken: item.destToken,
+      amountIn: item.amountIn,
+      fulfiled: item.fulfiled,
+      guaranteeAmountOut: item.guaranteeAmountOut
+    }
   }
 
   // 获取更优的价格的订单列表
@@ -343,7 +362,38 @@ export class OrderBookService {
   // dest: 目标token
   // amtIn: src 数量
   // amtOut: dest 数量
+  //
+  // 寻找卖出src, 买入dest的挂单列表, 且价格 < amtOut/amtIn
   async getBetterOrders(src: string, dest: string, amtIn: BigNumberish, amtOut: BigNumberish) {
+    let price = new BigNumberKey(this.price(BigNumber.from(amtIn), BigNumber.from(amtOut)))
+      , pair = this.pairFor(src, dest)
+    
+    if (!this._orders.has(pair)) {
+      console.warn('not found pair:', pair)
+      return []
+    }
 
+    let orders = this._orders.get(pair)
+      , cursor = orders.upper_bound(price)  // 找到大于该价格的最近的节点
+      , items: OrderItem[] = []
+    
+    if (cursor === orders.end()) {
+        cursor = orders.end().prev()
+    }
+    // 价格优先 时间优先
+    for (let iter = orders.begin(); iter !== cursor; iter = iter.next()) {
+      for(let order of iter.second) {
+        items.push(this.cloneOrder(order))
+      }
+    }
+
+    // cursor
+    if (cursor.first.less(price) || cursor.first.equals(price)) {
+      for(let order of cursor.second) {
+        items.push(this.cloneOrder(order))
+      }
+    }
+
+    return items
   }
 }

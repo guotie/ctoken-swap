@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 
-import { BigNumber } from 'ethers'
+import { BigNumber, BigNumberish } from 'ethers'
 import std, { TreeMap } from "tstl";
 import BigNumberKey from '../server/orderbook/src/utils/BigNumberKey'
 
@@ -40,6 +40,37 @@ describe("tstl", function() {
     }
   }
 
+  const getBetterOrders = (pair: string, sprice: BigNumberish) => {
+    if (false === _orders.has(pair)) {
+      return []
+    }
+
+    let orders = _orders.get(pair)
+      , price = new BigNumberKey(sprice)
+      , cursor = orders.upper_bound(price)
+      , items: OrderItem[] = []
+
+    if (cursor === orders.end()) {
+      cursor = orders.end().prev()
+    }
+
+    // 价格优先 时间优先
+    for (let iter = orders.begin(); iter !== cursor; iter = iter.next()) {
+      for(let order of iter.second) {
+        items.push({orderId: order.orderId, amountIn: order.amountIn, fulfiled: order.fulfiled})
+      }
+    }
+
+    // cursor
+    if (cursor.first.less(price) || cursor.first.equals(price)) {
+      for(let order of cursor.second) {
+        items.push({orderId: order.orderId, amountIn: order.amountIn, fulfiled: order.fulfiled})
+      }
+    }
+
+    return items
+  }
+
   it('insertOrder', () => {
     let symbol = 'eth/usdt'
       , p1000 = new BigNumberKey('1000')
@@ -59,11 +90,30 @@ describe("tstl", function() {
 
     let orders = _orders.get(symbol)
 
-    for (let start = orders.begin(); start != orders.end(); start = start.next()) {
+    for (let start = orders.begin(); start !== orders.end(); start = start.next()) {
       let items = start.value.second;
       for (let item of items) {
         console.log('orderId:', item.orderId)
       }
+    }
+
+    for (let v of [800, 900, 950, 1000, 1200, 1400, 1500, 1600, 1800, 2000, 2500, 3000]) {
+      let target = orders.upper_bound(new BigNumberKey(v))
+      if (target.equals(orders.end())) {
+        console.warn('reach end: ', v);
+        continue;
+        // break;
+      }
+      console.log('find %d low_bound:', v, target.value.first.val.toString())
+    }
+
+    for (let v of [800, 900, 950, 1000, 1200, 1400, 1500, 1600, 1800, 2000, 2500, 3000]) {
+      let items = getBetterOrders(symbol, v)
+      let ids = ''
+      for (let item of items) {
+        ids += item.orderId + ' '
+      }
+      console.log('orders price less than %d:', v, ids)
     }
     // console.log(orders)
   })
