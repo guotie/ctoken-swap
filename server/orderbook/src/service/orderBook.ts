@@ -363,7 +363,7 @@ export class OrderBookService {
   // amtIn: src 数量
   // amtOut: dest 数量
   //
-  // 寻找卖出src, 买入dest的挂单列表, 且价格 < amtOut/amtIn
+  // 寻找卖出src, 买入dest的挂单列表, 且价格 <= amtOut/amtIn
   async getBetterOrders(src: string, dest: string, amtIn: BigNumberish, amtOut: BigNumberish) {
     let price = new BigNumberKey(this.price(BigNumber.from(amtIn), BigNumber.from(amtOut)))
       , pair = this.pairFor(src, dest)

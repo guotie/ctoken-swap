@@ -20,6 +20,10 @@ interface IERC20Permit {
     function permit(address owner, address spender, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
 }
 
+interface IOrderBook {
+    function fulfilOrder(uint orderId, uint amtToTaken) external payable returns (uint);
+}
+
 interface IRouter {
     function swapExactTokensForTokens(
         uint amountIn,
@@ -69,7 +73,7 @@ contract Permitable {
     }
 }
 
-contract UnoswapRouter is Permitable {
+contract UnoswapRouter is Permitable, Ownable {
     using SafeMath for uint;
 
     uint256 private constant _TRANSFER_FROM_CALL_SELECTOR_32 = 0x23b872dd00000000000000000000000000000000000000000000000000000000;
@@ -96,16 +100,25 @@ contract UnoswapRouter is Permitable {
     uint256 private constant _DENOMINATOR = 1000000;
     uint256 private constant _NUMERATOR_OFFSET = 160;
 
+    uint public maxOrdersPerTx = 5;  // 每次交易最多跟多少个限价单成交
+
     address public ctokenFactory;
+    address public orderbookAddr;  // order book 合约地址
 
     receive() external payable {
         // solhint-disable-next-line avoid-tx-origin
         require(msg.sender != tx.origin, "ETH deposit rejected");
     }
 
-    constructor(address _weth, address _ctokenFactory) public {
+    constructor(address _weth, address _ctokenFactory, address _obAddr) public {
         _WETH = uint(_weth);
         ctokenFactory = _ctokenFactory;
+        orderbookAddr = _obAddr;
+    }
+
+    // 修改单次可以成交的限价单数量
+    function setMaxOrdersPerTx(uint times) public onlyOwner {
+        maxOrdersPerTx = times;
     }
 
     // 根据 token 查找其 ctoken 地址
@@ -158,6 +171,23 @@ contract UnoswapRouter is Permitable {
         uint[] minOutAmts;
         uint[] flags;
         bytes32[][] pools;
+    }
+
+    // 混合成交： uniswap-like + 订单薄
+    function unoswapWithLimitOrder(bytes calldata data, uint[] memory ids, uint[] memory amts) external payable returns (uint256 returnAmt) {
+        if (data.length > 0) {
+            // swap by uniswap-like
+            returnAmt += unoswapAll(data);
+        }
+        if (ids.length > 0) {
+            uint max = ids.length;
+            if (max > maxOrdersPerTx) {
+                max = maxOrdersPerTx;
+            }
+            for (uint i = 0; i < max; i ++) {
+                returnAmt += IOrderBook(orderbookAddr).fulfilOrder(ids[i], amts[i]);
+            }
+        }
     }
 
     // 同时调用多个交易所兑换

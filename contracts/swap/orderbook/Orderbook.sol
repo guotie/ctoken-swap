@@ -511,24 +511,24 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     // order 成交, 收取成交后的币的手续费
     // 普通订单, maker 成交的币由合约代持; taker 的币发给用户
     //
-    function fulfilOrder(uint orderId, uint amtToTaken) external payable whenOpen nonReentrant returns (bool) {
+    function fulfilOrder(uint orderId, uint amtToTaken) external payable whenOpen nonReentrant returns (uint) {
       OrderItem storage order = orders[orderId];
       uint expired = getExpiredAt(order.timestamp);
 
       if ((expired != 0) && (expired < block.timestamp)) {
         // 已过期
         cancelOrder(orderId);
-        return false;
+        return 0;
       }
 
       if ((order.flag & _ORDER_CLOSED) > 0) {
-          return false;
+          return 0;
       }
 
       uint left = order.tokenAmt.amountIn.sub(order.tokenAmt.fulfiled);
 
       if(left < amtToTaken) {
-        return false;
+        return 0;
       } // , "not enough");
 
       address destToken = order.tokenAmt.destToken;
@@ -556,7 +556,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         order.flag |= _ORDER_CLOSED;
         _removeOrder(order);
       }
-      return true;
+      return _buyAmt;
     }
 
     // function fulfilOrders(uint[] memory orderIds, uint[] memory amtToTaken) external whenOpen {
