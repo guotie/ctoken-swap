@@ -303,7 +303,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     log: log
   }, verify)
 
-  const unoswapRouter = await _deploy('', {
+  const unoswapRouter = await _deploy('UnoswapRouter', {
     from: deployer,
     args: [wht.address, lercFactoryDeployed.address],
     log: log

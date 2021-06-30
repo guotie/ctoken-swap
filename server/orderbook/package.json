@@ -1,7 +1,7 @@
 {
-  "name": "my-midway-project",
+  "name": "ebank-orderbook",
   "version": "1.0.0",
-  "description": "",
+  "description": "orderbook & aggressive swap",
   "private": true,
   "dependencies": {
     "@midwayjs/bootstrap": "^2.3.0",
@@ -55,6 +55,6 @@
     "type": "git",
     "url": ""
   },
-  "author": "",
+  "author": "guotie",
   "license": "MIT"
 }

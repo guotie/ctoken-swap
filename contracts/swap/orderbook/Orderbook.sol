@@ -234,7 +234,10 @@ interface IOrderBook {
           uint amtOut,
           uint remaining);
 
-    event CancelOrder(address indexed owner, uint orderId);
+    event CancelOrder(address indexed owner,
+          address indexed srcToken,
+          address indexed destToken,
+          uint orderId);
 }
 
 contract ReentrancyGuard {
@@ -370,7 +373,6 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     function createOrder(
         address srcToken,
         address destToken,
-        address from,           // 兑换得到的token发送地址 
         address to,             // 兑换得到的token发送地址 
         uint amountIn,
         uint guaranteeAmountOut,       // 
@@ -399,7 +401,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       order.orderId = idx;
       order.tokenAmt.srcToken = srcToken;
       order.tokenAmt.destToken = destToken;
-      order.owner = from == address(0) ? msg.sender : from;
+      order.owner = msg.sender;
       order.to = to == address(0) ? msg.sender : to;
       order.tokenAmt.amountIn = amountIn;
       order.tokenAmt.fulfiled = 0;
@@ -416,21 +418,21 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     }
 
     // 获取所有订单列表
-    function getAllOrders() public view returns(OrderItem[] memory orders) {
+    function getAllOrders() public view returns(OrderItem[] memory allOrders) {
       uint total = 0;
       uint id = 0;
       for (uint i = 0; i < orderId; i ++) {
-        OrderItem memory order = orders[i];
-        if ((order.flag & _ORDER_CLOSED) == 0) {
+        uint flag = orders[i].flag;
+        if (_orderClosed(flag) == false) {
           total ++;
         }
       }
 
-      orders = new OrderItem[](total);
+      allOrders = new OrderItem[](total);
       for (uint i = 0; i < orderId; i ++) {
         OrderItem memory order = orders[i];
-        if ((order.flag & _ORDER_CLOSED) == 0) {
-          orders[id] = order;
+        if (_orderClosed(order.flag) == false) {
+          allOrders[id] = order;
           id ++;
         }
       }
@@ -448,6 +450,10 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       pair = uint(keccak256(abi.encodePacked(token0, token1)));
     }
 
+    function _orderClosed(uint flag) private view returns (bool) {
+      return (flag & _ORDER_CLOSED) != 0;
+    }
+
     // 增加参数 address to, 该参数通过 router 合约传入， 并验证 to == item.owner 
     function cancelOrder(uint orderId) public nonReentrant {
       OrderItem storage order = orders[orderId];
@@ -457,13 +463,16 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       } else {
         require(msg.sender == owner() || msg.sender == order.owner, "cancelOrder: no auth");
       }
+      require(_orderClosed(order.flag) == false, "order has been closed");
       address srcToken = order.tokenAmt.srcToken;
+      uint amt = order.tokenAmt.amountIn.sub(order.tokenAmt.fulfiled);
+
       if (srcToken == address(0)) {
-        TransferHelper.safeTransferETH(order.owner, order.tokenAmt.fulfiled);
+        TransferHelper.safeTransferETH(order.owner, amt);
       } else {
-        TransferHelper.safeTransfer(srcToken, order.owner, order.tokenAmt.fulfiled);
+        TransferHelper.safeTransfer(srcToken, order.owner, amt);
       }
-      emit CancelOrder(order.owner, orderId);
+      emit CancelOrder(order.owner, order.tokenAmt.srcToken, order.tokenAmt.destToken, orderId);
       order.flag |= _ORDER_CLOSED;
       _removeOrder(order);
     }
@@ -569,7 +578,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         if (token == address(0)) {
           TransferHelper.safeTransferETH(msg.sender, amt);
         } else {
-          TransferHelper.safeTransferFrom(token, address(this), msg.sender, amt);
+          TransferHelper.safeTransfer(token, msg.sender, amt);
         }
 
         balanceOf[token][msg.sender] = total.sub(amt);
@@ -579,10 +588,9 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         if (token == address(0)) {
           TransferHelper.safeTransferETH(to, amt);
         } else {
-          TransferHelper.safeTransferFrom(token, address(this), to, amt);
+          TransferHelper.safeTransfer(token, to, amt);
         }
     }
-
 }
 
 // helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false

@@ -20,6 +20,8 @@ export default (appInfo: EggAppInfo) => {
   // config.security = {
   //   csrf: false,
   // };
+  config.OrderBookAddr = '0xA099bddBe031190272B612DA039113e8B6Cc5d4C'
+  config.endpoint = 'https://http-testnet.hecochain.com'
 
   return config;
 };

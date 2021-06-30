@@ -14,7 +14,7 @@ const hre = require('hardhat')
 const ethers = hre.ethers
 // const network = hre.network
 
-const e18 = BigNumber.from('100000000000000000')
+const e18 = BigNumber.from('1000000000000000000')
 
 // 测试 swap pair
 describe("stable coin 测试", function() {
@@ -30,7 +30,7 @@ describe("stable coin 测试", function() {
   let mintAmt2: BigNumberish
   let mintAmt3: BigNumberish
 
-  // e18 是 18位数
+  // e18 是 19位数
   const e18 = BigNumber.from('1000000000000000000')
 
   before(async () => {

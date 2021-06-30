@@ -13,7 +13,7 @@ const hre = require('hardhat')
 const ethers = hre.ethers
 const network = hre.network
 
-const e18 = BigNumber.from('100000000000000000')
+const e18 = BigNumber.from('1000000000000000000')
 
 // 测试 swap router
 describe("ctoken router 测试", function() {
@@ -42,7 +42,7 @@ describe("ctoken router 测试", function() {
   // e18 是 18位数
   const e18 = BigNumber.from('1000000000000000000')
   
-  this.timeout(600000);
+  this.timeout(6000000);
 
   before(async () => {
     namedSigners = await ethers.getSigners()

@@ -19,7 +19,7 @@ describe("ctoken mint 测试", function() {
 
   // e18 是 18位数
   const e18 = BigNumber.from('1000000000000000000')
-  
+  // 1000000000000000000
   this.timeout(600000);
 
   before(async () => {

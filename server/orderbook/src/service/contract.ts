@@ -1,14 +1,18 @@
-import { Provide } from '@midwayjs/decorator';
-import { Contract } from 'ethers'
+import { Config, Provide } from '@midwayjs/decorator';
+import { Contract, ethers } from 'ethers'
 import { abi as OneSplitABI } from '../config/abis/OneSplit.json'
 import { abi as OrderBookABI } from '../config/abis/OrderBook.json'
 import { abi as UnoswapRouterABI } from '../config/abis/UnoswapRouter.json'
 
 @Provide()
 export class ContractService {
-  static contracts: Object = {};
+  @Config('')
+  endpoint: string
 
-  public static async getContractByNameAddress(name: string, addr: string) {
+  contracts: Object = {};
+
+  public async getContractByNameAddress(name: string, addr: string) {
+    let provider = new ethers.providers.JsonRpcProvider(this.endpoint)
     if (this.contracts[name]) {
       return this.contracts[name]
     }
@@ -16,15 +20,15 @@ export class ContractService {
     let c: Contract
     switch (name) {
       case 'OrderBook':
-        c = new Contract(addr, OrderBookABI)
+        c = new Contract(addr, OrderBookABI, provider)
         break;
 
       case 'OneSplit':
-        c = new Contract(addr, OneSplitABI)
+        c = new Contract(addr, OneSplitABI, provider)
         break;
 
       case 'UnoswapRouter':
-        c = new Contract(addr, UnoswapRouterABI)
+        c = new Contract(addr, UnoswapRouterABI, provider)
         break;
 
       default:
