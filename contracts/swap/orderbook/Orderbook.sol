@@ -136,7 +136,6 @@ contract OBStorage is Ownable {
       uint timestamp;          // 过期时间 | 挂单时间 
       uint flag;
       TokenAmount tokenAmt;
-      // bool margin;             // 是否是杠杆合约的挂单
     }
 
     // 计算价格的乘数 price = token0 * priceRatio / token1, such as 1e30
