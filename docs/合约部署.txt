@@ -1,0 +1,75 @@
+合约部署测试网 swap:
+0. wht: 0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836
+1. cht: 0x08eB884Fd62079E2D8D963A8FC811EA20E7DeAAa
+2. debankfactory: 0xAe7FF356C25C55C37ADa81Ff6f6D4Ad10D297DF5
+3. router: 0x9078ead9D35f33cF2F9275f1339A9489F84780A8
+4. USDT: 0x04F535663110A392A6504839BEeD34E019FdB4E0
+5. SEA: 0xEe798D153F3de181dE16DedA318266EE8Ad56dEA
+6. cusdt address: 0xf2B766DC6D2ebDb950abF053286d2B2DEC6c0627
+7. csea address: 0x4e4726089eceF4ADb3988A1233ED6861779cA4d5
+
+# add-liquidity
+1. approve
+2. 
+
+100000000000000000000
+1000000000000000000
+
+Successfully submitted source code for contract
+contracts/compound/Comptroller.sol:Comptroller at 0x6605DCc0F7D6AE08D8719A98A99904d4691afa58
+Successfully verified contract Comptroller on Etherscan.
+https://testnet.hecoinfo.com/address/0x6605DCc0F7D6AE08D8719A98A99904d4691afa58#code
+
+
+verify Unitroller at 0x6410fF5EFB58eF7BDB6c68B3bf418B9984a491B3:
+Successfully verified contract Unitroller on Etherscan.
+https://testnet.hecoinfo.com/address/0x6410fF5EFB58eF7BDB6c68B3bf418B9984a491B3#code
+comptroller implemention is 0x0000000000000000000000000000000000000000, set to 0x6605DCc0F7D6AE08D8719A98A99904d4691afa58 ...
+
+verify SimplePriceOracle at 0x4eC3BA4eD730ddbA97D15261b1ebB7be78555F77:
+Successfully verified contract SimplePriceOracle on Etherscan.
+https://testnet.hecoinfo.com/address/0x4eC3BA4eD730ddbA97D15261b1ebB7be78555F77#code
+
+verify LErc20Delegate at 0xaD4ED10a4Ea2AA57a44b1a317667C21Df1D5F1bc:
+Successfully verified contract LErc20Delegate on Etherscan.
+https://testnet.hecoinfo.com/address/0xaD4ED10a4Ea2AA57a44b1a317667C21Df1D5F1bc#code
+
+
+verify LHT at 0x602aE5101A5AA53659b8E307842B214887069d69:
+Successfully verified contract LHT on Etherscan.
+https://testnet.hecoinfo.com/address/0x602aE5101A5AA53659b8E307842B214887069d69#code
+
+
+verify LErc20DelegatorFactory at 0xC65d5ea738F466FEb518b6079732C7b03eE04CF0:
+Successfully verified contract LErc20DelegatorFactory on Etherscan.
+https://testnet.hecoinfo.com/address/0xC65d5ea738F466FEb518b6079732C7b03eE04CF0#code
+
+
+network name: hecotest wht address: 0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836
+mdex anchor token: 0x04F535663110A392A6504839BEeD34E019FdB4E0
+
+verify DeBankFactory at 0xeC6cbd588D087821Ec43b2A7456D86ED28a6743d:
+Successfully verified contract DeBankFactory on Etherscan.
+https://testnet.hecoinfo.com/address/0xeC6cbd588D087821Ec43b2A7456D86ED28a6743d#code
+
+
+verify DeBankRouter at 0x0826d36cecA6240B6A894796C3c3F90030CE6fB8:
+Successfully verified contract DeBankRouter on Etherscan.
+https://testnet.hecoinfo.com/address/0x0826d36cecA6240B6A894796C3c3F90030CE6fB8#code
+
+
+verify OneSplit at 0x52c2B894fd4b1138503163fE157554f9E72f4e67:
+Successfully verified contract OneSplit on Etherscan.
+https://testnet.hecoinfo.com/address/0x52c2B894fd4b1138503163fE157554f9E72f4e67#code
+
+
+verify OrderBook at 0xA099bddBe031190272B612DA039113e8B6Cc5d4C:
+Successfully verified contract OrderBook on Etherscan.
+https://testnet.hecoinfo.com/address/0xA099bddBe031190272B612DA039113e8B6Cc5d4C#code
+
+
+Successfully submitted source code for contract
+contracts/swap/aggressive/UnoswapRouter.sol:UnoswapRouter at 0x10c220d26949757E753A223AfDA1f49a207773c4
+https://testnet.hecoinfo.com/address/0x10c220d26949757E753A223AfDA1f49a207773c4#code
+
+
