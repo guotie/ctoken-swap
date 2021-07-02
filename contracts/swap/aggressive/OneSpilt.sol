@@ -283,7 +283,7 @@ contract OneSplit is Ownable {
     // 使用 router 来 swap
     // 
     function _buildRouterData(PairParam memory pairParam, bool useCtoken) private view returns (bytes32[] memory) {
-        uint feeRate = pairParam.feeRate << 160;
+        // uint feeRate = pairParam.feeRate << 160;
         //console.log("_buildPoolData:", feeRate);
         IERC20 fromTokenReal = pairParam.srcToken.isETH() ? weth : pairParam.srcToken;
         IERC20 destTokenReal = pairParam.destToken.isETH() ? weth : pairParam.destToken;

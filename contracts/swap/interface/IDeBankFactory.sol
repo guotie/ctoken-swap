@@ -52,20 +52,20 @@ interface IDeBankFactory {
 
     function quote(uint256 amountA, uint256 reserveA, uint256 reserveB) external pure returns (uint256 amountB);
 
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) external view returns (uint256 amountOut);
+    // function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) external view returns (uint256 amountOut);
 
-    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut) external view returns (uint256 amountIn);
+    // function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut) external view returns (uint256 amountIn);
 
-    function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts);
+    function getAmountsOut(uint256 amountIn, address[] calldata path, address to) external view returns (uint256[] memory amounts);
 
-    function getAmountsIn(uint256 amountOut, address[] calldata path) external view returns (uint256[] memory amounts);
+    function getAmountsIn(uint256 amountOut, address[] calldata path, address to) external view returns (uint256[] memory amounts);
 
     // function amountToCTokenAmt(address ctoken, uint amountIn) external view returns (uint cAmountIn);
     // function ctokenAmtToAmount(address ctoken, uint cAmountOut) external view returns (uint amountOut);
 
     function setPairFeeRate(address pair, uint feeRate) external;
 
-    function getReservesFeeRate(address tokenA, address tokenB) external view returns (uint reserveA, uint reserveB, uint feeRate, bool outAnchorToken);
+    function getReservesFeeRate(address tokenA, address tokenB, address to) external view returns (uint reserveA, uint reserveB, uint feeRate, bool outAnchorToken);
 
     function getAmountOutFeeRate(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) external pure returns (uint amountOut);
 
