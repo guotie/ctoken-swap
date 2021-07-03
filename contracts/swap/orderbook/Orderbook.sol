@@ -215,7 +215,8 @@ interface IMarginHolding {
   // owner: 杠杆用户
   // fulfiled: 买到的token数量
   // amt: 卖出的token数量
-  function onFulfiled(address owner, uint fulfiled, uint amt) external;
+  function onFulfiled(address owner, address token, uint fulfiled, uint amt) external;
+  function onCanceled(address owner, address token, uint amt) external;
 }
 
 interface IOrderBook {
@@ -373,10 +374,9 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     function createOrder(
         address srcToken,
         address destToken,
-        address to,             // 兑换得到的token发送地址 
+        address to,             // 兑换得到的token发送地址, 杠杆传用户地址
         uint amountIn,
         uint guaranteeAmountOut,       // 
-        // uint timestamp,          // 挂单时间
         uint expiredAt,          // 过期时间
         uint flag) public payable whenOpen nonReentrant returns (uint) {
       require(srcToken != destToken, "identical token");
@@ -450,15 +450,16 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       pair = uint(keccak256(abi.encodePacked(token0, token1)));
     }
 
-    function _orderClosed(uint flag) private view returns (bool) {
+    function _orderClosed(uint flag) private pure returns (bool) {
       return (flag & _ORDER_CLOSED) != 0;
     }
 
     // 增加参数 address to, 该参数通过 router 合约传入， 并验证 to == item.owner 
     function cancelOrder(uint orderId) public nonReentrant {
       OrderItem storage order = orders[orderId];
+      bool margin = isMargin(order.flag);
 
-      if (isMargin(order.flag)) {
+      if (margin) {
         require(msg.sender == owner() || msg.sender == marginAddr, "cancelMarginOrder: no auth");
       } else {
         require(msg.sender == owner() || msg.sender == order.owner, "cancelOrder: no auth");
@@ -472,6 +473,17 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       } else {
         TransferHelper.safeTransfer(srcToken, order.owner, amt);
       }
+
+      // 杠杆用户成交的币已经转给代持合约, 这里只处理非杠杆用户的币，还给用户
+      if (!margin) {
+        address src = order.tokenAmt.srcToken;
+        uint balance = balanceOf[src][order.to];
+        _withdraw(order.to, src, balance, balance);
+      } else {
+        // 通知杠杆合约处理 挂单 srcToken
+        IMarginHolding(marginAddr).onCanceled(order.to, order.tokenAmt.srcToken, amt);
+      }
+
       emit CancelOrder(order.owner, order.tokenAmt.srcToken, order.tokenAmt.destToken, orderId);
       order.flag |= _ORDER_CLOSED;
       _removeOrder(order);
@@ -486,11 +498,9 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     // buyAmt: 待买走的挂卖token的数量, 未扣除手续费
     // outAmt: 挂卖得到的token 的数量, 未扣除手续费
     function _swap(address srcToken, address destToken, address maker, address buyer, uint buyAmt, uint outAmt, bool margin) private {
-      // bool margin = isMargin(order.flag);
-
       if (margin) {
         // 回调
-        IMarginHolding(marginAddr).onFulfiled(maker, outAmt, buyAmt);
+        IMarginHolding(marginAddr).onFulfiled(maker, destToken, outAmt, buyAmt);
       } else {
         balanceOf[destToken][maker] += outAmt;
       }
@@ -538,7 +548,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       // 买家得到的
       uint _buyAmt = amtToTaken.mul(fee).div(10000);
       uint _outAmt = amtDest.mul(fee).div(10000);
-      _swap(order.tokenAmt.srcToken, order.tokenAmt.destToken, order.owner, msg.sender, _buyAmt, _outAmt, isMargin(order.flag));
+      _swap(order.tokenAmt.srcToken, order.tokenAmt.destToken, order.to, msg.sender, _buyAmt, _outAmt, isMargin(order.flag));
 
       // 验证转移买家的币
       if (destToken == address(0)) {
@@ -570,18 +580,22 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     //     }
     // }
 
+    function _withdraw(address user, address token, uint total, uint amt) private {
+        if (token == address(0)) {
+          TransferHelper.safeTransferETH(user, amt);
+        } else {
+          TransferHelper.safeTransfer(token, user, amt);
+        }
+
+        balanceOf[token][user] = total.sub(amt);
+    }
+
     // 用户成交后，资金由合约代管, 用户提现得到自己的 token
     function withdraw(address token, uint amt) external {
         uint total = balanceOf[token][msg.sender];
         require(total >= amt, "not enough asset");
 
-        if (token == address(0)) {
-          TransferHelper.safeTransferETH(msg.sender, amt);
-        } else {
-          TransferHelper.safeTransfer(token, msg.sender, amt);
-        }
-
-        balanceOf[token][msg.sender] = total.sub(amt);
+        _withdraw(msg.sender, token, total, amt);
     }
 
     function adminTransfer(address token, address to, uint amt) external onlyOwner {

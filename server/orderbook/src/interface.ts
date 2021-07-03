@@ -21,7 +21,7 @@ export interface ISwapRequest {
 
 
 // 返回给定交易对及价格的请求
-export interface LimitOrderReq {
+export interface ILimitOrderReq {
   src: string    // 卖出币种
   dest: string   // 买入币种
   amtIn: BigNumberish  // src 的数量

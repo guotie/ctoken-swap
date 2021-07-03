@@ -9,7 +9,7 @@ import "./Ownable.sol";
 abstract contract BaseStepSwap is Ownable {
   address public wht;
 
-  constructor(address _wht) {
+  constructor(address _wht) public {
     wht = _wht;
   }
 }

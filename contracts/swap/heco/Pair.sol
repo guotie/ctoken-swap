@@ -275,6 +275,26 @@ contract DeBankPair is IDeBankPair, PairStorage {
     //     user.rewardDebt = user.amount.mul(pool.accMdxPerShare);
     // }
 
+
+    // pair 的两个 ctoken 得到的 ctoken 存币挖矿收益
+    function _lhbBlance() internal view returns (uint) {
+        address lhb;        // todo 从factory中获取
+        address unitroller; // todo 从factory中获取
+
+        // 有部分币存在compAccrued中，没有转出来
+        return IERC20(lhb).balanceOf(address(this)) + unitroller.compAccrued(address(this));
+    }
+
+    // 更新 mintAccPerShare
+    function _updateCtokenMintPerShare(uint curr) internal {
+        // uint curr = _lhbBlance();
+        if (curr > ctokenMintRewards) {
+            uint per = curr.sub(ctokenMintRewards);
+            mintAccPerShare = mintAccPerShare.add(per.div(totalSupply));
+        }
+        ctokenMintRewards = curr;
+    }
+
     // ETH/HT/BNB 不能直接 mint
     // 2021/5/25: 存入的是 ctoken 而不是 token; 如果要存入 token, 在外围合约中实现(先转换为ctoken, 再调用此方法)
     // this low-level function should be called from a contract which performs important safety checks
@@ -305,8 +325,30 @@ contract DeBankPair is IDeBankPair, PairStorage {
 
         _update(balance0, balance1, _reserve0, _reserve1);
         if (feeOn) kLast = uint(reserve0).mul(reserve1);
+
+        // ctoken 挖矿, 负债
+        _updateCtokenMintPerShare(_lhbBlance());
+        ctokenMintDebt[to] = liquidity.mul(mintAccPerShare).div(totalSupply);
+
         // reserve0 and reserve1 are up-to-date
         emit Mint(msg.sender, amount0, amount1);
+    }
+
+    // 用户移除流动性时， 将 ctoken 存币挖矿收益转给用户
+    function _transferCtokenMint(address to, uint liquidity, uint ts) internal {
+        address lhb;        // todo 从factory中获取
+        address unitroller; // todo 从factory中获取
+        CToken[] memory cTokens = new CToken[](2); // memory cTokens
+
+        cTokens[0] = cToken0;
+        cTokens[1] = cToken1;
+        unitroller.claimComp(address(this), cTokens);
+        _updateCtokenMintPerShare(_lhbBlance());
+        uint amt = liquidity.mul(mintAccPerShare).div(ts).sub(ctokenMintDebt[to]);
+        lhb.transfer(to, amt);
+        // update curr
+        
+        ctokenMintRewards = _lhbBlance();
     }
 
     // 操作的是 ctoken 2021/05/25
@@ -334,9 +376,15 @@ contract DeBankPair is IDeBankPair, PairStorage {
         amount1 = liquidity.mul(balance1) / _totalSupply;
         // using balances ensures pro-rata distribution
         require(amount0 > 0 && amount1 > 0, 'DeBankSwap: INSUFFICIENT_LIQUIDITY_BURNED');
+
+        uint ts = totalSupply; // _burn 之前记录 totalSupply
         _burn(address(this), liquidity);
         _safeTransfer(_token0, to, amount0);
         _safeTransfer(_token1, to, amount1);
+
+        // todo transfer之后， 挖矿的收益在 comptroller 中已经更新
+        _transferCtokenMint(to, liquidity, ts);
+
         balance0 = IERC20(_token0).balanceOf(address(this));
         balance1 = IERC20(_token1).balanceOf(address(this));
 
@@ -380,6 +428,10 @@ contract DeBankPair is IDeBankPair, PairStorage {
         require(balance0.mul(balance1) >= uint(_reserve0).mul(_reserve1), 'DeBankSwap: K2');
 
         _update(balance0, balance1, _reserve0, _reserve1);
+
+        // 更新挖矿收益
+        _updateCtokenMintPerShare(_lhbBlance());
+
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
@@ -416,6 +468,10 @@ contract DeBankPair is IDeBankPair, PairStorage {
         }
 
         _update(balance0, balance1, _reserve0, _reserve1);
+        
+        // 更新挖矿收益
+        _updateCtokenMintPerShare(_lhbBlance());
+        
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 

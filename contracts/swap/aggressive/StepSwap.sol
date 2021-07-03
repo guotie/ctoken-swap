@@ -36,7 +36,7 @@ import "./SafeMath.sol";
 // 1. uniswap v1
 // 2. uniswap v2, direct by pair 直接使用pair交易
 // 3. uniswap v2, 使用router交易, 因为mdex可以交易挖矿
-// 4. 
+// 4. curve
 //
 import "./IStepSwap.sol";
 
@@ -44,4 +44,7 @@ contract StepSwap is BaseStepSwap {
     using SafeMath for uint;
     using SafeMath for uint256;
 
+    constructor(address _wht) public BaseStepSwap(_wht) {
+        
+    }
 }

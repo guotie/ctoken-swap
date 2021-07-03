@@ -60,10 +60,10 @@ contract PairStorage is IDeBankPair {
     uint public price1CumulativeLast;
     uint public kLast; // reserve0 * reserve1, as of immediately after the most recent liquidity event
 
-    uint256 public initialA = 800;
-    uint256 public futureA;
-    uint256 public initialATime;
-    uint256 public futureATime;
+    // uint256 public initialA = 800;
+    // uint256 public futureA;
+    // uint256 public initialATime;
+    // uint256 public futureATime;
 
     string public constant name = 'LP Token';
     string public constant symbol = 'Dex';
@@ -92,23 +92,28 @@ contract PairStorage is IDeBankPair {
     uint public currentBlock;       // blockFee对应的块数
     uint public blockFee;           // 当前块的手续费, 下一个块的第一笔交易触发计算上个块的reward, 然后重新累计
 
-    struct OrderItem {
-        address owner;
-        uint price;
-        uint amount;
-        uint posId;    // 代持合约中杠杆用户的posId
-      // 通过
-      // uint next;
-      // uint prev;
-      // uint itemId;
-    }
+    // ctoken 挖矿收益
+    mapping(address => uint) public ctokenMintDebt;
+    uint public mintAccPerShare;
+    uint public ctokenMintRewards;
+
+    // struct OrderItem {
+    //     address owner;
+    //     uint price;
+    //     uint amount;
+    //     uint posId;    // 代持合约中杠杆用户的posId
+    //   // 通过
+    //   // uint next;
+    //   // uint prev;
+    //   // uint itemId;
+    // }
 
     // 计算价格的乘数 price = token0 * priceRatio / token1, such as 1e30
-    uint public priceRatio = 1e30; 
+    // uint public priceRatio = 1e30; 
 
-    uint public itemId;
-    mapping(uint => OrderItem) public buyOrders;
-    mapping(uint => OrderItem) public sellOrders;
+    // uint public itemId;
+    // mapping(uint => OrderItem) public buyOrders;
+    // mapping(uint => OrderItem) public sellOrders;
 
     uint private _unlocked = 1;
     modifier lock() {

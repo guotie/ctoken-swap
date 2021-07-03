@@ -12,7 +12,7 @@ import BigNumberKey from '../utils/BigNumberKey';
 // uint timestamp;          // 过期时间 | 挂单时间 
 // uint flag;
 // TokenAmount tokenAmt;
-interface OrderItem {
+export interface OrderItem {
   orderId: string
   // pairAddrIdx: number
   owner: string
@@ -20,7 +20,7 @@ interface OrderItem {
   pair: string
   timestamp: BigNumber
   expiredAt: BigNumber
-  flag: string
+  flag: BigNumber
   // TokenAmount
   srcToken: string
   destToken: string
@@ -44,13 +44,34 @@ export class OrderBookService {
   obCt: Contract;
   // key: srcToken-destToken
   _orders: HashMap<string, TreeMap<BigNumberKey, std.List<OrderItem>>>;
+  _pendingIds: string[] = []
+  _initialized: boolean = false
 
   @Init()
   async init() {
+    console.log('init OrderBookService ....')
+
     this.obCt = await this.contractService.getContractByNameAddress('OrderBook', this.addr)
     this._orders = new HashMap()
 
     this.onContractEvents()
+    await this.getAllOrders();
+    this._initialized = true
+    await this.cleanPendingIds(this._pendingIds)
+  }
+
+  async cleanPendingIds(pendingIds: string[]) {
+    for (let id of pendingIds) {
+      let order = await this.getOrderById(id)
+
+      if (this._orderClosed(BigNumber.from(order.flag))) {
+        this._removeOrderItem(order)
+      } else {
+        this._updateOrderItem(order)
+      }
+    }
+    // clean
+    this._pendingIds = []
   }
 
   // 监听合约的事件并处理
@@ -58,18 +79,30 @@ export class OrderBookService {
     // 创建订单
     this.obCt.on('CreateOrder', (owner, srcToken, destToken, orderId, amtIn, amtOut, flag) => {
       console.log('found CreateOrder:', owner, srcToken, destToken, orderId)
+      if (!this._initialized) {
+        this._pendingIds.push(orderId.toString())
+        return
+      }
       this.onCreateOrder(owner, srcToken, destToken, orderId, amtIn, amtOut, flag)
     })
 
     // 成交
     this.obCt.on('FulFilOrder', async (maker, taker, orderId, amt, amtOut, remaining) => {
       console.log('found FulFilOrder:', maker, taker, orderId, amt, amtOut, remaining)
+      if (!this._initialized) {
+        this._pendingIds.push(orderId.toString())
+        return
+      }
       await this.onFulfilOrder(maker, taker, orderId, amt, amtOut, remaining)
     })
 
     // 取消订单
     this.obCt.on('CancelOrder', async (owner, src, dest, orderId) => {
       console.log('found CancelOrder:', owner, orderId)
+      if (!this._initialized) {
+        this._pendingIds.push(orderId.toString())
+        return
+      }
       await this.onCancelOrder(owner, src, dest, orderId)
     })
   }
@@ -94,7 +127,7 @@ export class OrderBookService {
         pair: pair,
         timestamp: this.getTimestamp(ts),
         expiredAt: this.getExpiredAt(ts),
-        flag: flag.toString(),
+        flag: flag, // .toString(),
         // TokenAmount
         srcToken: srcToken,
         destToken: destToken,
@@ -198,7 +231,7 @@ export class OrderBookService {
         pair: pair,
         timestamp: this.getTimestamp(o.timestamp),
         expiredAt: this.getExpiredAt(o.timestamp),
-        flag: flag.toString(),
+        flag: flag, //.toString(),
         // TokenAmount
         srcToken: src,
         destToken: dst,
@@ -215,19 +248,30 @@ export class OrderBookService {
     return orders
   }
 
+  // 如果不存在, 创建order
+  // 如果存在，更新order
+  _updateOrderItem(order: OrderItem) {
+    let pair = this.pairFor(order.srcToken, order.destToken)
+      , price = this.price(order.amountIn, order.guaranteeAmountOut)
+
+    if (this._updateOrder(pair, price, order) === false) {
+      this._insertOrder(pair, new BigNumberKey(price), order)
+    }
+  }
+
   // 成交
-  _updateOrder(pair: string, price: BigNumber, order: OrderItem) {
+  _updateOrder(pair: string, price: BigNumber, order: OrderItem): boolean {
     if (!this._orders.has(pair)) {
       console.warn('_updateOrder: not found pair orders: %s', pair)
-      return
+      return false
     }
 
     let tm = this._orders.get(pair)
       , key = new BigNumberKey(price)
 
     if (!tm.has(key)) {
-      console.warn('_removeOrder: not found price %s', key.val.toString())
-      return
+      console.warn('_updateOrder: not found price %s', key.val.toString())
+      return false
     }
     let items = tm.get(key)
     for (let item = items.begin(); item != items.end(); item = item.next()) {
@@ -236,12 +280,19 @@ export class OrderBookService {
         // 其他值都不会变化
         item.value.fulfiled = order.fulfiled
         item.value.flag = order.flag
-        return
+        return true
       }
     }
     console.warn('_updateOrder: not found pair %s orderId: %s', pair, order.orderId)
   }
   
+  _removeOrderItem(order: OrderItem) {
+    let pair = this.pairFor(order.srcToken, order.destToken)
+      , price = this.price(order.amountIn, order.guaranteeAmountOut)
+
+    this._removeOrder(pair, price, order.orderId)
+  }
+
   // 撤单 取消订单
   _removeOrder(pair: string, price: BigNumber, orderId: string) {
     if (!this._orders.has(pair)) {
@@ -281,6 +332,8 @@ export class OrderBookService {
         }
         items.push_back(order)
       } else {
+        console.log('create pair orders: %s', pair)
+
         let tm = new TreeMap<BigNumberKey, std.List<OrderItem>>();
         let items = new std.List<OrderItem>()
         items.push_back(order)
