@@ -19,6 +19,8 @@ import "../interface/IERC20.sol";
 import "../interface/IDeBankFactory.sol";
 import "../interface/IDeBankPair.sol";
 import "../interface/IDeBankRouter.sol";
+// todo
+import "../../compound/CToken.sol";
 
 import "./PairStorage.sol";
 
@@ -282,7 +284,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         address unitroller; // todo 从factory中获取
 
         // 有部分币存在compAccrued中，没有转出来
-        return IERC20(lhb).balanceOf(address(this)) + unitroller.compAccrued(address(this));
+        return IERC20(lhb).balanceOf(address(this)); // + unitroller.compAccrued(address(this));
     }
 
     // 更新 mintAccPerShare
@@ -340,12 +342,12 @@ contract DeBankPair is IDeBankPair, PairStorage {
         address unitroller; // todo 从factory中获取
         CToken[] memory cTokens = new CToken[](2); // memory cTokens
 
-        cTokens[0] = cToken0;
-        cTokens[1] = cToken1;
-        unitroller.claimComp(address(this), cTokens);
+        cTokens[0] = CToken(cToken0);
+        cTokens[1] = CToken(cToken1);
+        // unitroller.claimComp(address(this), cTokens);
         _updateCtokenMintPerShare(_lhbBlance());
         uint amt = liquidity.mul(mintAccPerShare).div(ts).sub(ctokenMintDebt[to]);
-        lhb.transfer(to, amt);
+        IERC20(lhb).transfer(to, amt);
         // update curr
         
         ctokenMintRewards = _lhbBlance();
@@ -471,7 +473,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         
         // 更新挖矿收益
         _updateCtokenMintPerShare(_lhbBlance());
-        
+
         emit Swap(msg.sender, amount0In, amount1In, amount0Out, amount1Out, to);
     }
 
