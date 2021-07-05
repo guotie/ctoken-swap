@@ -77,7 +77,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // only accept HT via fallback from the WHT contract
     }
 
-    function pairFor(address tokenA, address tokenB) public view returns (address pair){
+    function pairFor(address tokenA, address tokenB) public view returns (address pair) {
         // pair = IDeBankFactory(factory).pairFor(tokenA, tokenB);
         pair = IDeBankFactory(factory).getPair(tokenA, tokenB);
     }

@@ -3,9 +3,8 @@
 # Router合约
 
 合约地址：
-* HECO测试链:
+* HECO测试链: 0x0826d36cecA6240B6A894796C3c3F90030CE6fB8
 * HECO主链:
-
 
 
 与 pancake 的提供流动性类似，但是需求区分 token 和 ctoken(存入借贷池后，借贷合约发的代币)
@@ -96,14 +95,26 @@
     ) public ensure(deadline) returns (uint amountToken, uint amountETH) {
 ```
 
-## 查找流动性
+## Pair 地址
 
-# 聚合交易
+注意： 参数tokenA tokenB 需要同时为 token，或者同时为 ctoken
+
+```
+function pairFor(address tokenA, address tokenB) public view returns (address pair)
+```
+
+## 查找、导入流动性
+
+pair是ERC20合约，根据pair地址查询用户在这个balance即可。
+
+# 交易、聚合交易
+
+待完善。
 
 # 限价单合约
 
 合约地址: 
-* HECO测试链:
+* HECO测试链: 0xA099bddBe031190272B612DA039113e8B6Cc5d4C
 * HECO主链:
 
 挂单定义:
