@@ -725,7 +725,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     ) external ensure(deadline) returns (uint[] memory amounts) {
         // console.log('swapExactTokensForTokens ....');
         address[] memory path = _cpath2path(cpath);
-        amounts = IDeBankFactory(factory).getAmountsOut(amountIn, path);
+        amounts = IDeBankFactory(factory).getAmountsOut(amountIn, path, to);
         // console.log(amounts[0], amounts[1]);
         require(amounts[amounts.length - 1] >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
         // _safeTransferCtoken(
@@ -745,7 +745,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     ) external ensure(deadline) returns (uint[] memory amounts) {
         // console.log('swapTokensForExactTokens ....');
         address[] memory path = _cpath2path(cpath);
-        amounts = IDeBankFactory(factory).getAmountsIn(amountOut, path);
+        amounts = IDeBankFactory(factory).getAmountsIn(amountOut, path, to);
         require(amounts[0] <= amountInMax, 'Router: EXCESSIVE_INPUT_AMOUNT');
         // _safeTransferCtoken(
         //     path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
@@ -771,7 +771,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         vars.rate0 = _cTokenExchangeRate(cpath[0]);
         vars.rate1 = _cTokenExchangeRate(cpath[0]);
         uint camtIn = _amount2CAmount(amountIn, vars.rate0);
-        uint[] memory camounts = IDeBankFactory(factory).getAmountsOut(camtIn, path);
+        uint[] memory camounts = IDeBankFactory(factory).getAmountsOut(camtIn, path, to);
         // console.log(camounts[0], camounts[1]);
         vars.amountOut = _camount2Amount(camounts[camounts.length - 1], vars.rate1);
         require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
@@ -855,7 +855,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         vars.rate0 = _cTokenExchangeRate(cpath[0]);
         vars.rate1 = _cTokenExchangeRate(cpath[path.length-1]);
         uint camtOut = _amount2CAmount(amountOut, vars.rate1);
-        uint[] memory camounts = IDeBankFactory(factory).getAmountsIn(camtOut, path);
+        uint[] memory camounts = IDeBankFactory(factory).getAmountsIn(camtOut, path, to);
         // console.log("camounts:", camounts[0], camounts[1], camtOut);
         
         vars.amountIn = _camount2Amount(camounts[0], vars.rate0);
@@ -1085,20 +1085,20 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         return IDeBankFactory(factory).quote(amountA, reserveA, reserveB);
     }
 
-    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public view returns (uint256 amountOut){
-        return IDeBankFactory(factory).getAmountOut(amountIn, reserveIn, reserveOut);
+    // function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) public view returns (uint256 amountOut){
+    //     return IDeBankFactory(factory).getAmountOut(amountIn, reserveIn, reserveOut);
+    // }
+
+    // function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut) public view returns (uint256 amountIn){
+    //     return IDeBankFactory(factory).getAmountIn(amountOut, reserveIn, reserveOut);
+    // }
+
+    function getAmountsOut(uint256 amountIn, address[] memory path, address to) public view returns (uint256[] memory amounts){
+        return IDeBankFactory(factory).getAmountsOut(amountIn, path, to);
     }
 
-    function getAmountIn(uint256 amountOut, uint256 reserveIn, uint256 reserveOut) public view returns (uint256 amountIn){
-        return IDeBankFactory(factory).getAmountIn(amountOut, reserveIn, reserveOut);
-    }
-
-    function getAmountsOut(uint256 amountIn, address[] memory path) public view returns (uint256[] memory amounts){
-        return IDeBankFactory(factory).getAmountsOut(amountIn, path);
-    }
-
-    function getAmountsIn(uint256 amountOut, address[] memory path) public view returns (uint256[] memory amounts){
-        return IDeBankFactory(factory).getAmountsIn(amountOut, path);
+    function getAmountsIn(uint256 amountOut, address[] memory path, address to) public view returns (uint256[] memory amounts){
+        return IDeBankFactory(factory).getAmountsIn(amountOut, path, to);
     }
 
 }

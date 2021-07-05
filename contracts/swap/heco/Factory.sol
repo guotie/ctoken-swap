@@ -43,6 +43,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     LErc20DelegatorInterface public lErc20DelegatorFactory;
     // address public owner;
 
+    // 由于0值与不存在无法区分，因此，设置的时候都在原值的基础上+1
     mapping(address => uint) public feeRateOf; // 用于设定特定用户的费率
     mapping(address => mapping(address => address)) public getPair;
     address[] public allPairs;
@@ -117,9 +118,10 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     // }
 
     // 设置用户费率 所有交易对生效
+    // 获取时，真实的费率-1
     function setUserFeeRate(address user, uint feeRate) external onlyOwner {
         // require(msg.sender == feeToSetter, 'SwapFactory: FORBIDDEN');
-        feeRateOf[user] = feeRate;
+        feeRateOf[user] = feeRate + 1;
     }
 
     function setFeeToRate(uint256 _rate) external onlyOwner {
@@ -212,12 +214,18 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     // fetches and sorts the reserves for a pair
 
     // token 都是 token 而非 ctoken !!!
-    function getReservesFeeRate(address tokenA, address tokenB) public view 
+    function getReservesFeeRate(address tokenA, address tokenB, address to) public view 
             returns (uint reserveA, uint reserveB, uint feeRate, bool outAnchorToken) {
         (address token0,) = sortTokens(tokenA, tokenB);
         address pair = pairFor(tokenA, tokenB);
         (uint reserve0, uint reserve1,) = IDeBankPair(pair).getReserves();
-        feeRate = IDeBankPair(pair).feeRate();
+        feeRate = feeRateOf[to];
+        if (feeRate == 0) {
+            feeRate = IDeBankPair(pair).feeRate();
+        } else {
+            feeRate = feeRate - 1;
+        }
+
         // 输出货币是否是 锚定货币
 
         outAnchorToken = tokenA == token0 ? tokenB == anchorToken : tokenA == anchorToken;
@@ -234,14 +242,14 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     }
 
     // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
-    function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) public view returns (uint amountOut) {
-        require(amountIn > 0, 'SwapFactory: INSUFFICIENT_INPUT_AMOUNT');
-        require(reserveIn > 0 && reserveOut > 0, 'SwapFactory: INSUFFICIENT_LIQUIDITY');
-        uint amountInWithFee = amountIn.mul(997);
-        uint numerator = amountInWithFee.mul(reserveOut);
-        uint denominator = reserveIn.mul(1000).add(amountInWithFee);
-        amountOut = numerator / denominator;
-    }
+    // function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) public view returns (uint amountOut) {
+    //     require(amountIn > 0, 'SwapFactory: INSUFFICIENT_INPUT_AMOUNT');
+    //     require(reserveIn > 0 && reserveOut > 0, 'SwapFactory: INSUFFICIENT_LIQUIDITY');
+    //     uint amountInWithFee = amountIn.mul(997);
+    //     uint numerator = amountInWithFee.mul(reserveOut);
+    //     uint denominator = reserveIn.mul(1000).add(amountInWithFee);
+    //     amountOut = numerator / denominator;
+    // }
 
     // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
     function getAmountOutFeeRate(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) public pure returns (uint amountOut) {
@@ -283,13 +291,13 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     }
 
     // given an output amount of an asset and pair reserves, returns a required input amount of the other asset
-    function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut) public view returns (uint amountIn) {
-        require(amountOut > 0, 'SwapFactory: INSUFFICIENT_OUTPUT_AMOUNT');
-        require(reserveIn > 0 && reserveOut > 0, 'SwapFactory: INSUFFICIENT_LIQUIDITY');
-        uint numerator = reserveIn.mul(amountOut).mul(1000);
-        uint denominator = reserveOut.sub(amountOut).mul(997);
-        amountIn = (numerator / denominator).add(1);
-    }
+    // function getAmountIn(uint amountOut, uint reserveIn, uint reserveOut, address to) public view returns (uint amountIn) {
+    //     require(amountOut > 0, 'SwapFactory: INSUFFICIENT_OUTPUT_AMOUNT');
+    //     require(reserveIn > 0 && reserveOut > 0, 'SwapFactory: INSUFFICIENT_LIQUIDITY');
+    //     uint numerator = reserveIn.mul(amountOut).mul(1000);
+    //     uint denominator = reserveOut.sub(amountOut).mul(997);
+    //     amountIn = (numerator / denominator).add(1);
+    // }
 
     // given an output amount of an asset and pair reserves, returns a required input amount of the other asset
     // 正常计算逻辑:
@@ -335,12 +343,12 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
     // path 中的 address 应该都是 token, 因为 sortToken 用的是 token
     // performs chained getAmountOut calculations on any number of pairs
-    function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts) {
+    function getAmountsOut(uint amountIn, address[] memory path, address to) public view returns (uint[] memory amounts) {
         require(path.length >= 2, 'SwapFactory: INVALID_PATH');
         amounts = new uint[](path.length);
         amounts[0] = amountIn;
         for (uint i; i < path.length - 1; i++) {
-            (uint reserveIn, uint reserveOut, uint feeRate, bool outAnchorToken) = getReservesFeeRate(path[i], path[i + 1]);
+            (uint reserveIn, uint reserveOut, uint feeRate, bool outAnchorToken) = getReservesFeeRate(path[i], path[i + 1], to);
             if (outAnchorToken) {
                 amounts[i + 1] = getAmountOutFeeRateAnchorToken(amounts[i], reserveIn, reserveOut, feeRate);
             } else {
@@ -351,12 +359,12 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
     // path 中的 address 应该都是 token, 因为 sortToken 用的是 token
     // performs chained getAmountIn calculations on any number of pairs
-    function getAmountsIn(uint amountOut, address[] memory path) public view returns (uint[] memory amounts) {
+    function getAmountsIn(uint amountOut, address[] memory path, address to) public view returns (uint[] memory amounts) {
         require(path.length >= 2, 'SwapFactory: INVALID_PATH');
         amounts = new uint[](path.length);
         amounts[amounts.length - 1] = amountOut;
         for (uint i = path.length - 1; i > 0; i--) {
-            (uint reserveIn, uint reserveOut, uint feeRate, ) = getReservesFeeRate(path[i - 1], path[i]);
+            (uint reserveIn, uint reserveOut, uint feeRate, ) = getReservesFeeRate(path[i - 1], path[i], to);
             amounts[i - 1] = getAmountInFeeRate(amounts[i], reserveIn, reserveOut, feeRate);
         }
     }

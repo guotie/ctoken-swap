@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Param, Provide, Body, ALL, Inject } from '@midwayjs/decorator';
 
-import { ISwapRequest } from '../interface'
+import { ISwapRequest, ILimitOrderReq } from '../interface'
 import { OrderBookService } from '../service/orderBook'
 
 // https://docs.1inch.io/api/quote-swap
@@ -17,15 +17,15 @@ export class SwapController {
     return 'Hello Midwayjs!';
   }
 
-  // 查询交易对的买卖订单列表
+  // 查询交易对的所有挂单列表
   @Get('/orderbook/:srcToken/:destToken')
   async orders(@Param('srcToken') srcToken: string, @Param('destToken') destToken: string) {
     return this.orderBookService.getPairOrders(srcToken, destToken)
   }
 
-  // 查询交易对的买卖订单列表
-  @Post('/orderbook')
-  async orderBook() {
-
+  // 查询交易对的报价比设定价格更优的挂单列表
+  @Post('/getBetterOrders')
+  async getBetterOrders(@Body(ALL) cond: ILimitOrderReq) {
+    return this.orderBookService.getBetterOrders(cond.src, cond.dest, cond.amtIn, cond.amtOut)
   }
 }
