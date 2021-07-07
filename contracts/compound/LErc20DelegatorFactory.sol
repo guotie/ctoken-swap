@@ -61,6 +61,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
         return tokenKeyMapping[token];
     }
 
+    // 只读 如果不存在 返回 0
     function getTokenAddress(address cToken) external view returns (address) {
         return cTokenKeyMapping[cToken];
     }

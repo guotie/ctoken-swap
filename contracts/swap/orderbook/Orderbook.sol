@@ -14,14 +14,17 @@
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
-// import "../aggressive/Ownable.sol";
+import "./Ownable.sol";
+import "./ReentrancyGuard.sol";
+import "./OBStorage.sol";
+
 // import "../aggressive/SafeMath.sol";
 
 // import "hardhat/console.sol";
 
-interface ISwapMining {
-    function swap(address account, address input, address output, uint256 amount) external returns (bool);
-}
+// interface ISwapMining {
+//     function swap(address account, address input, address output, uint256 amount) external returns (bool);
+// }
 
 interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint value);
@@ -46,164 +49,6 @@ interface IERC20 {
     function transferFrom(address from, address to, uint value) external returns (bool);
 }
 
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address payable) {
-        return msg.sender;
-    }
-
-    function _msgData() internal view virtual returns (bytes memory) {
-        this; // silence state mutability warning without generating bytecode - see https://github.com/ethereum/solidity/issues/2691
-        return msg.data;
-    }
-}
-
-abstract contract Ownable is Context {
-    address private _owner;
-
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /**
-     * @dev Initializes the contract setting the deployer as the initial owner.
-     */
-    constructor () internal {
-        address msgSender = _msgSender();
-        _owner = msgSender;
-        emit OwnershipTransferred(address(0), msgSender);
-    }
-
-    /**
-     * @dev Returns the address of the current owner.
-     */
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-
-    /**
-     * @dev Throws if called by any account other than the owner.
-     */
-    modifier onlyOwner() {
-        require(owner() == _msgSender(), "Ownable: caller is not the owner");
-        _;
-    }
-
-    /**
-     * @dev Leaves the contract without owner. It will not be possible to call
-     * `onlyOwner` functions anymore. Can only be called by the current owner.
-     *
-     * NOTE: Renouncing ownership will leave the contract without an owner,
-     * thereby removing any functionality that is only available to the owner.
-     */
-    function renounceOwnership() public virtual onlyOwner {
-        emit OwnershipTransferred(_owner, address(0));
-        _owner = address(0);
-    }
-
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Can only be called by the current owner.
-     */
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        emit OwnershipTransferred(_owner, newOwner);
-        _owner = newOwner;
-    }
-}
-
-// 存储
-contract OBStorage is Ownable {
-    uint private constant _PAIR_INDEX_MASK = 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff;   // 128 bit
-    uint private constant _ADDR_INDEX_MASK = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;   // 128 bit
-    uint private constant _MARGIN_MASK     = 0x8000000000000000000000000000000000000000000000000000000000000000;
-    uint private constant _EXPIRED_AT_MASK = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;   // 128 bit
-    uint private constant _ADDR_INDEX_OFFSET = 128;
-    uint private constant _EXPIRED_AT_OFFSET = 128;
-
-    struct TokenAmount {
-        address srcToken;
-        address destToken;
-        uint amountIn;           // 初始挂单数量
-        uint fulfiled;         // 部分成交时 剩余待成交金额
-        uint guaranteeAmountOut;       // 最低兑换后要求得到的数量
-        // uint guaranteeAmountOutLeft;   // 兑换一部分后, 剩下的需要兑换得到的数量
-    }
-
-    struct OrderItem {
-      uint orderId;
-      uint pairAddrIdx;        // pairIdx | addrIdx
-      address owner;
-      address to;              // 兑换得到的token发送地址 未使用
-      uint pair;               // hash(srcToken, destToken)
-      uint timestamp;          // 过期时间 | 挂单时间 
-      uint flag;
-      TokenAmount tokenAmt;
-    }
-
-    // 计算价格的乘数 price = token0 * priceRatio / token1, such as 1e30
-    uint public priceRatio = 1e30; 
-
-    uint public orderId;   // order Id 自增
-
-    // 关闭订单薄功能
-    bool public closed;
-    address public router;
-    address public wETH;
-    address public ctokenFactory;
-    address public marginAddr;  // 代持合约
-    address public swapMining;  // 交易挖矿
-
-    uint public minBuyAmt;
-    uint public minSellAmt;
-    uint public feeRate = 30; // 千分之三
-
-    // token 最低挂单量
-    mapping(address => uint) public minAmounts;
-    mapping(address => mapping(address => uint)) public balanceOf;   // 代持用户的币
-
-    // orders
-    mapping (uint => OrderItem) public orders;
-    mapping (address => uint[]) public marginOrders;   // 杠杆合约代持的挂单
-    mapping (address => uint[]) public addressOrders;
-    mapping (uint => uint[]) public pairOrders;
-
-    function pairIndex(uint id) public pure returns(uint) {
-        return (id & _PAIR_INDEX_MASK);
-    }
-
-    function addrIndex(uint id) public pure returns(uint) {
-        return (id & _ADDR_INDEX_MASK) >> _ADDR_INDEX_OFFSET;
-    }
-
-    // pairIdx 不变, addrIdx 更新
-    function updateAddrIdx(uint idx, uint addrIdx) public pure returns(uint) {
-      return pairIndex(idx) | addrIndex(addrIdx);
-    }
-
-    // pairIdx 不变, addrIdx 更新
-    function updatePairIdx(uint idx, uint pairIdx) public pure returns(uint) {
-      return (idx & _ADDR_INDEX_MASK) | pairIdx;
-    }
-
-    function maskAddrPairIndex(uint pairIdx, uint addrIdx) public pure returns (uint) {
-        return (pairIdx) | (addrIdx << _ADDR_INDEX_OFFSET);
-    }
-
-    function isMargin(uint flag) public pure returns (bool) {
-      return (flag & _MARGIN_MASK) != 0;
-    }
-
-    function getExpiredAt(uint ts) public pure returns (uint) {
-      return (ts & _EXPIRED_AT_MASK) >> _EXPIRED_AT_OFFSET;
-    }
-
-    function maskTimestamp(uint ts, uint expired) public pure returns (uint) {
-      return (ts) | (expired << _EXPIRED_AT_OFFSET);
-    }
-    
-    function setSwapMining(address _swapMininng) public onlyOwner {
-        swapMining = _swapMininng;
-    }
-}
-
 interface IWHT {
     function deposit() external payable;
     function transfer(address to, uint value) external returns (bool);
@@ -212,10 +57,20 @@ interface IWHT {
 
 interface IMarginHolding {
   // owner: 杠杆用户
-  // fulfiled: 买到的token数量
-  // amt: 卖出的token数量
-  function onFulfiled(address owner, address token, uint fulfiled, uint amt) external;
-  function onCanceled(address owner, address token, uint amt) external;
+  // fulfiled: 买到的token数量(tokenIn)
+  // amt: 卖出的token数量(tokenOut)
+  function onFulfiled(address owner, address tokenOut, address tokenIn, uint fulfiled, uint amt) external;
+  // tokenOut: 待卖出的币 srcToken
+  // tokenIn: 待买入的币 destToken
+  // tokenReturn: tokenOut
+  // amt: 返还的tokenOut数量
+  function onCanceled(address owner, address token0, address token1, address tokenReturn, uint amt) external;
+}
+
+
+interface ICTokenFactory {
+    function getCTokenAddressPure(address cToken) external view returns (address);
+    function getTokenAddress(address cToken) external view returns (address);
 }
 
 interface IOrderBook {
@@ -240,52 +95,15 @@ interface IOrderBook {
           uint orderId);
 }
 
-contract ReentrancyGuard {
-    bool private _notEntered;
-
-    constructor () internal {
-        // Storing an initial non-zero value makes deployment a bit more
-        // expensive, but in exchange the refund on every call to nonReentrant
-        // will be lower in amount. Since refunds are capped to a percetange of
-        // the total transaction's gas, it is best to keep them low in cases
-        // like this one, to increase the likelihood of the full refund coming
-        // into effect.
-        _notEntered = true;
-    }
-
-    /**
-     * @dev Prevents a contract from calling itself, directly or indirectly.
-     * Calling a `nonReentrant` function from another `nonReentrant`
-     * function is not supported. It is possible to prevent this from happening
-     * by making the `nonReentrant` function external, and make it call a
-     * `private` function that does the actual work.
-     */
-    modifier nonReentrant() {
-        // On the first call to nonReentrant, _notEntered will be true
-        require(_notEntered, "ReentrancyGuard: reentrant call");
-
-        // Any calls to nonReentrant after this point will fail
-        _notEntered = false;
-
-        _;
-
-        // By storing the original value once again, a refund is triggered (see
-        // https://eips.ethereum.org/EIPS/eip-2200)
-        _notEntered = true;
-    }
-}
-
 contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     using SafeMath for uint;
     using SafeMath for uint256;
     uint private constant _ORDER_CLOSED = 0x00000000000000000000000000000001;   // 128 bit
 
-    // _router: swap 路由
     // _ctokenFactory: ctoken 工厂
     // _wETH: eth/bnb/ht 白手套
     // _margin: 代持合约地址
-    constructor(address _router, address _ctokenFactory, address _wETH, address _margin) public {
-      router = _router;
+    constructor(address _ctokenFactory, address _wETH, address _margin) public {
       ctokenFactory = _ctokenFactory;
       wETH = _wETH;
       marginAddr = _margin;
@@ -308,7 +126,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       minAmounts[token] = amt;
     }
 
-    function _putOrder(OrderItem storage order) internal {
+    function _putOrder(DataTypes.OrderItem storage order) internal {
       uint orderId = order.orderId;
       bool margin = isMargin(order.flag);
       uint addrIdx;
@@ -336,7 +154,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
           order.flag);
     }
 
-    function _removeOrder(OrderItem memory order) private {
+    function _removeOrder(DataTypes.OrderItem memory order) private {
         // uint orderId = order.orderId;
         uint pairIdx = pairIndex(order.pairAddrIdx);
         uint addrIdx = addrIndex(order.pairAddrIdx);
@@ -379,6 +197,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         uint expiredAt,          // 过期时间
         uint flag) public payable whenOpen nonReentrant returns (uint) {
       require(srcToken != destToken, "identical token");
+    //solium-disable-next-line
       require(expiredAt == 0 || expiredAt > block.timestamp, "invalid param expiredAt");
 
       if (srcToken == address(0)) {
@@ -396,17 +215,17 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         require(amountIn > minAmounts[srcToken], "less than min amount");
       }
       uint idx = orderId ++;
-      OrderItem storage order = orders[idx];
+      DataTypes.OrderItem storage order = orders[idx];
       order.orderId = idx;
-      order.tokenAmt.srcToken = srcToken;
-      order.tokenAmt.destToken = destToken;
       order.owner = msg.sender;
       order.to = to == address(0) ? msg.sender : to;
+      order.timestamp = maskTimestamp(block.timestamp, expiredAt);
+      order.flag = flag;
+      order.tokenAmt.srcToken = srcToken;
+      order.tokenAmt.destToken = destToken;
       order.tokenAmt.amountIn = amountIn;
       order.tokenAmt.fulfiled = 0;
       order.tokenAmt.guaranteeAmountOut = guaranteeAmountOut;
-      order.timestamp = maskTimestamp(block.timestamp, expiredAt);
-      order.flag = flag;
 
       // (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
       order.pair = pairFor(srcToken, destToken);
@@ -417,7 +236,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     }
 
     // 获取所有订单列表
-    function getAllOrders() public view returns(OrderItem[] memory allOrders) {
+    function getAllOrders() public view returns(DataTypes.OrderItem[] memory allOrders) {
       uint total = 0;
       uint id = 0;
       for (uint i = 0; i < orderId; i ++) {
@@ -427,9 +246,9 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         }
       }
 
-      allOrders = new OrderItem[](total);
+      allOrders = new DataTypes.OrderItem[](total);
       for (uint i = 0; i < orderId; i ++) {
-        OrderItem memory order = orders[i];
+        DataTypes.OrderItem memory order = orders[i];
         if (_orderClosed(order.flag) == false) {
           allOrders[id] = order;
           id ++;
@@ -453,9 +272,8 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       return (flag & _ORDER_CLOSED) != 0;
     }
 
-    // 增加参数 address to, 该参数通过 router 合约传入， 并验证 to == item.owner 
     function cancelOrder(uint orderId) public nonReentrant {
-      OrderItem storage order = orders[orderId];
+      DataTypes.OrderItem storage order = orders[orderId];
       bool margin = isMargin(order.flag);
 
       if (margin) {
@@ -480,7 +298,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         _withdraw(order.to, src, balance, balance);
       } else {
         // 通知杠杆合约处理 挂单 srcToken
-        IMarginHolding(marginAddr).onCanceled(order.to, order.tokenAmt.srcToken, amt);
+        IMarginHolding(marginAddr).onCanceled(order.to, order.tokenAmt.srcToken, order.tokenAmt.destToken, order.tokenAmt.srcToken, amt);
       }
 
       emit CancelOrder(order.owner, order.tokenAmt.srcToken, order.tokenAmt.destToken, orderId);
@@ -499,7 +317,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     function _swap(address srcToken, address destToken, address maker, address buyer, uint buyAmt, uint outAmt, bool margin) private {
       if (margin) {
         // 回调
-        IMarginHolding(marginAddr).onFulfiled(maker, destToken, outAmt, buyAmt);
+        IMarginHolding(marginAddr).onFulfiled(maker, srcToken, destToken, outAmt, buyAmt);
       } else {
         balanceOf[destToken][maker] += outAmt;
       }
@@ -521,7 +339,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     // 普通订单, maker 成交的币由合约代持; taker 的币发给用户
     //
     function fulfilOrder(uint orderId, uint amtToTaken) external payable whenOpen nonReentrant returns (uint) {
-      OrderItem storage order = orders[orderId];
+      DataTypes.OrderItem storage order = orders[orderId];
       uint expired = getExpiredAt(order.timestamp);
 
       if ((expired != 0) && (expired < block.timestamp)) {
