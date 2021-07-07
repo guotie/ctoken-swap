@@ -17,14 +17,11 @@ pragma experimental ABIEncoderV2;
 import "./Ownable.sol";
 import "./ReentrancyGuard.sol";
 import "./OBStorage.sol";
-
-// import "../aggressive/SafeMath.sol";
-
-// import "hardhat/console.sol";
-
-// interface ISwapMining {
-//     function swap(address account, address input, address output, uint256 amount) external returns (bool);
-// }
+import "./ICTokenFactory.sol";
+import "./ICToken.sol";
+import "./ICETH.sol";
+import "./OBPriceLogic.sol";
+import "./SafeMath.sol";
 
 interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint value);
@@ -55,6 +52,10 @@ interface IWHT {
     function withdraw(uint) external;
 }
 
+interface IHswapV2Callee {
+    function hswapV2Call(address sender, uint amount0, uint amount1, bytes calldata data) external;
+}
+
 interface IMarginHolding {
   // owner: 杠杆用户
   // fulfiled: 买到的token数量(tokenIn)
@@ -68,10 +69,10 @@ interface IMarginHolding {
 }
 
 
-interface ICTokenFactory {
-    function getCTokenAddressPure(address cToken) external view returns (address);
-    function getTokenAddress(address cToken) external view returns (address);
-}
+// interface ICTokenFactory {
+//     function getCTokenAddressPure(address cToken) external view returns (address);
+//     function getTokenAddress(address cToken) external view returns (address);
+// }
 
 interface IOrderBook {
     event CreateOrder(address indexed owner,
@@ -98,13 +99,15 @@ interface IOrderBook {
 contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     using SafeMath for uint;
     using SafeMath for uint256;
+
     uint private constant _ORDER_CLOSED = 0x00000000000000000000000000000001;   // 128 bit
 
     // _ctokenFactory: ctoken 工厂
-    // _wETH: eth/bnb/ht 白手套
+    // _wETH: eth/bnb/ht
     // _margin: 代持合约地址
-    constructor(address _ctokenFactory, address _wETH, address _margin) public {
+    constructor(address _ctokenFactory, address _cETH, address _wETH, address _margin) public {
       ctokenFactory = _ctokenFactory;
+      cETH = _cETH;
       wETH = _wETH;
       marginAddr = _margin;
     }
@@ -186,6 +189,15 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         pairOrders[order.pair].pop();
     }
 
+    // 如果找到 addr 对应的 etoken 地址, 返回 etoken 地址; 否则, addr 本身就是 etoken, 返回 addr
+    function _getETokenAddress(address addr) internal view returns (address) {
+      address etoken = ICTokenFactory(ctokenFactory).getCTokenAddressPure(addr);
+      if (etoken == address(0)) {
+        return addr;
+      }
+      return etoken;
+    }
+
     // 创建订单
     // 调用前需要 approve
     function createOrder(
@@ -194,17 +206,15 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         address to,             // 兑换得到的token发送地址, 杠杆传用户地址
         uint amountIn,
         uint guaranteeAmountOut,       // 
-        uint expiredAt,          // 过期时间
+        // uint expiredAt,          // 过期时间
         uint flag) public payable whenOpen nonReentrant returns (uint) {
       require(srcToken != destToken, "identical token");
-    //solium-disable-next-line
-      require(expiredAt == 0 || expiredAt > block.timestamp, "invalid param expiredAt");
 
       if (srcToken == address(0)) {
         // 转入 wETH
         require(msg.value >= amountIn, "not enough amountIn");
         // IWHT(wETH).deposit{value: msg.value}();
-        srcToken = wETH;
+        // srcToken = wETH;
       } else {
         // should approve outside
         TransferHelper.safeTransferFrom(srcToken, msg.sender, address(this), amountIn);
@@ -219,16 +229,51 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       order.orderId = idx;
       order.owner = msg.sender;
       order.to = to == address(0) ? msg.sender : to;
-      order.timestamp = maskTimestamp(block.timestamp, expiredAt);
+      // solhint-disable-next-line
+      order.timestamp = block.timestamp; // maskTimestamp(block.timestamp, expiredAt);
       order.flag = flag;
-      order.tokenAmt.srcToken = srcToken;
-      order.tokenAmt.destToken = destToken;
-      order.tokenAmt.amountIn = amountIn;
       order.tokenAmt.fulfiled = 0;
+      address etoken = _getETokenAddress(srcToken);
+      {
+        order.tokenAmt.srcToken = srcToken;
+        order.tokenAmt.srcEToken = etoken;
+        order.tokenAmt.amountIn = amountIn;
+        if (srcToken != etoken) {
+          // order.isEToken = true;
+          // mint to etoken
+          if (srcToken == address(0)) {
+            uint balanceBefore = IERC20(cETH).balanceOf(address(this));
+            ICETH(cETH).mint{value: msg.value}();
+            order.tokenAmt.amountInMint = IERC20(cETH).balanceOf(address(this)).sub(balanceBefore);
+          } else {
+            uint balanceBefore = IERC20(etoken).balanceOf(address(this));
+            ICToken(etoken).mint(amountIn);
+            order.tokenAmt.amountInMint = IERC20(etoken).balanceOf(address(this)).sub(balanceBefore);
+          }
+        } else {
+          order.tokenAmt.amountInMint = amountIn;
+        }
+      }
+      order.tokenAmt.destToken = destToken;
+      order.tokenAmt.destEToken = _getETokenAddress(destToken);
       order.tokenAmt.guaranteeAmountOut = guaranteeAmountOut;
 
+      // src dest 必须同时为 token 或者 etoken
+      require((srcToken == etoken) == (destToken == order.tokenAmt.destToken), "both token or etoken");
+
+      if (msg.sender == marginAddr) {
+        // 代持合约只能挂 etoken
+        require(etoken == srcToken, "src should be etoken");
+        require(order.tokenAmt.destEToken == destToken, "dest should be etoken");
+      }
+      // if (destToken != order.tokenAmt.destEToken) {
+
+      // } else {
+      //   order.tokenAmt.guaranteeAmountOutEToken = guaranteeAmountOut;
+      // }
+
       // (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
-      order.pair = pairFor(srcToken, destToken);
+      order.pair = _pairFor(srcToken, destToken);
 
       _putOrder(order);
 
@@ -256,16 +301,21 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       }
     }
 
-    // 交易对hash
     function pairFor(address srcToken, address destToken) public view returns(uint pair) {
-      if (srcToken == address(0)) {
-          srcToken = wETH;
-      }
-      if (destToken == address(0)) {
-          destToken = wETH;
-      }
-      (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
-      pair = uint(keccak256(abi.encodePacked(token0, token1)));
+      return _pairFor(_getETokenAddress(srcToken), _getETokenAddress(destToken));
+    }
+
+    // 调用前需要确保 srcToken destToken 都是 etoken
+    // 交易对hash 区分方向 eth->usdt 与 usdt->eth 是不同的交易对
+    function _pairFor(address srcToken, address destToken) private view returns(uint pair) {
+      // if (srcToken == address(0)) {
+      //     srcToken = wETH;
+      // }
+      // if (destToken == address(0)) {
+      //     destToken = wETH;
+      // }
+      // (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
+      pair = uint(keccak256(abi.encodePacked(srcToken, destToken)));
     }
 
     function _orderClosed(uint flag) private pure returns (bool) {
@@ -283,107 +333,319 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
       }
       require(_orderClosed(order.flag) == false, "order has been closed");
       address srcToken = order.tokenAmt.srcToken;
+      address srcEToken = order.tokenAmt.srcEToken;
       uint amt = order.tokenAmt.amountIn.sub(order.tokenAmt.fulfiled);
 
-      if (srcToken == address(0)) {
-        TransferHelper.safeTransferETH(order.owner, amt);
+      if (srcToken != srcEToken) {
+        // redeem etoken
+        // 如果有足够多的 etoken 可以赎回, 则全部赎回; 否则尽可能多的赎回
+        uint cash = ICToken(srcEToken).getCash();
+        uint redeemAmt = amt;
+        uint remainingEToken = 0;
+        if (cash < amt) {
+          redeemAmt = cash;
+          remainingEToken = amt.sub(cash);
+        }
+
+        if (redeemAmt > 0) {
+          // redeem token
+          uint balanceBefore;
+          if (srcEToken == cETH) {
+            balanceBefore = address(this).balance;
+            ICToken(cETH).redeem(redeemAmt);
+            uint amt = address(this).balance.sub(balanceBefore);
+            TransferHelper.safeTransferETH(order.owner, amt);
+          } else {
+            balanceBefore = IERC20(srcToken).balanceOf(address(this));
+            ICToken(srcEToken).redeem(redeemAmt);
+            uint amt = IERC20(srcToken).balanceOf(address(this)).sub(balanceBefore);
+            TransferHelper.safeTransfer(srcToken, order.owner, amt);
+          }
+        }
+        if (remainingEToken > 0) {
+          TransferHelper.safeTransfer(srcEToken, order.owner, remainingEToken);
+        }
       } else {
         TransferHelper.safeTransfer(srcToken, order.owner, amt);
       }
 
       // 杠杆用户成交的币已经转给代持合约, 这里只处理非杠杆用户的币，还给用户
       if (!margin) {
-        address src = order.tokenAmt.srcToken;
-        uint balance = balanceOf[src][order.to];
-        _withdraw(order.to, src, balance, balance);
+        address dest = order.tokenAmt.destEToken;
+        uint balance = balanceOf[dest][order.to];
+        if (balance > 0) {
+          _withdraw(order.to, srcEToken, balance, balance);
+        }
       } else {
         // 通知杠杆合约处理 挂单 srcToken
-        IMarginHolding(marginAddr).onCanceled(order.to, order.tokenAmt.srcToken, order.tokenAmt.destToken, order.tokenAmt.srcToken, amt);
+        IMarginHolding(marginAddr).onCanceled(order.to, srcEToken, order.tokenAmt.destToken, order.tokenAmt.srcToken, amt);
       }
+
 
       emit CancelOrder(order.owner, order.tokenAmt.srcToken, order.tokenAmt.destToken, orderId);
       order.flag |= _ORDER_CLOSED;
       _removeOrder(order);
     }
 
-    // 剩余可成交部分
-    function _amountRemaining(uint amtTotal, uint fulfiled) internal pure returns (uint) {
-        // (amtTotal - fulfiled) * (1 - fee)
-        return amtTotal.sub(fulfiled);
+    // // 剩余可成交部分
+    // function _amountRemaining(uint amtTotal, uint fulfiled) internal pure returns (uint) {
+    //     // (amtTotal - fulfiled) * (1 - fee)
+    //     return amtTotal.sub(fulfiled);
+    // }
+
+    /// @dev get maker fee rate
+    function getMakerFeeRate(uint256 pair) public view returns (uint) {
+      uint fee = pairFeeRate[pair].feeMaker();
+      if (fee == 0) {
+        return defaultFeeMaker;
+      }
+      return fee - 1;
     }
 
+    /// @dev get taker fee rate
+    function getTakerFeeRate(uint256 pair) public view returns (uint) {
+      uint fee = pairFeeRate[pair].feeTaker();
+      if (fee == 0) {
+        return defaultFeeTaker;
+      }
+
+      return fee - 1;
+    }
+
+    function _discountFee(uint256 amt, uint256 fee) private pure returns (uint256) {
+        return amt.mul(fee).div(DENOMINATOR);
+    }
+
+
+    // srcToken destToken 都必须是 etoken
     // buyAmt: 待买走的挂卖token的数量, 未扣除手续费
     // outAmt: 挂卖得到的token 的数量, 未扣除手续费
-    function _swap(address srcToken, address destToken, address maker, address buyer, uint buyAmt, uint outAmt, bool margin) private {
+    function _swap(address srcToken,
+            address destToken,
+            address maker,
+            address taker,
+            uint takerAmt,
+            uint makerAmt,
+            bool margin) private {
       if (margin) {
         // 回调
-        IMarginHolding(marginAddr).onFulfiled(maker, srcToken, destToken, outAmt, buyAmt);
+        IMarginHolding(marginAddr).onFulfiled(maker, srcToken, destToken, makerAmt, takerAmt);
       } else {
-        balanceOf[destToken][maker] += outAmt;
+        balanceOf[destToken][maker] += makerAmt;
       }
 
       // 买家得到的币
-      if (srcToken == address(0)) {
-        TransferHelper.safeTransferETH(buyer, buyAmt);
-      } else {
-        TransferHelper.safeTransfer(srcToken, buyer, buyAmt);
-      }
+      // if (srcToken == address(0)) {
+      //   TransferHelper.safeTransferETH(buyer, buyAmt);
+      // } else {
+        TransferHelper.safeTransfer(srcToken, taker, takerAmt);
+      // }
     }
 
-    // todo
-    function getFeeRate() public view returns (uint) {
-      return 10000 - 30;
-    }
+    /// @dev fulfil orderbook order, token in and token out is token
+    // function fulfilOrderUnderlying(uint orderId,
+    //         bool partialFill,
+    //         uint amtToTaken,
+    //         address to,
+    //         bytes calldata data) external payable whenOpen nonReentrant returns (uint, uint) {
+    //   DataTypes.OrderItem storage order = orders[orderId];
+    //   if ((order.flag & _ORDER_CLOSED) > 0) {
+    //       return (0, 0);
+    //   }
 
-    // order 成交, 收取成交后的币的手续费
-    // 普通订单, maker 成交的币由合约代持; taker 的币发给用户
-    //
-    function fulfilOrder(uint orderId, uint amtToTaken) external payable whenOpen nonReentrant returns (uint) {
+    //   uint left = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+
+    //   if(left < amtToTaken) {
+    //     if (partialFill == false) {
+    //       return (0, 0);
+    //     } else {
+    //       amtToTaken = left;
+    //     }
+    //   } // , "not enough");
+
+
+    //   if (to == address(0)) {
+    //     to = msg.sender;
+    //   }
+
+    // }
+
+    struct TransferMintParam {
+      bool isTokenIn;
+      address srcToken;
+      address srcEToken;
+      address destEToken;
+      uint amtToTaken;
+      uint amtDest;
+      address to;
+    }
+    /// @dev fulfil orderbook order, etoken in and etoken out
+    // order 成交, 收取成交后的币的手续费, 普通订单, maker 成交的币由合约代持; taker 的币发给用户, amtToTaken 是 src EToken 的数量
+    /// @param orderId order id
+    /// @param amtToTaken 成交多少量
+    /// @param to 合约地址或者 msg.sender
+    /// @param partialFill 是否允许部分成交(正好此时部分被其他人taken)
+    /// @param isTokenIn taker 的卖出币是否是 token
+    /// @param data flashloan 合约执行代码
+    /// @return (买到的币数量, 付出的币数量)
+    function fulfilOrder(uint orderId,
+            uint amtToTaken,
+            address to,
+            bool partialFill,
+            bool isTokenIn,        // amount in is token, should mint to eToken
+            bytes calldata data) external payable whenOpen nonReentrant returns (uint, uint) {
       DataTypes.OrderItem storage order = orders[orderId];
-      uint expired = getExpiredAt(order.timestamp);
-
-      if ((expired != 0) && (expired < block.timestamp)) {
-        // 已过期
-        cancelOrder(orderId);
-        return 0;
-      }
 
       if ((order.flag & _ORDER_CLOSED) > 0) {
-          return 0;
+          return (0, 0);
       }
 
-      uint left = order.tokenAmt.amountIn.sub(order.tokenAmt.fulfiled);
-
+      uint left = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
       if(left < amtToTaken) {
-        return 0;
-      } // , "not enough");
-
-      address destToken = order.tokenAmt.destToken;
-      // 挂单者在不扣除手续费的情况下得到的币的数量
-      uint amtDest = amtToTaken.mul(order.tokenAmt.guaranteeAmountOut).div(order.tokenAmt.amountIn);
-      uint fee = getFeeRate();
-      // 买家得到的
-      uint _buyAmt = amtToTaken.mul(fee).div(10000);
-      uint _outAmt = amtDest.mul(fee).div(10000);
-      _swap(order.tokenAmt.srcToken, order.tokenAmt.destToken, order.to, msg.sender, _buyAmt, _outAmt, isMargin(order.flag));
-
-      // 验证转移买家的币
-      if (destToken == address(0)) {
-        require(msg.value >= amtDest, "amount not transfer in");
-      } else {
-        TransferHelper.safeTransferFrom(destToken, msg.sender, address(this), amtDest);
+        if (partialFill == false) {
+          return (0, 0);
+        } else {
+          amtToTaken = left;
+        }
       }
+
+
+      if (to == address(0)) {
+        to = msg.sender;
+      }
+
+      (uint takerAmt, uint makerAmt, uint amtDest) = _fulfil(order, to, amtToTaken, left);
+
+      // // 挂单者在不扣除手续费的情况下得到的币的数量
+      // DataTypes.TokenAmount memory tokenAmt = order.tokenAmt;
+      // uint amtDest = OBPriceLogic.convertBuyAmountByETokenIn(tokenAmt, amtToTaken);
+
+      // uint pair = order.pair;
+      // address destToken = order.tokenAmt.destEToken;
+      // // taker得到的币，扣除手续费
+      // uint takerAmt = amtToTaken.mul(DENOMINATOR-getTakerFeeRate(pair)).div(DENOMINATOR);
+      // // maker 得到的币数量，扣除手续费
+      // uint makerAmt = amtDest.mul(DENOMINATOR-getMakerFeeRate(pair)).div(DENOMINATOR);
+      // _swap(order.tokenAmt.srcEToken, destToken, order.to, to, takerAmt, makerAmt, isMargin(order.flag));
+      
+      // left -= amtToTaken;
+      // order.tokenAmt.fulfiled += amtToTaken;
+
+      // emit FulFilOrder(order.owner, to, orderId, amtToTaken, amtDest, left);
+      // if (left == 0) {
+      //   //
+      //   order.flag |= _ORDER_CLOSED;
+      //   _removeOrder(order);
+      // }
+      
+      // 验证转入 taker 的币
+      if (data.length > 0) {
+        address destEToken = order.tokenAmt.destEToken;
+        uint256 balanceBefore = IERC20(destEToken).balanceOf(address(this));
+        IHswapV2Callee(to).hswapV2Call(msg.sender, takerAmt, makerAmt, data);
+        uint256 transferIn = IERC20(destEToken).balanceOf(address(this)).sub(balanceBefore);
+        require(transferIn >= amtDest, "not enough");
+      } else {
+        // if (isTokenIn) {
+        //   // mint
+        //   address srcToken = order.tokenAmt.srcToken;
+
+        //   if (srcToken == address(0)) {
+        //     uint balanceBefore = IERC20(cETH).balanceOf(address(this));
+        //     ICETH(cETH).mint{value: msg.value}();
+        //     uint minted = IERC20(cETH).balanceOf(address(this)).sub(balanceBefore);
+        //     require(minted > amtToTaken, "mint not enough cETH");
+        //   } else {
+        //     address srcEToken = order.tokenAmt.srcEToken;
+        //     uint rateIn = OBPriceLogic.getCurrentExchangeRate(ICToken(srcEToken));
+        //     uint amtIn = amtToTaken.mul(rateIn).div(1e18);
+        //     TransferHelper.safeTransferFrom(srcToken, to, srcEToken, amtIn);
+        //     ICToken(srcEToken).mint(amtIn);
+        //   }
+        // } else {
+        //   address destEToken = order.tokenAmt.destEToken;
+        //   TransferHelper.safeTransferFrom(destEToken, to, address(this), amtDest);
+        // }
+        TransferMintParam memory param;
+        param.isTokenIn = isTokenIn;
+        param.srcToken = order.tokenAmt.srcToken;
+        param.srcEToken = order.tokenAmt.srcEToken;
+        param.destEToken = order.tokenAmt.destEToken;
+        param.amtToTaken = amtToTaken;
+        param.amtDest = amtDest;
+        param.to = to;
+        _tranferOrMint(param);
+      }
+
+      return (takerAmt, makerAmt);
+    }
+
+
+    function _tranferOrMint(TransferMintParam memory param) private {
+        address to = param.to;
+
+        if (param.isTokenIn) {
+          // mint
+          address srcToken = param.srcToken;
+          uint amtToTaken = param.amtToTaken;
+
+          if (srcToken == address(0)) {
+            uint balanceBefore = IERC20(cETH).balanceOf(address(this));
+            ICETH(cETH).mint{value: msg.value}();
+            uint minted = IERC20(cETH).balanceOf(address(this)).sub(balanceBefore);
+            require(minted > amtToTaken, "mint not enough cETH");
+          } else {
+            address srcEToken = param.srcEToken;
+            uint rateIn = OBPriceLogic.getCurrentExchangeRate(ICToken(srcEToken));
+            uint amtIn = amtToTaken.mul(rateIn).div(1e18);
+            TransferHelper.safeTransferFrom(srcToken, to, srcEToken, amtIn);
+            ICToken(srcEToken).mint(amtIn);
+          }
+        } else {
+          address destEToken = param.destEToken;
+          TransferHelper.safeTransferFrom(destEToken, to, address(this), param.amtDest);
+        }
+    }
+
+    function _fulfil(DataTypes.OrderItem storage order, address taker, uint256 amtToTaken, uint256 left) private returns (uint, uint, uint) {
+      DataTypes.TokenAmount memory tokenAmt = order.tokenAmt;
+      // 挂单者在不扣除手续费的情况下得到的币的数量
+      uint amtDest = OBPriceLogic.convertBuyAmountByETokenIn(tokenAmt, amtToTaken);
+
+      address srcEToken = tokenAmt.srcEToken;
+      address destEToken = tokenAmt.destEToken;
+      address maker = order.to;
+      uint256 pair = order.pair;
+      // taker得到的币，扣除手续费
+      uint takerAmt = amtToTaken.mul(DENOMINATOR-getTakerFeeRate(pair)).div(DENOMINATOR);
+      // maker 得到的币数量，扣除手续费
+      uint makerAmt = amtDest.mul(DENOMINATOR-getMakerFeeRate(pair)).div(DENOMINATOR);
+      
+      if (isMargin(order.flag)) {
+        // 回调
+        IMarginHolding(marginAddr).onFulfiled(maker, srcEToken, destEToken, makerAmt, takerAmt);
+      } else {
+        balanceOf[destEToken][maker] += makerAmt;
+      }
+
+      // 买家得到的币
+      // if (srcToken == address(0)) {
+      //   TransferHelper.safeTransferETH(buyer, buyAmt);
+      // } else {
+      TransferHelper.safeTransfer(srcEToken, taker, takerAmt);
+
+      // _swap(tokenAmt.srcEToken, destToken, order.to, to, takerAmt, makerAmt, isMargin(order.flag));
 
       left -= amtToTaken;
       order.tokenAmt.fulfiled += amtToTaken;
 
-      emit FulFilOrder(order.owner, msg.sender, orderId, amtToTaken, amtDest, left);
       if (left == 0) {
         //
         order.flag |= _ORDER_CLOSED;
         _removeOrder(order);
       }
-      return _buyAmt;
+
+      return (takerAmt, makerAmt, amtDest);
     }
 
     // function fulfilOrders(uint[] memory orderIds, uint[] memory amtToTaken) external whenOpen {
@@ -397,22 +659,45 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
     //     }
     // }
 
-    function _withdraw(address user, address token, uint total, uint amt) private {
-        if (token == address(0)) {
-          TransferHelper.safeTransferETH(user, amt);
-        } else {
-          TransferHelper.safeTransfer(token, user, amt);
-        }
+    // withdraw etoken
+    // token should be etoken
+    function _withdraw(address user, address etoken, uint total, uint amt) private {
+        TransferHelper.safeTransfer(etoken, user, amt);
 
-        balanceOf[token][user] = total.sub(amt);
+        balanceOf[etoken][user] = total.sub(amt);
     }
 
-    // 用户成交后，资金由合约代管, 用户提现得到自己的 token
+    function _withdrawUnderlying(address user, address token, address etoken, uint total, uint amt) private {
+        balanceOf[etoken][user] = total.sub(amt);
+
+        if (etoken == cETH) {
+          uint balanceBefore = address(this).balance;
+          ICETH(cETH).redeem(amt);
+          uint redeemAmt = address(this).balance.sub(balanceBefore);
+          TransferHelper.safeTransferETH(user, redeemAmt);
+        } else {
+          uint balanceBefore = IERC20(token).balanceOf(address(this));
+          ICToken(etoken).redeem(amt);
+          uint redeemAmt = IERC20(token).balanceOf(address(this)).sub(balanceBefore);
+          TransferHelper.safeTransfer(token, user, redeemAmt);
+        }
+    }
+
+    // 用户成交后，资金由合约代管, 用户提现得到自己的 etoken
     function withdraw(address token, uint amt) external {
         uint total = balanceOf[token][msg.sender];
         require(total >= amt, "not enough asset");
 
         _withdraw(msg.sender, token, total, amt);
+    }
+
+    // 用户成交后，资金由合约代管, 用户提现得到自己的 token
+    function withdrawUnderlying(address token, uint amt) external {
+        address etoken = _getETokenAddress(token);
+        uint total = balanceOf[etoken][msg.sender];
+        require(total >= amt, "not enough asset");
+
+        _withdrawUnderlying(msg.sender, token, etoken, total, amt);
     }
 
     function adminTransfer(address token, address to, uint amt) external onlyOwner {
@@ -422,175 +707,56 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
           TransferHelper.safeTransfer(token, to, amt);
         }
     }
+
+    function _getPairFee(address src, address dest) internal returns (DataTypes.OBPairConfigMap storage conf) {
+      address srcEToken = _getETokenAddress(src);
+      address destEToken = _getETokenAddress(dest);
+      uint256 pair = _pairFor(srcEToken, destEToken);
+      DataTypes.OBPairConfigMap storage conf = pairFeeRate[pair];
+      return conf;
+    }
+
+    function setPairTakerFee(address src, address dest, uint fee) external onlyOwner {
+      DataTypes.OBPairConfigMap storage conf = _getPairFee(src, dest);
+
+      conf.setFeeTaker(fee);
+    }
+    
+    function setPairMakerFee(address src, address dest, uint fee) external onlyOwner {
+      DataTypes.OBPairConfigMap storage conf = _getPairFee(src, dest);
+
+      conf.setFeeMaker(fee);
+    }
+
 }
 
 // helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false
 library TransferHelper {
     function safeApprove(address token, address to, uint value) internal {
         // bytes4(keccak256(bytes('approve(address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: APPROVE_FAILED');
     }
 
     function safeTransfer(address token, address to, uint value) internal {
         // bytes4(keccak256(bytes('transfer(address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0xa9059cbb, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: TRANSFER_FAILED');
     }
 
     function safeTransferFrom(address token, address from, address to, uint value) internal {
         // bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x23b872dd, from, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: TRANSFER_FROM_FAILED');
     }
 
     function safeTransferETH(address to, uint value) internal {
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success,) = to.call{value: value}(new bytes(0));
         require(success, 'TransferHelper: ETH_TRANSFER_FAILED');
     }
 }
 
-
-library SafeMath {
-    uint256 constant WAD = 10 ** 18;
-    uint256 constant RAY = 10 ** 27;
-
-    function wad() public pure returns (uint256) {
-        return WAD;
-    }
-
-    function ray() public pure returns (uint256) {
-        return RAY;
-    }
-
-    function add(uint256 a, uint256 b) internal pure returns (uint256) {
-        uint256 c = a + b;
-        require(c >= a, "SafeMath: addition overflow");
-
-        return c;
-    }
-
-    function sub(uint256 a, uint256 b) internal pure returns (uint256) {
-        return sub(a, b, "SafeMath: subtraction overflow");
-    }
-
-    function sub(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        require(b <= a, errorMessage);
-        uint256 c = a - b;
-
-        return c;
-    }
-
-    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
-        // Gas optimization: this is cheaper than requiring 'a' not being zero, but the
-        // benefit is lost if 'b' is also tested.
-        // See: https://github.com/OpenZeppelin/openzeppelin-contracts/pull/522
-        if (a == 0) {
-            return 0;
-        }
-
-        uint256 c = a * b;
-        require(c / a == b, "SafeMath: multiplication overflow");
-
-        return c;
-    }
-
-    function div(uint256 a, uint256 b) internal pure returns (uint256) {
-        return div(a, b, "SafeMath: division by zero");
-    }
-
-    function div(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        // Solidity only automatically asserts when dividing by 0
-        require(b > 0, errorMessage);
-        uint256 c = a / b;
-        // assert(a == b * c + a % b); // There is no case in which this doesn't hold
-
-        return c;
-    }
-
-    function mod(uint256 a, uint256 b) internal pure returns (uint256) {
-        return mod(a, b, "SafeMath: modulo by zero");
-    }
-
-    function mod(uint256 a, uint256 b, string memory errorMessage) internal pure returns (uint256) {
-        require(b != 0, errorMessage);
-        return a % b;
-    }
-
-    function min(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a <= b ? a : b;
-    }
-
-    function max(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a >= b ? a : b;
-    }
-
-    function sqrt(uint256 a) internal pure returns (uint256 b) {
-        if (a > 3) {
-            b = a;
-            uint256 x = a / 2 + 1;
-            while (x < b) {
-                b = x;
-                x = (a / x + x) / 2;
-            }
-        } else if (a != 0) {
-            b = 1;
-        }
-    }
-
-    function wmul(uint256 a, uint256 b) internal pure returns (uint256) {
-        return mul(a, b) / WAD;
-    }
-
-    function wmulRound(uint256 a, uint256 b) internal pure returns (uint256) {
-        return add(mul(a, b), WAD / 2) / WAD;
-    }
-
-    function rmul(uint256 a, uint256 b) internal pure returns (uint256) {
-        return mul(a, b) / RAY;
-    }
-
-    function rmulRound(uint256 a, uint256 b) internal pure returns (uint256) {
-        return add(mul(a, b), RAY / 2) / RAY;
-    }
-
-    function wdiv(uint256 a, uint256 b) internal pure returns (uint256) {
-        return div(mul(a, WAD), b);
-    }
-
-    function wdivRound(uint256 a, uint256 b) internal pure returns (uint256) {
-        return add(mul(a, WAD), b / 2) / b;
-    }
-
-    function rdiv(uint256 a, uint256 b) internal pure returns (uint256) {
-        return div(mul(a, RAY), b);
-    }
-
-    function rdivRound(uint256 a, uint256 b) internal pure returns (uint256) {
-        return add(mul(a, RAY), b / 2) / b;
-    }
-
-    function wpow(uint256 x, uint256 n) internal pure returns (uint256) {
-        uint256 result = WAD;
-        while (n > 0) {
-            if (n % 2 != 0) {
-                result = wmul(result, x);
-            }
-            x = wmul(x, x);
-            n /= 2;
-        }
-        return result;
-    }
-
-    function rpow(uint256 x, uint256 n) internal pure returns (uint256) {
-        uint256 result = RAY;
-        while (n > 0) {
-            if (n % 2 != 0) {
-                result = rmul(result, x);
-            }
-            x = rmul(x, x);
-            n /= 2;
-        }
-        return result;
-    }
-}

@@ -27,7 +27,9 @@ contract OBStorage is Ownable {
     uint private constant _MARGIN_MASK     = 0x8000000000000000000000000000000000000000000000000000000000000000;
     uint private constant _EXPIRED_AT_MASK = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;   // 128 bit
     uint private constant _ADDR_INDEX_OFFSET = 128;
-    uint private constant _EXPIRED_AT_OFFSET = 128;
+    // uint private constant _EXPIRED_AT_OFFSET = 128;
+
+    uint256 public constant DENOMINATOR = 10000;
 
     // // 计算价格的乘数 price = token0 * priceRatio / token1, such as 1e30
     // uint public priceRatio = 1e30; 
@@ -38,11 +40,14 @@ contract OBStorage is Ownable {
     bool    public closed; // prettier-ignore
     // address public router;
     address public wETH;
+    address public cETH;  // compound ETH token
     address public ctokenFactory;
     address public marginAddr;  // 代持合约
 
     // maker 手续费 && taker 手续费
-    mapping(address => DataTypes.OBPairConfigMap) public pairFeeRate;
+    uint public defaultFeeMaker = 30;
+    uint public defaultFeeTaker = 30;
+    mapping(uint256 => DataTypes.OBPairConfigMap) public pairFeeRate;
     // 最低挂单量
     mapping(address => uint256) minAmounts;
     mapping(address => mapping(address => uint)) public balanceOf;   // 代持用户的币
@@ -79,13 +84,13 @@ contract OBStorage is Ownable {
       return (flag & _MARGIN_MASK) != 0;
     }
 
-    function getExpiredAt(uint ts) public pure returns (uint) {
-      return (ts & _EXPIRED_AT_MASK) >> _EXPIRED_AT_OFFSET;
-    }
+    // function getExpiredAt(uint ts) public pure returns (uint) {
+    //   return (ts & _EXPIRED_AT_MASK) >> _EXPIRED_AT_OFFSET;
+    // }
 
-    function maskTimestamp(uint ts, uint expired) public pure returns (uint) {
-      return (ts) | (expired << _EXPIRED_AT_OFFSET);
-    }
+    // function maskTimestamp(uint ts, uint expired) public pure returns (uint) {
+    //   return (ts) | (expired << _EXPIRED_AT_OFFSET);
+    // }
     
     // function setSwapMining(address _swapMininng) public onlyOwner {
     //     swapMining = _swapMininng;

@@ -17,52 +17,30 @@ pragma experimental ABIEncoderV2;
 import { DataTypes } from "./DataTypes.sol";
 
 library OBPairConfig {
-    uint constant internal MASK_MIN_AMOUNT = 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff; // prettier-ignore
-    uint constant internal MASK_FEE_MAKER  = 0xffffffffffffffff000000000000000000000000000000000000000000000000; // prettier-ignore
-    uint constant internal MASK_FEE_TAKER  = 0x0000000000000000ffffffffffffffff00000000000000000000000000000000; // prettier-ignore
+    uint constant internal MASK_FEE_MAKER  = 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff; // prettier-ignore
+    uint constant internal MASK_FEE_TAKER  = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000; // prettier-ignore
     uint constant internal FEE_DENOMINATOR = 10000;
 
-    uint constant internal SHIFT_FEE_MAKER = 128;
-    uint constant internal SHIFT_FEE_TAKER = 192;
+    uint constant internal MAX_FEE_RATE = 1000; // 10%
 
-    /**
-    * @dev Gets the min amount of order book pair
-    * @param self The order book pair configuration
-    * @return The min amount
-    **/
-    function minAmount(DataTypes.OBPairConfigMap storage self) public view returns (uint256) {
-        uint amt = self.data & MASK_MIN_AMOUNT;
-        return amt == 0 ? 0 : amt - 1;
-    }
+    uint constant internal SHIFT_FEE_TAKER = 128;
 
     /**
     * @dev Gets the maker fee of order book pair
     * @param self The order book pair configuration
-    * @return The maker fee
+    * @return The maker fee + 1 if fee exist or else 0
     **/
     function feeMaker(DataTypes.OBPairConfigMap storage self) public view returns (uint256) {
-        uint fee = ((self.data & MASK_FEE_MAKER) >> SHIFT_FEE_MAKER);
-        return fee == 0 ? 0 : fee - 1;
+        return (self.data & MASK_FEE_MAKER);
     }
 
     /**
     * @dev Gets the taker fee of order book pair
     * @param self The order book pair configuration
-    * @return The taker fee
+    * @return The taker fee + 1 if fee exist or else 0
     **/
     function feeTaker(DataTypes.OBPairConfigMap storage self) public view returns (uint256) {
-        uint fee = ((self.data & MASK_FEE_TAKER) >> SHIFT_FEE_TAKER);
-        return fee == 0 ? 0 : fee - 1;
-    }
-
-    /**
-    * @dev Sets min amount of order book pair
-    * @param self The order book pair configuration
-    * @param amt min amount to set
-    **/
-    function setMinAmount(DataTypes.OBPairConfigMap storage self, uint amt) public {
-        require(amt < MASK_MIN_AMOUNT, "amount invalid");
-        self.data = (self.data & ~MASK_MIN_AMOUNT) | (amt+1);
+        return ((self.data & MASK_FEE_TAKER) >> SHIFT_FEE_TAKER);
     }
     
     /**
@@ -71,8 +49,8 @@ library OBPairConfig {
     * @param fee taker fee to set
     **/
     function setFeeMaker(DataTypes.OBPairConfigMap storage self, uint fee) public {
-        require(fee < MASK_MIN_AMOUNT, "maker fee invalid");
-        self.data = (self.data & ~MASK_FEE_MAKER) | ((fee+1) << SHIFT_FEE_MAKER);
+        require(fee < MAX_FEE_RATE, "maker fee invalid");
+        self.data = (self.data & ~MASK_FEE_MAKER) | (fee+1);
     }
 
     /**
@@ -81,7 +59,7 @@ library OBPairConfig {
     * @param fee maker fee to set
     **/
     function setFeeTaker(DataTypes.OBPairConfigMap storage self, uint fee) public {
-        require(fee < MASK_MIN_AMOUNT, "taker fee invalid");
+        require(fee < MAX_FEE_RATE, "taker fee invalid");
         self.data = (self.data & ~MASK_FEE_TAKER) | ((fee+1) << SHIFT_FEE_TAKER);
     }
 }

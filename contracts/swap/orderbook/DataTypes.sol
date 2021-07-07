@@ -6,7 +6,7 @@ library DataTypes {
     uint constant internal DEST_IS_ETOKEN = 0x00002;
  
     struct TokenAmount {
-        uint isEToken;            // 挂单卖出的币是否是 eToken | 挂单卖出的币是否是 etoken 
+        // uint isEToken;            // 挂单卖出的币是否是 eToken
         address srcToken;
         address destToken;
         address srcEToken;             // srcToken 对应的 eToken
@@ -15,7 +15,7 @@ library DataTypes {
         uint amountInMint;             // 如果 srcToken 不是 eToken, mint 成为 etoken 的数量
         uint fulfiled;                 // 已经成交部分, 单位 etoken
         uint guaranteeAmountOut;       // 最低兑换后要求得到的数量
-        uint guaranteeAmountOutEToken; // 最低兑换后要求得到的 etoken 数量
+        // uint guaranteeAmountOutEToken; // 最低兑换后要求得到的 etoken 数量
     }
 
     struct OrderItem {
