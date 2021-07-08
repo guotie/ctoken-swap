@@ -16,15 +16,6 @@ pragma solidity ^0.5.16;
 import "../interface/IDeBankPair.sol";
 
 contract PairStorage is IDeBankPair {
-    // uint public FEE_DENOMINATOR = 10 ** 10;
-    // uint public LENDING_PRECISION = 10 ** 18;
-    // uint public PRECISION = 10 ** 18;  // # The precision to convert to
-    // uint public FEE_INDEX = 2;         // Which coin may potentially have fees (USDT)
-    // uint public MAX_ADMIN_FEE = 10 * 10 ** 9;
-    // uint public MAX_FEE = 5 * 10 ** 9;
-    // uint public MAX_A = 10 ** 6;
-    // uint public MAX_A_CHANGE = 10;
-
     // uint public MIN_RAMP_TIME = 86400;
     uint public constant MINIMUM_LIQUIDITY = 10 ** 3;
 
@@ -34,19 +25,11 @@ contract PairStorage is IDeBankPair {
     address public cToken0;              // 对应 token0 在 lend 池中的 cToken
     address public cToken1;              // 对应 token1 在 lend 池中的 cToken
 
-    // uint256 public PRECISION_MUL0; // = [1, 1000000000000, 1000000000000];
-    // uint256 public PRECISION_MUL1;
-    // uint256 public RATE0;
-    // uint256 public RATE1;
-
-    // uint256 public balance0;
-    // uint256 public balance1;
-
     uint112 public reserve0;
     uint112 public reserve1;
 
     // uint256 public fee;
-    bool public isStable;                      // 是否是稳定币
+    // bool public isStable;                      // 是否是稳定币
     uint256 public feeRate = 30;        // 手续费千三, 万分之三十
     // mapping(address => uint) feeRateOf; // 设置特定账户的手续费
 
@@ -60,11 +43,6 @@ contract PairStorage is IDeBankPair {
     uint public price1CumulativeLast;
     uint public kLast; // reserve0 * reserve1, as of immediately after the most recent liquidity event
 
-    // uint256 public initialA = 800;
-    // uint256 public futureA;
-    // uint256 public initialATime;
-    // uint256 public futureATime;
-
     string public constant name = 'LP Token';
     string public constant symbol = 'Dex';
     uint8 public constant decimals = 18;
@@ -77,25 +55,32 @@ contract PairStorage is IDeBankPair {
 
     mapping(address => uint) public nonces;
     mapping(address => uint) public balanceOf;
+    // mapping(address => uint) public mintOf;
     mapping(address => mapping(address => uint)) public allowance;
 
+    // 挖矿权
+    // 挖矿权与所有权(balanceOf) 分离. 当用户把LP转给compound抵押时, 挖矿权依然归用户
     struct LPReward {
-        uint amount;         // LP amount
-        uint pendingReward;  // 未付 reward
-        uint rewardDebt;
+        uint amount;            // LP amount
+        uint pendingReward;     // 未付 reward
+        uint rewardDebt;        // LP 挖矿 + ctoken 挖矿
+        // uint pendingReward;     // 未付 reward
+        // uint ctokenRewordDebt;  // 
     }
     // 只有 owner 可以 burn, 其他不可以 burn
-    mapping(address => LPReward) public ownerOf;
+    mapping(address => LPReward) public mintRewardOf;
     uint public accPerShare;
-    uint public rewards;
+    // uint public rewards;
     uint public totalFee;
     uint public currentBlock;       // blockFee对应的块数
     uint public blockFee;           // 当前块的手续费, 下一个块的第一笔交易触发计算上个块的reward, 然后重新累计
 
     // ctoken 挖矿收益
-    mapping(address => uint) public ctokenMintDebt;
+    // mapping(address => uint) public ctokenMintDebt;
     uint public mintAccPerShare;
     uint public ctokenMintRewards;
+    uint public ctokenRewordBlock; // 上一次更新的块数
+    uint public mintRewardDebt;    // 给用户转挖矿收益不足的情况
 
     // struct OrderItem {
     //     address owner;

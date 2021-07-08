@@ -26,6 +26,10 @@ interface IDeBankRouter {
 
     function rewardToken() external view returns (address);
 
+    function lpDepositAddr() external view returns (address);
+    
+    function compAddr() external view returns (address);
+
     function startBlock() external view returns (uint);
 
     function swapMining() external view returns (address);

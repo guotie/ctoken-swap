@@ -628,6 +628,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         balanceOf[destEToken][maker] += makerAmt;
       }
 
+      // todo 买家希望得到的是那种币
       // 买家得到的币
       // if (srcToken == address(0)) {
       //   TransferHelper.safeTransferETH(buyer, buyAmt);

@@ -10,3 +10,4 @@ async function flat(src: string, to: string) {
 }
 
 flat('contracts/swap/heco/Factory.sol', 'flatten/Facotroy.sol')
+flat('contracts/swap/heco/Router.sol', 'flatten/Router.sol')

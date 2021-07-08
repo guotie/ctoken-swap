@@ -54,6 +54,8 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // How many blocks are halved  182天
     uint256 public halvingPeriod = 5256000;
     address public rewardToken; // 收益 token
+    address public lpDepositAddr;   // compound 流动性抵押
+    address public compAddr;        // compound unitroller
     uint public feeAlloc;        // 手续费分配方案: 0: 分配给LP; 1: 不分配给LP, 平台收取后兑换为 anchorToken
 
     modifier ensure(uint deadline) {
@@ -448,7 +450,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     ) public ensure(deadline) returns (uint amountA, uint amountB) {
         address pair = pairFor(tokenA, tokenB);
         // 确保只有owner可以移除流动性
-        require(IDeBankPair(pair).ownerAmountOf(to) >= liquidity, "not owner or not enough");
+        // require(IDeBankPair(pair).ownerAmountOf(to) >= liquidity, "not owner or not enough");
 
         IDeBankPair(pair).transferFrom(msg.sender, pair, liquidity);
         LiquidityLocalVars memory vars;
