@@ -59,6 +59,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     uint public feeAlloc;        // 手续费分配方案: 0: 分配给LP; 1: 不分配给LP, 平台收取后兑换为 anchorToken
 
     modifier ensure(uint deadline) {
+        // solhint-disable-next-line
         require(deadline >= block.timestamp, 'DeBankRouter: EXPIRED');
         _;
     }
@@ -202,12 +203,14 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             uint amountBOptimal = IDeBankFactory(factory).quote(amountADesired, reserveA, reserveB);
             // console.log("_addLiquidity: reserveA=%d  reserveB=%d", reserveA, reserveB);
             if (amountBOptimal <= amountBDesired) {
-                // console.log("_addLiquidity: amountBOptimal=%d  amountBDesired=%d  amountADesired=%d", amountBOptimal, amountBDesired, amountADesired);
+                // console.log("_addLiquidity: amountBOptimal=%d  amountBDesired=%d  amountADesired=%d",
+                //       amountBOptimal, amountBDesired, amountADesired);
                 require(amountBOptimal >= amountBMin, 'AddLiquidity: INSUFFICIENT_B_AMOUNT');
                 (amountA, amountB) = (amountADesired, amountBOptimal);
             } else {
                 uint amountAOptimal = IDeBankFactory(factory).quote(amountBDesired, reserveB, reserveA);
-                // console.log("_addLiquidity: amountAOptimal=%d  amountADesired=%d  amountBDesired=%d", amountAOptimal, amountADesired, amountBDesired);
+                // console.log("_addLiquidity: amountAOptimal=%d  amountADesired=%d  amountBDesired=%d",
+                //       amountAOptimal, amountADesired, amountBDesired);
                 assert(amountAOptimal <= amountADesired);
                 require(amountAOptimal >= amountAMin, 'AddLiquidity: INSUFFICIENT_A_AMOUNT');
                 (amountA, amountB) = (amountAOptimal, amountBDesired);
@@ -241,9 +244,9 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
     function _cTokenExchangeRate(address ctoken) private view returns(uint) {
         uint rate = ICToken(ctoken).exchangeRateStored();
-        uint256 supply_rate = ICToken(ctoken).supplyRatePerBlock();
-        uint256 old_block = ICToken(ctoken).accrualBlockNumber();
-        rate += rate * supply_rate * (block.number - old_block);
+        uint256 supplyRate = ICToken(ctoken).supplyRatePerBlock();
+        uint256 prevBlock = ICToken(ctoken).accrualBlockNumber();
+        rate += rate.mul(supplyRate).mul(block.number - prevBlock);
         return rate;
     }
 
@@ -1110,23 +1113,27 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 library TransferHelper {
     function safeApprove(address token, address to, uint value) internal {
         // bytes4(keccak256(bytes('approve(address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: APPROVE_FAILED');
     }
 
     function safeTransfer(address token, address to, uint value) internal {
         // bytes4(keccak256(bytes('transfer(address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0xa9059cbb, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: TRANSFER_FAILED');
     }
 
     function safeTransferFrom(address token, address from, address to, uint value) internal {
         // bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x23b872dd, from, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: TRANSFER_FROM_FAILED');
     }
 
     function safeTransferETH(address to, uint value) internal {
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success,) = to.call.value(value)(new bytes(0));
         require(success, 'TransferHelper: ETH_TRANSFER_FAILED');
     }
