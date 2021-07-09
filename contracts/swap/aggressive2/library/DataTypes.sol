@@ -35,8 +35,8 @@ library DataTypes {
         uint256 data;
     }
 
-    /// @dev 计算最佳兑换路径的入参
-    struct SwapParams {
+    /// @dev 询价 计算最佳兑换路径的入参
+    struct QuoteParams {
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
@@ -51,8 +51,29 @@ library DataTypes {
 
     // struct 
     struct StepExecuteParams {
-        uint256 flag;
+        uint256 flag;           // step execute flag 指示用哪种步骤去执行
         address contractAddr;   // 合约地址
         bytes[] data;           /// decode by executor
+    }
+    /// @dev 兑换 入参
+    struct SwapParams {
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
+        uint256 amountOut;
+        uint256 gasLimit;
+        uint256 gasPrice;
+        address fromAddress;
+        address dstReceiver;
+        address[] midTokens;  // should always be token
+        SwapFlagMap flag;
+
+        StepExecuteParams[] steps;
+    }
+
+    /// @dev Exchange 交易所合约地址及交易所类型
+    struct Exchange {
+        uint exFlag;
+        address contractAddr;
     }
 }

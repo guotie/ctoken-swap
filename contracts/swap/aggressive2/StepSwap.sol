@@ -4,6 +4,12 @@ pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
 import "./library/SafeMath.sol";
+import "./library/DataTypes.sol";
+import "./library/SwapFlag.sol";
+import "./interface/IWETH.sol";
+import "./interface/ICToken.sol";
+import "./interface/ICTokenFactory.sol";
+import "./Ownable.sol";
 
 // 分步骤 swap, 可能的步骤
 // 0. despot eth/ht
@@ -40,12 +46,58 @@ import "./library/SafeMath.sol";
 //
 // import "./IStepSwap.sol";
 
+contract StepSwapStorage {
+    mapping(uint => DataTypes.Exchanges) public exchanges;  // 
+    uint public exchangeCount;  // exchange 数量
+    IWETH public weth;
+    ICTokenFactory public ctokenFactory;
+}
+
 // contract StepSwap is BaseStepSwap {
-contract StepSwap {
+contract StepSwap is Ownable, StepSwapStorage {
     using SafeMath for uint;
     using SafeMath for uint256;
+    using SwapFlag for DataTypes.SwapFlagMap;
 
     // constructor(address _wht) public BaseStepSwap(_wht) {
         
     // }
+
+    /// @dev 根据入参计算在各个交易所分配的资金比例及交易路径(步骤)
+    function getExpectedReturnWithGas(DataTypes.QuoteParams calldata args) external returns (DataTypes.SwapParams memory) {
+        DataTypes.SwapFlagMap memory flag = args.flag;
+        bool ctokenIn = flag.tokenInIsCToken();
+        bool ctokenOut = flag.tokenOutIsCToken();
+    }
+
+    /// @dev 根据参数执行兑换
+    function unoswap(DataTypes.SwapParams args) public payable returns (DataTypes.StepExecuteParams[]) {
+        args;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    
+
+    function addExchange(uint flag, address addr) external onlyOwner {
+        DataTypes.Exchanges storage ex = exchanges[exchangeCount];
+        ex.exFlag = flag;
+        ex.contractAddr = addr;
+
+        exchangeCount ++;
+    }
+
+    function removeExchange(uint i) external onlyOwner {
+        DataTypes.Exchanges storage ex = exchanges[i];
+
+        ex.addr = address(0);
+    }
+
+    function setWETH(address _weth) external onlyOwner {
+        weth = _weth;
+    }
+
+    function setCtokenFactory(address factory) external onlyOwner {
+        ctokenFactory = factory;
+    }
 }
