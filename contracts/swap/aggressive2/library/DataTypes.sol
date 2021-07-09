@@ -25,16 +25,8 @@ library DataTypes {
     uint256 public constant STEP_UNISWAP_PAIR_SWAP     = 0x0000000400; // prettier-ignore
     uint256 public constant STEP_UNISWAP_ROUTER_SWAP   = 0x0000000800; // prettier-ignore
 
-    uint256 public constant FLAG_TOKEN_IN_ETH          = 0x0000000001; // prettier-ignore
-    uint256 public constant FLAG_TOKEN_IN_TOKEN        = 0x0000000002; // prettier-ignore
-    uint256 public constant FLAG_TOKEN_IN_CTOKEN       = 0x0000000004; // prettier-ignore
-    uint256 public constant FLAG_TOKEN_OUT_ETH         = 0x0000000008; // prettier-ignore
-    uint256 public constant FLAG_TOKEN_OUT_TOKEN       = 0x0000000010; // prettier-ignore
-    uint256 public constant FLAG_TOKEN_OUT_CTOKEN      = 0x0000000020; // prettier-ignore
-    uint256 public constant FLAG_TOKEN_OUT_CETH        = 0x0000000040; // prettier-ignore
-
     struct SwapFlagMap {
-        // bit 0-63: token in/out, 64 bit
+        // bit 0-63: flag token in/out, 64 bit
         // bit 64-71 parts, 8 bit
         // bit 72-79 max main part, 8 bit
         // bit 80-81 complex level, 2 bit
@@ -58,4 +50,9 @@ library DataTypes {
     }
 
     // struct 
+    struct StepExecuteParams {
+        uint256 flag;
+        address contractAddr;   // 合约地址
+        bytes[] data;           /// decode by executor
+    }
 }

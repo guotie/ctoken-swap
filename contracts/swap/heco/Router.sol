@@ -126,6 +126,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         return lpPerBlock.div(2 ** _phase);
     }
 
+    // todo to be removed
     function getBlockRewards(uint256 _lastRewardBlock) public view returns (uint256) {
         uint256 blockReward = 0;
         uint256 n = phase(_lastRewardBlock);

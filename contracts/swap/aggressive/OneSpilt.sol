@@ -495,7 +495,12 @@ contract OneSplit is Ownable {
         );
     }
 
-    function _calculateUniswapFormulaCompound(uint256 fromBalance, uint256 toBalance, uint256 amount, uint rateIn, uint rateOut) internal pure returns(uint256) {
+    function _calculateUniswapFormulaCompound(uint256 fromBalance,
+            uint256 toBalance,
+            uint256 amount,
+            uint rateIn,
+            uint rateOut)
+            internal pure returns(uint256) {
         if (amount == 0) {
             return 0;
         }
@@ -550,7 +555,13 @@ contract OneSplit is Ownable {
             uint256 destTokenBalance = destTokenReal.uniBalanceOf(address(exchange));
             for (uint i = 0; i < lvar.amounts.length; i++) {
                 if (compound) {
-                    rets[i] = _calculateUniswapFormulaCompound(fromTokenBalance, destTokenBalance, lvar.amounts[i], exchangeRateFrom, exchangeRateDest);
+                    rets[i] = _calculateUniswapFormulaCompound(
+                                    fromTokenBalance,
+                                    destTokenBalance,
+                                    lvar.amounts[i],
+                                    exchangeRateFrom,
+                                    exchangeRateDest
+                                );
                 } else {
                     rets[i] = _calculateUniswapFormula(fromTokenBalance, destTokenBalance, lvar.amounts[i]);
                 }

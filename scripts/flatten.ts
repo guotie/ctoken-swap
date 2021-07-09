@@ -2,8 +2,10 @@ const hre = require('hardhat')
 const ethers = hre.ethers
 
 async function flat(src: string, to: string) {
-  let output = await hre.run("flatten", {
-      files: [src]
+  // let output = 
+  await hre.run("flatten", {
+      files: [src],
+      output: to
   })
 
   // console.log(output)

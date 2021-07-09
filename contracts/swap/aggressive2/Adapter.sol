@@ -48,21 +48,28 @@ contract StepSwapExecutor {
         return IERC20(ctoken).balanceOf(address(this)).sub(balanceBefore);
     }
 
-    // 
+    /// @dev compund mint ETH
     function compoundMintETH() public payable returns (uint256) {
         WETH.deposit();
 
         return compoundMintToken(address(WETH), msg.value);
     }
 
-    // 
+    /// @dev compoundRedeemCToken redeem compound token
+    /// @param ctoken compund token
+    /// @param amount amount to redeem
     function compoundRedeemCToken(address ctoken, uint256 amount) public {
-        ctoken;
+        ICToken(ctoken).redeem(amount);
     }
 
-
-    // aave deposit token
+    /// @dev aave deposit token
     function aaveDepositToken(address aToken) public {
         aToken;
+    }
+
+    /// @dev withdraw aave token
+    function aaveWithdrawToken(address aToken, uint256 amt) public {
+        aToken;
+        amt;
     }
 }
