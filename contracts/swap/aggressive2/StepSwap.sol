@@ -10,6 +10,7 @@ import "./interface/IWETH.sol";
 import "./interface/ICToken.sol";
 import "./interface/ICTokenFactory.sol";
 import "./Ownable.sol";
+import "./Exchanges.sol";
 
 // 分步骤 swap, 可能的步骤
 // 0. despot eth/ht
@@ -59,15 +60,39 @@ contract StepSwap is Ownable, StepSwapStorage {
     using SafeMath for uint256;
     using SwapFlag for DataTypes.SwapFlagMap;
 
-    // constructor(address _wht) public BaseStepSwap(_wht) {
-        
-    // }
+    function calcExchangeRoutes(uint midTokens, uint complexLevel) public view returns (uint total) {
+        uint i;
+
+        for (i = 0; i < exchangeCount; i ++) {
+            DataTypes.Exchanges ex = exchanges[i];
+
+            if (ex.contractAddr == address(0)) {
+                continue;
+            }
+
+            total += getExchangeRoutes(ex.exFlag, midTokens, complexLevel);
+        }
+    }
 
     /// @dev 根据入参计算在各个交易所分配的资金比例及交易路径(步骤)
-    function getExpectedReturnWithGas(DataTypes.QuoteParams calldata args) external returns (DataTypes.SwapParams memory) {
-        DataTypes.SwapFlagMap memory flag = args.flag;
-        bool ctokenIn = flag.tokenInIsCToken();
-        bool ctokenOut = flag.tokenOutIsCToken();
+    function getExpectedReturnWithGas(DataTypes.QuoteParams calldata args) external returns (DataTypes.SwapParams memory result) {
+        // DataTypes.SwapFlagMap memory flag = args.flag;
+        // bool ctokenIn = flag.tokenInIsCToken();
+        // bool ctokenOut = flag.tokenOutIsCToken();
+        uint distributeCounts = calcExchangeRoutes(args.midTokens.length, args.flag.getComplexLevel());
+        uint[][] distributes = new uint[][](distributeCounts);
+        address[][] path = ;
+        uint[] amts = Exchanges.linearInterpolation(args.amount, args.flag.getParts());
+
+        for (uint i = 0; i < exchangeCount; i ++) {
+            DataTypes.Exchanges memory ex = exchanges[i];
+
+            if (ex.contractAddr == address(0)) {
+                continue;
+            }
+        }
+
+        result.steps = new StepExecuteParams[](distributeCounts);
     }
 
     /// @dev 根据参数执行兑换
