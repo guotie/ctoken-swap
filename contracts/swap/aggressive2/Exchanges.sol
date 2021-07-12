@@ -105,6 +105,7 @@ library Exchanges {
         }
     }
 
+    /// @dev _itemInArray item 是否在数组 vec 中
     function _itemInArray(address[] memory vec, address item) private pure returns (bool) {
         for (uint i = 0; i < vec.length; i ++) {
             if (item == vec[i]) {
@@ -115,11 +116,19 @@ library Exchanges {
     }
 
     // 计算所有路径
-    function allPaths(DataTypes.QuoteParams calldata args) internal pure returns (address[][] memory paths) {
-        uint complexLevel = args.flag.getComplexLevel();
-        uint mids = args.midTokens.length;
-        address token0 = args.tokenIn;
-        address token1 = args.tokenOut;
+    function allPaths(
+                address tokenIn,
+                address tokenOut,
+                address[] memory midTokens,
+                uint complexLevel
+            )
+                internal
+                pure
+                returns (address[][] memory paths) {
+        // uint complexLevel = args.flag.getComplexLevel();
+        uint mids = midTokens.length;
+        // address token0 = args.tokenIn;
+        // address token1 = args.tokenOut;
         
         if (complexLevel > MAX_COMPLEX_LEVEL) {
             complexLevel = MAX_COMPLEX_LEVEL;
@@ -135,16 +144,16 @@ library Exchanges {
         // paths[idx] = new address[]{token0, token1};
         // idx ++;
 
-        address[] memory initialPath = new address[](2);
-        initialPath[0] = token0;
+        address[] memory initialPath = new address[](1);
+        initialPath[0] = tokenIn;
 
-        address[] memory midTokens = new address[](args.midTokens.length);
-        for (uint i = 0; i < mids; i ++) {
-            midTokens[i] = args.midTokens[i];
-        }
+        // address[] memory midTokens = new address[](midTokens.length);
+        // for (uint i = 0; i < mids; i ++) {
+        //     midTokens[i] = args.midTokens[i];
+        // }
 
-        for (uint i = 1; i <= complexLevel; i ++) {
-            idx = calcPathComplex(paths, idx, i, token1, midTokens, initialPath);
+        for (uint i = 0; i <= complexLevel; i ++) {
+            idx = calcPathComplex(paths, idx, i, tokenOut, midTokens, initialPath);
         }
     }
 
@@ -167,7 +176,8 @@ library Exchanges {
     }
 
     /// @dev calcDistributes calc swap exchange
-    function calcDistributes(DataTypes.Exchange memory ex,
+    function calcDistributes(
+                DataTypes.Exchange memory ex,
                 address[] memory path,
                 uint[] memory amts,
                 address to) public view returns (uint256[] memory distributes){
@@ -221,17 +231,25 @@ library Exchanges {
     }
 
     /// @dev 计算 token 能够 mint 得到多少 ctoken
-    function convertCompoundCtokenMinted(address ctoken, uint amount) public view returns (uint256) {
+    function convertCompoundCtokenMinted(address ctoken, uint[] memory amounts, uint parts) public view returns (uint256[] memory) {
         uint256 rate = _calcExchangeRate(ICToken(ctoken));
+        uint256[] memory cAmts = new uint256[](parts);
 
-        return amount.mul(1e18).div(rate);
+        for (uint i = 0; i < parts; i ++) {
+            cAmts[i] = amounts[i].mul(1e18).div(rate);
+        }
+        return cAmts;
     }
 
     /// @dev 计算 ctoken 能够 redeem 得到多少 token
-    function convertCompoundTokenRedeemed(address ctoken, uint amount) public view returns (uint256) {
+    function convertCompoundTokenRedeemed(address ctoken, uint[] memory cAmounts, uint parts) public view returns (uint256[] memory) {
         uint256 rate = _calcExchangeRate(ICToken(ctoken));
+        uint256[] memory amts = new uint256[](parts);
 
-        return amount.mul(rate).div(1e18);
+        for (uint i = 0; i < parts; i ++) {
+            amts[i] = cAmounts[i].mul(rate).div(1e18);
+        }
+        return amts;
     }
 
     // mint token in compound

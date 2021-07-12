@@ -37,6 +37,7 @@ library DataTypes {
 
     /// @dev 询价 计算最佳兑换路径的入参
     struct QuoteParams {
+        address to;
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
@@ -57,6 +58,7 @@ library DataTypes {
     }
     /// @dev 兑换 入参
     struct SwapParams {
+        address to;
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
@@ -75,5 +77,25 @@ library DataTypes {
     struct Exchange {
         uint exFlag;
         address contractAddr;
+    }
+
+
+    /// @dev 计算各个交易所的每个parts的return
+    struct SwapDistributes {
+        bool        ctokenIn;     // 卖出的币是否是 ctoken
+        bool        ctokenOut;    // 买到的币是否是 ctoken
+        address     to;           // 交易者地址
+        uint256     parts;        // 交易量拆分为多少份
+        uint256     rateIn;       // token in exchange rate
+        uint256     rateOut;      // token out exchange rate
+        uint[]      amounts;      // split into parts
+        uint[]      cAmounts;     // mint to ctoken amounts
+        address[]   midTokens;    // middle token list
+        address[]   midCTokens;   // middle ctoken list
+        address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
+        address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
+        
+        uint[][]  distributes;   // 一级为交易路径, 二级为该交易路径的所有parts对应的return
+        uint[]    gases;         // gas 费用估算
     }
 }

@@ -22,7 +22,7 @@ import "./Exchanges.sol";
 // 6. uniswap v1
 // 7. uniswap v2
 // 8. curve stable
-// 9. 
+// 9. uniswap v3
 // 
 //
 // tokenIn的情况:
@@ -73,21 +73,163 @@ contract StepSwap is Ownable, StepSwapStorage {
         }
     }
 
+
+    /// @dev 计算uniswap类似的交易所的 return
+    function _calcUnoswapExchangeReturn(DataTypes.Exchange memory ex, DataTypes.SwapDistributes memory sd, uint idx) internal view returns (uint) {
+        uint gas = 106000;  // uniswap v2
+
+        for (uint i = 0; i < sd.paths.length; i ++) {
+            address[] memory path = sd.paths[i];
+            uint[] memory amts;
+
+            // 是否是 ebankex 及 tokenIn, tokenOut 是否是 ctoken
+            if (sd.ctokenIn == false) {
+                amts = Exchanges.calcDistributes(ex, path, sd.amounts, sd.to);
+                if (sd.ctokenOut == true) {
+                    // 转换为 ctoken
+                    for (uint i = 0; i < sd.amounts.length; i ++) {
+                        amts[i] = amts[i].mul(1e18).div(sd.rateOut);
+                    }
+                    gas += 193404;
+                }
+            } else {
+                // withdraw token 203573
+                // withdraw eth: 138300
+                gas += 203573;
+                amts = Exchanges.calcDistributes(ex, path, sd.cAmounts, sd.to);
+                if (sd.ctokenOut == true) {
+                    // 转换为 ctoken
+                    for (uint i = 0; i < sd.amounts.length; i ++) {
+                        amts[i] = amts[i].mul(1e18).div(sd.rateOut);
+                    }
+                    // deposit token 193404
+                    // deposit eth   160537
+                    gas += 193404;
+                }
+            }
+            sd.distributes[idx + i] = amts;
+        }
+
+        sd.gases[idx] = gas;
+    }
+
+    /// @dev ebankex 兑换数量
+    function _calcEbankExchangeReturn(DataTypes.Exchange memory ex, DataTypes.SwapDistributes memory sd, uint idx) internal view returns (uint)  {
+        uint gas = 106000;  // todo ebank swap 的 gas 费用
+        if (sd.ctokenIn == false) {
+            // mint 为 ctoken
+            gas += 193404;
+        }
+
+        for (uint i = 0; i < sd.paths.length; i ++) {
+            address[] memory path = sd.paths[i];
+            uint[] memory amts;
+
+            // ebankex tokenIn 都是 ctoken, tokenOut 是否是 ctoken
+
+            // withdraw token 203573
+            // withdraw eth: 138300
+            // gas += ;
+            amts = Exchanges.calcDistributes(ex, path, sd.cAmounts, sd.to);
+            if (sd.ctokenOut != true) {
+                // 转换为 token redeem
+                for (uint i = 0; i < sd.amounts.length; i ++) {
+                    amts[i] = amts[i].mul(sd.rateOut).div(1e18);
+                }
+                // deposit token 193404
+                // deposit eth   160537
+                gas += 203573;
+            }
+        
+            sd.distributes[idx + i] = amts;
+        }
+
+        sd.gases[idx] = gas;
+    }
+
+
+    /// @dev _makeSwapDistributes 构造参数
+    function _makeSwapDistributes(
+                    DataTypes.QuoteParams calldata args,
+                    uint distributeCounts
+                ) internal view returns (DataTypes.SwapDistributes memory swapDistributes) {
+        swapDistributes.to = args.to;
+        swapDistributes.ctokenIn = args.flag.tokenInIsCToken();
+        swapDistributes.ctokenOut = args.flag.tokenOutIsCToken();
+        uint parts = args.flag.getParts();
+
+        address tokenIn;
+        address tokenOut;
+        address ctokenIn;
+        address ctokenOut;
+        if (swapDistributes.ctokenIn) {
+            swapDistributes.cAmounts = Exchanges.linearInterpolation(args.amountIn, parts);
+            // 获取 token 对应的 ctoken 地址
+            ctokenIn = args.tokenIn;
+            tokenIn = ctokenFactory.getTokenAddress(ctokenIn);
+            swapDistributes.amounts = Exchanges.convertCompoundTokenRedeemed(ctokenIn, swapDistributes.cAmounts, parts);
+            // new uint[](parts);
+            // // amount = cAmount * exchangeRate
+            // for (uint i = 0; i < parts; i ++) {
+            //     swapDistributes.amounts[i] = Exchanges.convertCompoundTokenRedeemed(ctokenIn, swapDistributes.cAmounts[i]);
+            // }
+        } else {
+            tokenIn = args.tokenIn;
+            ctokenIn = ctokenFactory.getCTokenAddressPure(tokenIn);
+            swapDistributes.amounts = Exchanges.linearInterpolation(args.amountIn, parts);
+            swapDistributes.cAmounts = Exchanges.convertCompoundCtokenMinted(ctokenIn, swapDistributes.amounts, parts);
+            // new uint[](parts);
+            // // amount = cAmount * exchangeRate
+            // for (uint i = 0; i < parts; i ++) {
+            //     swapDistributes.cAmounts[i] = Exchanges.convertCompoundCtokenMinted(ctokenIn, swapDistributes.cAmounts[i]);
+            // }
+        }
+
+        if (swapDistributes.ctokenOut) {
+            tokenOut = ctokenFactory.getTokenAddress(args.tokenOut);
+            ctokenOut = args.tokenOut;
+        } else {
+            tokenOut = args.tokenOut;
+            ctokenOut = ctokenFactory.getCTokenAddressPure(tokenOut);
+        }
+
+        swapDistributes.distributes = new uint[][](distributeCounts);
+        swapDistributes.gases = new uint[](distributeCounts);
+        
+        uint mids = args.midTokens.length;
+        address[] memory midTokens = new address[](mids);
+        address[] memory midCTokens = new address[](mids);
+        for (uint i = 0; i < mids; i ++) {
+            midTokens[i] = args.midTokens[i];
+            midCTokens[i] = ctokenFactory.getCTokenAddressPure(args.midTokens[i]);
+        }
+        swapDistributes.midTokens = midTokens;
+        swapDistributes.midCTokens = midCTokens;
+
+        swapDistributes.paths = Exchanges.allPaths(tokenIn, tokenOut, midTokens, args.flag.getComplexLevel());
+        swapDistributes.cpaths = Exchanges.allPaths(ctokenIn, ctokenOut, midCTokens, args.flag.getComplexLevel());
+    }
+
     /// @dev 根据入参计算在各个交易所分配的资金比例及交易路径(步骤)
     function getExpectedReturnWithGas(DataTypes.QuoteParams calldata args) external returns (DataTypes.SwapParams memory result) {
         // DataTypes.SwapFlagMap memory flag = args.flag;
         // bool ctokenIn = flag.tokenInIsCToken();
         // bool ctokenOut = flag.tokenOutIsCToken();
         uint distributeCounts = calcExchangeRoutes(args.midTokens.length, args.flag.getComplexLevel());
-        uint[][] memory distributes = new uint[][](distributeCounts);
-        // address[][] path = ;
-        uint[] memory amts = Exchanges.linearInterpolation(args.amountIn, args.flag.getParts());
+        uint distributeIdx = 0;
+        DataTypes.SwapDistributes memory swapDistributes = _makeSwapDistributes(args, distributeCounts);
 
         for (uint i = 0; i < exchangeCount; i ++) {
             DataTypes.Exchange memory ex = exchanges[i];
 
             if (ex.contractAddr == address(0)) {
                 continue;
+            }
+
+            if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
+                distributeIdx += _calcUnoswapExchangeReturn(ex, swapDistributes, distributeIdx);
+            } else {
+                // curve todo
             }
         }
 
