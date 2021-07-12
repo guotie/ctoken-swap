@@ -45,10 +45,9 @@ import "./Exchanges.sol";
 // 3. uniswap v2, 使用router交易, 因为mdex可以交易挖矿
 // 4. curve
 //
-// import "./IStepSwap.sol";
 
 contract StepSwapStorage {
-    mapping(uint => DataTypes.Exchanges) public exchanges;  // 
+    mapping(uint => DataTypes.Exchange) public exchanges;  // 
     uint public exchangeCount;  // exchange 数量
     IWETH public weth;
     ICTokenFactory public ctokenFactory;
@@ -64,13 +63,13 @@ contract StepSwap is Ownable, StepSwapStorage {
         uint i;
 
         for (i = 0; i < exchangeCount; i ++) {
-            DataTypes.Exchanges ex = exchanges[i];
+            DataTypes.Exchange storage ex = exchanges[i];
 
             if (ex.contractAddr == address(0)) {
                 continue;
             }
 
-            total += getExchangeRoutes(ex.exFlag, midTokens, complexLevel);
+            total += Exchanges.getExchangeRoutes(ex.exFlag, midTokens, complexLevel);
         }
     }
 
@@ -80,23 +79,23 @@ contract StepSwap is Ownable, StepSwapStorage {
         // bool ctokenIn = flag.tokenInIsCToken();
         // bool ctokenOut = flag.tokenOutIsCToken();
         uint distributeCounts = calcExchangeRoutes(args.midTokens.length, args.flag.getComplexLevel());
-        uint[][] distributes = new uint[][](distributeCounts);
-        address[][] path = ;
-        uint[] amts = Exchanges.linearInterpolation(args.amount, args.flag.getParts());
+        uint[][] memory distributes = new uint[][](distributeCounts);
+        // address[][] path = ;
+        uint[] memory amts = Exchanges.linearInterpolation(args.amountIn, args.flag.getParts());
 
         for (uint i = 0; i < exchangeCount; i ++) {
-            DataTypes.Exchanges memory ex = exchanges[i];
+            DataTypes.Exchange memory ex = exchanges[i];
 
             if (ex.contractAddr == address(0)) {
                 continue;
             }
         }
 
-        result.steps = new StepExecuteParams[](distributeCounts);
+        result.steps = new DataTypes.StepExecuteParams[](distributeCounts);
     }
 
     /// @dev 根据参数执行兑换
-    function unoswap(DataTypes.SwapParams args) public payable returns (DataTypes.StepExecuteParams[]) {
+    function unoswap(DataTypes.SwapParams calldata args) public payable returns (DataTypes.StepExecuteParams[] memory) {
         args;
     }
 
@@ -105,7 +104,7 @@ contract StepSwap is Ownable, StepSwapStorage {
     
 
     function addExchange(uint flag, address addr) external onlyOwner {
-        DataTypes.Exchanges storage ex = exchanges[exchangeCount];
+        DataTypes.Exchange storage ex = exchanges[exchangeCount];
         ex.exFlag = flag;
         ex.contractAddr = addr;
 
@@ -113,16 +112,16 @@ contract StepSwap is Ownable, StepSwapStorage {
     }
 
     function removeExchange(uint i) external onlyOwner {
-        DataTypes.Exchanges storage ex = exchanges[i];
+        DataTypes.Exchange storage ex = exchanges[i];
 
-        ex.addr = address(0);
+        ex.contractAddr = address(0);
     }
 
     function setWETH(address _weth) external onlyOwner {
-        weth = _weth;
+        weth = IWETH(_weth);
     }
 
     function setCtokenFactory(address factory) external onlyOwner {
-        ctokenFactory = factory;
+        ctokenFactory = ICTokenFactory(factory);
     }
 }

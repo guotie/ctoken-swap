@@ -7,8 +7,10 @@ import "./interface/IWETH.sol";
 import "./interface/ICToken.sol";
 import "./interface/IRouter.sol";
 import "./interface/IDeBankRouter.sol";
+import "./interface/ICurve.sol";
 import "./library/SafeMath.sol";
-import "./libray/DataTypes.sol";
+import "./library/DataTypes.sol";
+import "./library/SwapFlag.sol";
 
 // import "./interface/IAToken.sol";
 
@@ -22,6 +24,7 @@ import "./libray/DataTypes.sol";
 library Exchanges {
     using SafeMath for uint;
     using SafeMath for uint256;
+    using SwapFlag for DataTypes.SwapFlagMap;
 
     uint constant public MAX_COMPLEX_LEVEL = 3;
 
@@ -56,7 +59,7 @@ library Exchanges {
     }
 
     // 计算所有路径
-    function allPaths(DataTypes.QuoteParams calldata args) internal pure returns (address[][] paths) {
+    function allPaths(DataTypes.QuoteParams calldata args) internal pure returns (address[][] memory paths) {
         uint complexLevel = args.flag.getComplexLevel();
         uint mids = args.midTokens.length;
         address token0 = args.tokenIn;
@@ -73,22 +76,22 @@ library Exchanges {
         uint total = uniswapRoutes(mids, complexLevel);
         uint idx = 0;
         paths = new address[][](total);
-        paths[idx] = [token0, token1];
+        // paths[idx] = new address[]{token0, token1};
         idx ++;
 
         for (uint i = 1; i <= complexLevel; i ++) {
             uint p = 1;
-            address[] path = new address[](i+2);
+            address[] memory path = new address[](i+2);
             path[0] = token0;
             path[path.length-1] = token1;
             for (uint j = 0; j < i; j ++) {
             
-                p = p * (midTokens-j);
+                // p = p * (midTokens-j);
             }
         }
     }
 
-    function getExchangeRoutes(uint flag, uint midTokens, uint complexLevel) public  {
+    function getExchangeRoutes(uint flag, uint midTokens, uint complexLevel) public view returns (uint)  {
         if (isUniswapLikeExchange(flag)) {
             return uniswapRoutes(midTokens, complexLevel);
         }
@@ -107,8 +110,11 @@ library Exchanges {
     }
 
     /// @dev calcDistributes calc swap exchange
-    function calcDistributes(Exchanges.Exchange memory ex, address[] memory path, uint[] amts, address to) public view returns (uint256[] memory distributes){
-        uint flag = ex.flag;
+    function calcDistributes(DataTypes.Exchange memory ex,
+                address[] memory path,
+                uint[] memory amts,
+                address to) public view returns (uint256[] memory distributes){
+        uint flag = ex.exFlag;
         address addr = ex.contractAddr;
 
         distributes = new uint256[](amts.length);
@@ -136,7 +142,7 @@ library Exchanges {
 
 
     // deposit eth from address from
-    function depositETH(IWETH weth) public payable returns (uint256) {
+    function depositETH(IWETH weth) public returns (uint256) {
         weth.deposit();
 
         return weth.balanceOf(address(this));
@@ -182,10 +188,10 @@ library Exchanges {
     }
 
     /// @dev compund mint ETH
-    function compoundMintETH(address weth) public payable returns (uint256) {
-        weth.deposit();
+    function compoundMintETH(address weth, uint amount) public returns (uint256) {
+        IWETH(weth).deposit{value: amount}();
 
-        return compoundMintToken(address(weth), msg.value);
+        return compoundMintToken(address(weth), amount);
     }
 
     /// @dev compoundRedeemCToken redeem compound token
@@ -211,19 +217,19 @@ library Exchanges {
 
 
     /// @dev uniswap like exchange
-    function uniswapLikeSwap(address router, address[] memory path, uint256 amountIn) public returns (uint) {
-        uint[] amounts = IRouter(router).getAmountsOut(amountIn, path);
+    function uniswapLikeSwap(address router, address[] memory path, uint256 amountIn) public view returns (uint) {
+        uint[] memory amounts = IRouter(router).getAmountsOut(amountIn, path);
         return amounts[amounts.length - 1];
     }
 
     /// @dev ebank exchange
-    function ebankSwap(address router, address[] memory path, uint256 amountIn, address to) public returns (uint) {
-        uint[] amounts = IDeBankRouter(router).getAmountsOut(amountIn, path, to);
+    function ebankSwap(address router, address[] memory path, uint256 amountIn, address to) public view returns (uint) {
+        uint[] memory amounts = IDeBankRouter(router).getAmountsOut(amountIn, path, to);
         return amounts[amounts.length - 1];
     }
 
     /// @dev swap stable coin in curve
-    function curveSwap(address addr, uint i, uint j, uint dx) public returns (uint) {
-        return ICurve(addr).get_y(i, j, dx);
+    function curveSwap(address addr, uint i, uint j, uint dx) public view returns (uint) {
+        return ICurve(addr).get_dy(int128(i), int128(j), dx);
     }
 }
