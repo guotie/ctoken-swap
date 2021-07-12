@@ -34,7 +34,7 @@ library Exchanges {
     uint constant public EXCHANGE_CURVE      = 4;  // prettier-ignore
 
 
-    /// @dev 根据 midToken 数量, complexLevel 计算类 uniswap 交易所有多少个交易路径
+    /// @dev 根据 midToken 数量, complexLevel 计算类 uniswap 交易所有多少个交易路径: 1 + P(midTokens, 1) + P(midTokens, 2) + .... + P(midTokens, complex)
     /// complexLevel: 一次兑换时, 中间token的数量。例如为 2 时，可以的兑换路径为 a-m1-m2-b, a-m2-m1-b 或者 a-m1-b a-m2-b
     /// 仅对于uniswap类的交易所, 其他类型交易所例如 curve 不适用
     function uniswapRoutes(uint midTokens, uint complexLevel) internal pure returns (uint) {
@@ -58,6 +58,62 @@ library Exchanges {
         return count;
     }
 
+    /// @dev 递归计算特定 complex 下 paths 数组: P(midTokens, complex)
+    function calcPathComplex(
+                address[][] memory paths,
+                uint idx,
+                uint complex,
+                address token1,
+                address[] memory midTokens,
+                address[] memory path) internal pure returns (uint) {
+        if (complex == 0) {
+            address[] memory npath = new address[](path.length+1);
+            for (uint i = 0; i < path.length; i ++) {
+                npath[i] = path[i];
+            }
+            npath[path.length-1] = token1;
+            paths[idx] = npath;
+            return idx+1;
+        }
+
+        for (uint i = 0; i < midTokens.length; i ++) {
+            address[] memory npath = new address[](path.length+1);
+            for (uint ip = 0; ip < path.length; ip ++) {
+                npath[ip] = path[ip];
+            }
+            address midToken = midTokens[i];
+            npath[path.length-1] = midToken;
+
+            uint nMidLen = 0;
+            for (uint j = 0; j < midTokens.length; j ++) {
+                address mid = midTokens[j];
+                if (_itemInArray(npath, mid) == false) {
+                    nMidLen ++;
+                }
+            }
+            address[] memory nMidTokens = new address[](nMidLen);
+            uint midIdx = 0;
+            for (uint j = 0; j < midTokens.length; j ++) {
+                address mid = midTokens[j];
+                if (_itemInArray(npath, mid) == false) {
+                    nMidTokens[midIdx] = mid;
+                    midIdx ++;
+                }
+            }
+            idx = calcPathComplex(paths, idx, complex-1, token1, nMidTokens, npath);
+            // npath.pop();
+        }
+    }
+
+    function _itemInArray(address[] memory vec, address item) private pure returns (bool) {
+        for (uint i = 0; i < vec.length; i ++) {
+            if (item == vec[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // 计算所有路径
     function allPaths(DataTypes.QuoteParams calldata args) internal pure returns (address[][] memory paths) {
         uint complexLevel = args.flag.getComplexLevel();
@@ -77,17 +133,18 @@ library Exchanges {
         uint idx = 0;
         paths = new address[][](total);
         // paths[idx] = new address[]{token0, token1};
-        idx ++;
+        // idx ++;
+
+        address[] memory initialPath = new address[](2);
+        initialPath[0] = token0;
+
+        address[] memory midTokens = new address[](args.midTokens.length);
+        for (uint i = 0; i < mids; i ++) {
+            midTokens[i] = args.midTokens[i];
+        }
 
         for (uint i = 1; i <= complexLevel; i ++) {
-            uint p = 1;
-            address[] memory path = new address[](i+2);
-            path[0] = token0;
-            path[path.length-1] = token1;
-            for (uint j = 0; j < i; j ++) {
-            
-                // p = p * (midTokens-j);
-            }
+            idx = calcPathComplex(paths, idx, i, token1, midTokens, initialPath);
         }
     }
 
