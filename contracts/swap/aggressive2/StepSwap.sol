@@ -9,7 +9,9 @@ import "./library/SwapFlag.sol";
 import "./library/PathFinder.sol";
 import "./interface/IWETH.sol";
 import "./interface/ICToken.sol";
+import "./interface/ILHT.sol";
 import "./interface/ICTokenFactory.sol";
+import "./interface/IFactory.sol";
 import "./Ownable.sol";
 import "./Exchanges.sol";
 
@@ -51,6 +53,7 @@ contract StepSwapStorage {
     mapping(uint => DataTypes.Exchange) public exchanges;  // 
     uint public exchangeCount;  // exchange 数量
     IWETH public weth;
+    ILHT public ceth;  // compound eth
     ICTokenFactory public ctokenFactory;
 }
 
@@ -59,6 +62,12 @@ contract StepSwap is Ownable, StepSwapStorage {
     using SafeMath for uint;
     using SafeMath for uint256;
     using SwapFlag for DataTypes.SwapFlagMap;
+
+    constructor(address _weth, address _ceth, address _factory) public {
+        weth = IWETH(_weth);
+        ceth = ILHT(_ceth);
+        ctokenFactory = ICTokenFactory(_factory);
+    }
 
     function calcExchangeRoutes(uint midTokens, uint complexLevel) public view returns (uint total) {
         uint i;
@@ -194,8 +203,13 @@ contract StepSwap is Ownable, StepSwapStorage {
     function _makeSwapDistributes(
                 DataTypes.QuoteParams calldata args,
                 uint distributeCounts
-            ) internal view returns (DataTypes.SwapDistributes memory swapDistributes) {
+            )
+            internal
+            view
+            returns (DataTypes.SwapDistributes memory swapDistributes) {
         swapDistributes.to = args.to;
+        swapDistributes.tokenIn = args.tokenIn;
+        swapDistributes.tokenOut = args.tokenOut;
         swapDistributes.ctokenIn = args.flag.tokenInIsCToken();
         swapDistributes.ctokenOut = args.flag.tokenOutIsCToken();
         uint parts = args.flag.getParts();
@@ -261,8 +275,10 @@ contract StepSwap is Ownable, StepSwapStorage {
                 DataTypes.QuoteParams calldata args
             )
             external
-            returns (DataTypes.StepExecuteParams[] memory result) {
-        // DataTypes.SwapFlagMap memory flag = args.flag;
+            returns (DataTypes.SwapParams memory) {
+        DataTypes.SwapFlagMap memory flag = args.flag;
+        require(flag.tokenInIsCToken() == flag.tokenOutIsCToken(), "both token or ctoken"); // 输入输出必须同时为 token 或 ctoken
+
         // bool ctokenIn = flag.tokenInIsCToken();
         // bool ctokenOut = flag.tokenOutIsCToken();
         uint distributeCounts = calcExchangeRoutes(args.midTokens.length, args.flag.getComplexLevel());
@@ -290,85 +306,456 @@ contract StepSwap is Ownable, StepSwapStorage {
         // todo desposit eth withdraw eth 的 gas 费用
 
         // 根据 dist 构建交易步骤
-        return _makeSwapSteps(swapDistributes);
+        DataTypes.SwapParams memory params;
+        params.flag = args.flag;
+        _makeSwapSteps(args.amountIn, swapDistributes, params);
+        return params;
     }
 
 
     /// @dev 构建兑换步骤
-    function _makeSwapSteps(DataTypes.SwapDistributes memory sd)
+    function _makeSwapSteps(
+                uint amountIn,
+                DataTypes.SwapDistributes memory sd,
+                DataTypes.SwapParams memory params
+            )
             private
-            view
-            returns(DataTypes.StepExecuteParams[] memory result) {
-        (, uint[] memory dist) = PathFinder.findBestDistribution(sd.parts, sd.netDistributes);
+            view {
+        (, uint[] memory dists) = PathFinder.findBestDistribution(sd.parts, sd.netDistributes);
+        // todo 计算 amountOut
 
         uint routes = 0;
         uint routeIdx = 0;
-        for (uint i = 0; i < dist.length; i ++) {
-            if (dist[i] > 0) {
+        for (uint i = 0; i < dists.length; i ++) {
+            if (dists[i] > 0) {
                 routes ++;
             }
         }
-        bool allEbank = _allSwapByEBank(sd, dist);
+
+        bool allEbank = _allSwapByEBank(sd, dists);
         if (allEbank) {
             // 全部都是由 ebank
-
-            if (!sd.ctokenIn) {
-                // 如果全部由 ebank 兑换
-            }
-
-            if (!sd.ctokenOut) {
-                // 如果全部由 ebank 兑换
-            }
-        } else {
-            if (sd.ctokenIn) {
-
-            }
-            if (sd.ctokenOut) {}
+            // if (sd.ctokenIn != sd.ctokenOut) {
+            //     // 如果全部由 ebank 兑换
+            //     routes ++;
+            // }
+            return _buildEBankSteps(routes, amountIn, dists, sd, params);
         }
 
-        result = new DataTypes.StepExecuteParams[](routes);
+        if (sd.ctokenIn) {
+            // redeem ctoken, mint token
+            routes += 2;
+        }
+        DataTypes.StepExecuteParams[] memory stepArgs = new DataTypes.StepExecuteParams[](routes);
 
-        for (uint i = 0; i < dist.length; i ++) {
-            if (dist[i] <= 0) {
+        if (sd.ctokenIn) {
+            /*
+            address ctokenIn = sd.cpaths[0][0];
+            address ctokenOut = sd.cpaths[0][sd.cpaths[0].length-1];
+            // ebank 交易的量
+            (uint ebankParts, uint ebankAmt) = _calcEBankAmount(amountIn, sd, dists);
+            uint remaining = amountIn.sub(ebankAmt);
+            uint uniswapParts = sd.parts - ebankParts;
+            if (remaining > 0) {
+                // redeem
+                stepArgs[0] = _makeCompoundRedeemStep(remaining, ctokenIn);
+                routeIdx ++;
+                // todo remaining 转换为 token 数量
+            }
+            // 最后一个类 uniswap 的交易所 index
+            // (int256 lastUniswapIdx, int256 lastEbankIdx) = _getLastSwapIndex(sd, dists);
+            for (uint i = 0; i < dists.length; i ++) {
+                if (dists[i] <= 0) {
+                    continue;
+                }
+
+
+                DataTypes.Exchange memory ex = sd.exchanges[i];
+                if (Exchanges.isEBankExchange(ex.exFlag)) {
+                    // todo 区分最后一个 ebank
+                    uint amt = _partAmount(amountIn, dists[i], sd.parts);
+                    stepArgs[routeIdx] = _buildEBankSwapSteps(amt, i, true, sd);
+                } else if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
+                    // todo 区分最后一个 uniswap 
+                    uint amt = _partAmount(remaining, dists[i], uniswapParts);
+                    stepArgs[routeIdx] = _buildUniswapLikeSteps(amt, i, true, sd);
+                } else {
+                    // todo curve, etc
+                }
+                routeIdx ++;
+                // 计算 routes
+            }
+            */
+            _fillStepArgs(amountIn, routeIdx, dists, sd, stepArgs);
+            // 将 uniswap 兑换的 token mint to ctoken
+            address ctokenOut = sd.cpaths[0][sd.cpaths[0].length-1];
+            stepArgs[routeIdx] = _makeCompoundMintStep(0, ctokenOut);
+        } else {
+            for (uint i = 0; i < dists.length; i ++) {
+                if (dists[i] <= 0) {
+                    continue;
+                }
+                DataTypes.Exchange memory ex = sd.exchanges[i];
+                uint amt = _partAmount(amountIn, dists[i], sd.parts);
+                if (Exchanges.isEBankExchange(ex.exFlag)) {
+                    stepArgs[routeIdx] = _buildEBankSwapSteps(amt, i, false, sd);
+                } else if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
+                    stepArgs[routeIdx] = _buildUniswapLikeSteps(amt, i, true, sd);
+                } else {
+                    // todo curve, etc
+                }
+                routeIdx ++;
+            }
+        }
+
+        params.steps = stepArgs;
+    }
+
+
+    function _fillStepArgs(
+                uint amountIn,
+                uint routeIdx,
+                uint[] memory dists,
+                DataTypes.SwapDistributes memory sd,
+                DataTypes.StepExecuteParams[] memory stepArgs
+            )
+            private
+            view {
+
+        address ctokenIn = sd.cpaths[0][0];
+        // ebank 交易的量
+        (uint ebankParts, uint ebankAmt) = _calcEBankAmount(amountIn, sd, dists);
+        uint remaining = amountIn.sub(ebankAmt);
+        uint uniswapParts = sd.parts - ebankParts;
+        if (remaining > 0) {
+            // redeem
+            stepArgs[0] = _makeCompoundRedeemStep(remaining, ctokenIn);
+            routeIdx ++;
+            // todo remaining 转换为 token 数量
+        }
+
+        // 最后一个类 uniswap 的交易所 index
+        (int256 lastUniswapIdx, int256 lastEbankIdx) = _getLastSwapIndex(sd, dists);
+        for (uint i = 0; i < dists.length; i ++) {
+            if (dists[i] <= 0) {
                 continue;
             }
+
+            DataTypes.Exchange memory ex = sd.exchanges[i];
+            if (Exchanges.isEBankExchange(ex.exFlag)) {
+                // todo 区分最后一个 ebank
+                uint amt = _partAmount(amountIn, dists[i], sd.parts);
+                stepArgs[routeIdx] = _buildEBankSwapSteps(amt, i, true, sd);
+            } else if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
+                // todo 区分最后一个 uniswap 
+                uint amt = _partAmount(remaining, dists[i], uniswapParts);
+                stepArgs[routeIdx] = _buildUniswapLikeSteps(amt, i, true, sd);
+            } else {
+                // todo curve, etc
+            }
+            routeIdx ++;
             // 计算 routes
         }
     }
 
-    /// @dev 兑换合约地址及参数
-    /// @param sd swap distributes
-    /// @param idx sd 数组小标
-    /// @param amt 待兑换的 token 数量
-    /// @param direct 兑换结构是否直接转给最终用户
-    function _makeUniswapLikeRouteStep(
-                DataTypes.SwapDistributes memory sd,
-                uint idx,
+    /// amt * part / totalParts
+    function _partAmount(uint amt, uint part, uint totalParts) private pure returns (uint) {
+        return amt.mul(part).div(totalParts);
+    }
+
+    function _getEBankContract() private view returns (address ebank) {
+        for (uint i = 0; i < exchangeCount; i ++) {
+            DataTypes.Exchange memory ex = exchanges[i];
+            if (ex.exFlag == Exchanges.EXCHANGE_EBANK_EX && ex.contractAddr != address(0)) {
+                ebank = ex.contractAddr;
+                break;
+            }
+        }
+        require(ebank != address(0), "not found ebank");
+        return ebank;
+    }
+
+    function _buildUniswapLikeSteps(
                 uint amt,
-                bool direct
+                uint idx,
+                bool useRouter,
+                DataTypes.SwapDistributes memory sd
+            )
+            private
+            view
+            returns (DataTypes.StepExecuteParams memory params) {
+        if (useRouter) {
+            _makeUniswapLikeRouteStep(amt, idx, sd);
+        }
+        return _makeUniswapLikePairStep(amt, idx, sd);
+    }
+
+    function _buildEBankSwapSteps(
+                uint amt,
+                uint idx,
+                bool isCToken,
+                DataTypes.SwapDistributes memory sd
+            )
+            private
+            view
+            returns (DataTypes.StepExecuteParams memory params) {
+        DataTypes.Exchange memory ex = sd.exchanges[idx];
+
+        if (isCToken) {
+            return _makeEBankRouteStep(
+                        DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS,
+                        amt,
+                        sd.exchanges[idx].contractAddr,
+                        sd.cpaths[sd.pathIdx[idx]]
+                    );
+        } else {
+            if (sd.tokenIn == address(0)) {
+                /// eth -> token
+                return _makeEBankRouteStep(
+                            DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS,
+                            amt,
+                            sd.exchanges[idx].contractAddr,
+                            sd.paths[sd.pathIdx[idx]]
+                        );
+                // routeIdx ++;
+            } else if (sd.tokenOut == address(0)) {
+                /// token -> eth
+                return _makeEBankRouteStep(
+                            DataTypes.STEP_EBANK_ROUTER_TOKENS_ETH,
+                            amt,
+                            sd.exchanges[idx].contractAddr,
+                            sd.paths[sd.pathIdx[idx]]
+                        );
+            } else {
+                /// token -> token
+                return _makeEBankRouteStep(
+                            DataTypes.STEP_EBANK_ROUTER_TOKENS_TOKENS,
+                            amt,
+                            sd.exchanges[idx].contractAddr,
+                            sd.paths[sd.pathIdx[idx]]
+                        );
+            }
+        }
+    }
+
+    /// @dev _buildEBankSteps ebank 的交易指令, 8 类情况:
+    /// ctokenIn, ctokenOut: swapExactTokensForTokens
+    /// tokenIn, tokenOut: swapExactTokensForTokensUnderlying / swapExactETHForTokensUnderlying / swapExactTokensForETHUnderlying
+    /// ctokenIn, tokenOut: swapExactTokensForTokens, redeem / redeemCETH
+    /// tokenIn, ctokenOut: mint / mintETH, swapExactTokensForTokens
+    function _buildEBankSteps(
+                uint routes,
+                uint amountIn,
+                uint[] memory dists,
+                DataTypes.SwapDistributes memory sd,
+                DataTypes.SwapParams memory params
+            )
+            private
+            view {
+        uint routeIdx = 0;
+        uint parts = sd.parts;
+        uint remaining = amountIn;
+        // address ebank = _getEBankContract();
+        params.steps = new DataTypes.StepExecuteParams[](routes);
+
+
+        // if (sd.ctokenIn == sd.ctokenOut) {
+            for (uint i = 0; i < dists.length; i ++) {
+                if (dists[i] > 0) {
+                    // swap
+                    uint amt;
+                    if (routeIdx == routes - 1) {
+                        amt = remaining;
+                    } else {
+                        amt = _partAmount(amountIn, dists[i], parts);
+                        remaining -= amt;
+                    }
+                    if (sd.ctokenIn) {
+                        // ctoken in, ctokenout
+                        params.steps[routeIdx] = _makeEBankRouteStep(
+                                                    DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS,
+                                                    amt,
+                                                    sd.exchanges[i].contractAddr,
+                                                    sd.cpaths[sd.pathIdx[i]]
+                                                );
+                        routeIdx ++;
+                    } else {
+                        // token in, token out
+                        // swapUnderlying / swapETHUnderlying
+                        if (sd.tokenIn == address(0)) {
+                            /// eth -> token
+                            params.steps[routeIdx] = _makeEBankRouteStep(
+                                                        DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS,
+                                                        amt,
+                                                        sd.exchanges[i].contractAddr,
+                                                        sd.paths[sd.pathIdx[i]]
+                                                    );
+                            routeIdx ++;
+                        } else if (sd.tokenOut == address(0)) {
+                            /// token -> eth
+                            params.steps[routeIdx] = _makeEBankRouteStep(
+                                                        DataTypes.STEP_EBANK_ROUTER_TOKENS_ETH,
+                                                        amt,
+                                                        sd.exchanges[i].contractAddr,
+                                                        sd.paths[sd.pathIdx[i]]
+                                                    );
+                        } else {
+                            /// token -> token
+                            params.steps[routeIdx] = _makeEBankRouteStep(
+                                                        DataTypes.STEP_EBANK_ROUTER_TOKENS_TOKENS,
+                                                        amt,
+                                                        sd.exchanges[i].contractAddr,
+                                                        sd.paths[sd.pathIdx[i]]
+                                                    );
+                        }
+                    }
+                }
+            }
+            return;
+        // }
+        // not allowed !!!
+        // sd.ctokenIn != sd.ctokenOut
+        // if (sd.ctokenIn) {
+        //     // ctoken in, token out: swapExactTokensForTokens, redeem / redeemCETH
+        //     for (uint i = 0; i < dists.length; i ++) {
+        //         if (dists[i] > 0) {
+        //             // swap
+        //             uint amt;
+        //             if (routeIdx == routes - 1) {
+        //                 amt = remaining;
+        //             } else {
+        //                 amt = _partAmount(amountIn, dists[i], parts);
+        //                 remaining -= amt;
+        //             }
+        //         }
+        //         params.steps[routeIdx] = _makeEBankRouteStep(
+        //                                     DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS,
+        //                                     amt,
+        //                                     sd.exchanges[i].contractAddr,
+        //                                     sd.cpath[sd.pathIdx[i]]
+        //                                 );
+        //         routeIdx ++;
+        //     }
+        //     // redeem
+        //     params.steps[routeIdx] =_makeCompoundRedeemStep(0, sd.tokenOut);
+        // } else {
+        //     // token in, ctoken out
+        //     for (uint i = 0; i < dists.length; i ++) {
+        //         if (dists[i] > 0) {
+        //             // swap
+        //             uint amt;
+        //             if (routeIdx == routes - 1) {
+        //                 amt = remaining;
+        //             } else {
+        //                 amt = _partAmount(amountIn, dists[i], parts);
+        //                 remaining -= amt;
+        //             }
+        //         }
+        //         uint flag;
+        //         if (sd.tokenIn == address(0)) {
+        //             // ht in
+        //             flag = DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS;
+        //         } else {
+        //             flag = 
+        //         }
+        //         params.steps[routeIdx] = _makeEBankRouteStep(
+        //                                     flag,
+        //                                     amt,
+        //                                     sd.exchanges[i].contractAddr,
+        //                                     sd.cpath[sd.pathIdx[i]]
+        //                                 );
+        //     }
+        // }
+    }
+
+    function _makeCompoundMintStep(
+                uint amt,
+                address ctoken
             )
             private 
             view
             returns (DataTypes.StepExecuteParams memory step) {
+        address token = ctokenFactory.getTokenAddress(ctoken);
+
+        // todo 是否可以用 weth 来做判断
+        if (token == address(0) || token == address(weth)) {
+            step.flag = DataTypes.STEP_COMPOUND_MINT_CETH;
+        } else {
+            step.flag = DataTypes.STEP_COMPOUND_MINT_CTOKEN;
+        }
+        DataTypes.CompoundRedeemParam memory rp;
+        rp.amount = amt;
+        rp.ctoken = ctoken;
+        // if (direct) {
+        //     rp.to = sd.to;
+        // } else {
+            // rp.to = address(this);
+        // }
+        step.data = abi.encode(rp);
+    }
+
+    /// @dev 构建 redeem 步骤的合约地址及参数
+    /// @param amt redeem amount, if 0, redeem all(balanceOf(address(this)))
+    function _makeCompoundRedeemStep(
+                uint amt,
+                address ctoken
+            )
+            private 
+            view
+            returns (DataTypes.StepExecuteParams memory step) {
+        // address ctoken;
+        // if (tokenOut == address(0)) {
+        //     ctoken = ceth;
+        // } else {
+        //     // step.flag = DataTypes.STEP_COMPOUND_REDEEM_TOKEN;
+        //     ctoken = ctokenFactory.getCTokenAddressPure(tokenOut);
+        // }
+        // eth 和 token 都是调用同一个方法 redeem, 且参数相同, 因此，使用同一个 flag
+        step.flag = DataTypes.STEP_COMPOUND_REDEEM_TOKEN;
+        DataTypes.CompoundRedeemParam memory rp;
+        rp.amount = amt;
+        rp.ctoken = ctoken;
+        // if (direct) {
+        //     rp.to = sd.to;
+        // } else {
+            // rp.to = address(this);
+        // }
+        step.data = abi.encode(rp);
+    }
+
+    /// @dev 兑换合约地址及参数
+    /// @param amt 待兑换的 token 数量
+    /// @param idx sd 数组索引
+    /// @param sd swap distributes
+    function _makeUniswapLikeRouteStep(
+                uint amt,
+                uint idx,
+                DataTypes.SwapDistributes memory sd
+                // bool direct
+            )
+            private 
+            view
+            returns (DataTypes.StepExecuteParams memory step) {
+        // todo flag 根据 输入 token 输出 token 决定
         step.flag = sd.exchanges[idx].exFlag;
 
         DataTypes.UniswapRouterParam memory rp;
-        rp.contract = sd.exchanges[idx].contractAddr;
+        rp.contractAddr = sd.exchanges[idx].contractAddr;
         rp.amount = amt;
-        if (direct) {
-            rp.to = sd.to;
-        } else {
-            rp.to = address(this);
-        }
+        // if (direct) {
+        //     rp.to = sd.to;
+        // } else {
+            // rp.to = address(this);
+        // }
         rp.path = sd.paths[sd.pathIdx[idx]];
         step.data = abi.encode(rp);
     }
 
     function _makeUniswapLikePairStep(
-                DataTypes.SwapDistributes memory sd,
-                uint idx,
                 uint amt,
-                bool direct
+                uint idx,
+                DataTypes.SwapDistributes memory sd
+                // bool direct
             )
             private 
             view
@@ -378,15 +765,15 @@ contract StepSwap is Ownable, StepSwapStorage {
         DataTypes.UniswapPairParam memory rp;
 
         rp.amount = amt;
-        if (direct) {
-            rp.to = sd.to;
-        } else {
-            rp.to = address(this);
-        }
+        // if (direct) {
+        //     rp.to = sd.to;
+        // } else {
+            // rp.to = address(this);
+        // }
         // 构造 pair
-        address[] paths = sd.paths[sd.pathIdx[idx]];
+        address[] memory paths = sd.paths[sd.pathIdx[idx]];
         rp.pairs = new address[](paths.length-1);
-        for (uint i = 0; i < paths.length-1; i ++) {
+        for (uint i = 0; i < paths.length-2; i ++) {
             rp.pairs[i] = factory.getPair(paths[i], paths[i+1]);
         }
 
@@ -395,31 +782,92 @@ contract StepSwap is Ownable, StepSwapStorage {
     }
 
     function _makeEBankRouteStep(
-                DataTypes.SwapDistributes memory sd,
-                uint idx,
+                uint flag,
                 uint amt,
-                bool direct
+                address ebank,
+                address[] memory path
+                // bool direct
             )
             private 
             view
             returns (DataTypes.StepExecuteParams memory step) {
-        step.flag = sd.exchanges[idx].exFlag;
-
+        step.flag = flag;
         DataTypes.UniswapRouterParam memory rp;
-        rp.contract = sd.exchanges[idx].contractAddr;
         rp.amount = amt;
-        if (direct) {
-            rp.to = sd.to;
-        } else {
-            rp.to = address(this);
-        }
-        rp.path = sd.paths[sd.pathIdx[idx]];
+        rp.contractAddr = ebank;
+        // if (direct) {
+        //     rp.to = sd.to;
+        // } else {
+            // rp.to = address(this);
+        // }
+        rp.path = path;
         step.data = abi.encode(rp);
     }
 
     // 是否所有的 amount 都是由 ebank 兑换
-    function _allSwapByEBank(DataTypes.SwapDistributes memory sd, uint[] memory distributes) private view returns (bool) {
-        return false;
+    function _getLastSwapIndex(
+                    DataTypes.SwapDistributes memory sd,
+                    uint[] memory distributes
+                )
+                private
+                view
+                returns (int256 uniswapIdx, int256 ebankIdx) {
+        uniswapIdx = -1;
+        ebankIdx = -1;
+        for (uint i = 0; i < distributes.length; i ++) {
+            if (distributes[i] > 0) {
+                uint flag = sd.exchanges[i].exFlag;
+                // 该 swap 不是 ebank
+                if (Exchanges.isEBankExchange(flag)) {
+                    ebankIdx = int256(i);
+                } else if (Exchanges.isUniswapLikeExchange(flag)) {
+                    uniswapIdx = int256(i);
+                }
+            }
+        }
+    }
+
+    // 是否所有的 amount 都是由 ebank 兑换
+    function _allSwapByEBank(
+                    DataTypes.SwapDistributes memory sd,
+                    uint[] memory distributes
+                )
+                private
+                view
+                returns (bool) {
+        for (uint i = 0; i < distributes.length; i ++) {
+            if (distributes[i] > 0) {
+                // 该 swap 不是 ebank
+                if (Exchanges.isEBankExchange(sd.exchanges[i].exFlag) == false) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // 是否所有的 amount 都是由 ebank 兑换
+    function _calcEBankAmount(
+                    uint amountIn,
+                    DataTypes.SwapDistributes memory sd,
+                    uint[] memory distributes
+                )
+                private
+                view
+                returns (uint part, uint amt) {
+        // uint part = 0;
+        
+        for (uint i = 0; i < distributes.length; i ++) {
+            if (distributes[i] > 0) {
+                // 该 swap 是 ebank
+                if (Exchanges.isEBankExchange(sd.exchanges[i].exFlag)) {
+                    part += distributes[i];
+                }
+            }
+        }
+
+        amt = _partAmount(amountIn, part, sd.parts);
     }
 
     /// @dev 根据参数执行兑换
@@ -447,6 +895,10 @@ contract StepSwap is Ownable, StepSwapStorage {
 
     function setWETH(address _weth) external onlyOwner {
         weth = IWETH(_weth);
+    }
+
+    function setCETH(address _ceth) external onlyOwner {
+        ceth = ILHT(_ceth);
     }
 
     function setCtokenFactory(address factory) external onlyOwner {

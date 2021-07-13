@@ -14,16 +14,23 @@ library DataTypes {
     // 步骤执行的动作类型
     uint256 public constant STEP_DEPOSIT_ETH           = 0x0000000001; // prettier-ignore
     uint256 public constant STEP_WITHDRAW_WETH         = 0x0000000002; // prettier-ignore
-    uint256 public constant STEP_COMPOUND_MINT_CTOKEN  = 0x0000000004; // prettier-ignore
-    uint256 public constant STEP_COMPOUND_MINT_CETH    = 0x0000000008; // prettier-ignore
-    uint256 public constant STEP_COMPOUND_REDEEM_TOKEN = 0x0000000010; // prettier-ignore
-    uint256 public constant STEP_COMPOUND_REDEEM_ETH   = 0x0000000020; // prettier-ignore
-    uint256 public constant STEP_AAVE_DEPOSIT_ATOKEN   = 0x0000000040; // prettier-ignore
-    uint256 public constant STEP_AAVE_DEPOSIT_WETH     = 0x0000000080; // prettier-ignore
-    uint256 public constant STEP_AAVE_WITHDRAW_TOKEN   = 0x0000000100; // prettier-ignore
-    uint256 public constant STEP_AAVE_WITHDRAW_ETH     = 0x0000000200; // prettier-ignore
-    uint256 public constant STEP_UNISWAP_PAIR_SWAP     = 0x0000000400; // prettier-ignore
-    uint256 public constant STEP_UNISWAP_ROUTER_SWAP   = 0x0000000800; // prettier-ignore
+    uint256 public constant STEP_COMPOUND_MINT_CTOKEN  = 0x0000000003; // prettier-ignore
+    uint256 public constant STEP_COMPOUND_MINT_CETH    = 0x0000000004; // prettier-ignore
+    uint256 public constant STEP_COMPOUND_REDEEM_TOKEN = 0x0000000005; // prettier-ignore
+    // uint256 public constant STEP_COMPOUND_REDEEM_ETH   = 0x0000000006; // prettier-ignore
+    uint256 public constant STEP_AAVE_DEPOSIT_ATOKEN   = 0x0000000007; // prettier-ignore
+    uint256 public constant STEP_AAVE_DEPOSIT_WETH     = 0x0000000008; // prettier-ignore
+    uint256 public constant STEP_AAVE_WITHDRAW_TOKEN   = 0x0000000009; // prettier-ignore
+    uint256 public constant STEP_AAVE_WITHDRAW_ETH     = 0x000000000a; // prettier-ignore
+
+    uint256 public constant STEP_UNISWAP_PAIR_SWAP              = 0x0000000100; // prettier-ignore
+    uint256 public constant STEP_UNISWAP_ROUTER_TOKENS_TOKENS   = 0x0000000101; // prettier-ignore
+    uint256 public constant STEP_UNISWAP_ROUTER_ETH_TOKENS      = 0x0000000102; // prettier-ignore
+    uint256 public constant STEP_UNISWAP_ROUTER_TOKENS_ETH      = 0x0000000103; // prettier-ignore
+    uint256 public constant STEP_EBANK_ROUTER_CTOKENS_CTOKENS   = 0x0000000104;  // prettier-ignore
+    uint256 public constant STEP_EBANK_ROUTER_TOKENS_TOKENS     = 0x0000000105;  // prettier-ignore
+    uint256 public constant STEP_EBANK_ROUTER_ETH_TOKENS        = 0x0000000106;  // prettier-ignore
+    uint256 public constant STEP_EBANK_ROUTER_TOKENS_ETH        = 0x0000000107;  // prettier-ignore
 
     struct SwapFlagMap {
         // bit 0-63: flag token in/out, 64 bit
@@ -51,14 +58,20 @@ library DataTypes {
 
     struct UniswapRouterParam {
         uint256 amount;
-        address contract;
-        address to;
+        address contractAddr;
+        // address to;
         address[] path;
+    }
+
+    struct CompoundRedeemParam {
+        uint256 amount;
+        // address to;
+        address ctoken;
     }
 
     struct UniswapPairParam {
         uint256 amount;
-        address to;
+        // address to;
         address[] pairs;
     }
 
@@ -98,6 +111,8 @@ library DataTypes {
         bool        ctokenIn;     // 卖出的币是否是 ctoken
         bool        ctokenOut;    // 买到的币是否是 ctoken
         address     to;           // 交易者地址
+        address     tokenIn;
+        address     tokenOut;
         uint256     parts;        // 交易量拆分为多少份
         uint256     rateIn;       // token in exchange rate
         uint256     rateOut;      // token out exchange rate

@@ -33,6 +33,10 @@ library Exchanges {
     uint constant public EXCHANGE_EBANK_EX   = 3;  // prettier-ignore
     uint constant public EXCHANGE_CURVE      = 4;  // prettier-ignore
 
+    uint constant public SWAP_EBANK_CTOKENS_CTOKENS      = 1;  // prettier-ignore
+    uint constant public SWAP_EBANK_TOKENS_TOKENS        = 1;  // prettier-ignore
+    uint constant public SWAP_EBANK_ETH_TOKENS           = 1;  // prettier-ignore
+    uint constant public SWAP_EBANK_TOKENS_ETH           = 1;  // prettier-ignore
 
     /// @dev 根据 midToken 数量, complexLevel 计算类 uniswap 交易所有多少个交易路径: 1 + P(midTokens, 1) + P(midTokens, 2) + .... + P(midTokens, complex)
     /// complexLevel: 一次兑换时, 中间token的数量。例如为 2 时，可以的兑换路径为 a-m1-m2-b, a-m2-m1-b 或者 a-m1-b a-m2-b

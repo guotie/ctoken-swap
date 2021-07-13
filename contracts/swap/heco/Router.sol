@@ -23,9 +23,12 @@ import "../interface/IWHT.sol";
 import "../interface/LErc20DelegatorInterface.sol";
 import "../interface/ICToken.sol";
 
-import "../../compound/LHT.sol";
-
+// import "../../compound/LHT.sol";
 // import "hardhat/console.sol";
+
+interface ILHT {
+    function mint() external payable;
+}
 
 interface ISwapMining {
     function swap(address account, address input, address output, uint256 amount) external returns (bool);
@@ -51,12 +54,12 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // tokens created per block to all pair LP
     uint256 public lpPerBlock;      // LP 每块收益
     uint256 public traderPerBlock;  // 交易者每块收益
-    // How many blocks are halved  182天
-    uint256 public halvingPeriod = 5256000;
-    address public rewardToken; // 收益 token
+    address public rewardToken;     // 收益 token
     address public lpDepositAddr;   // compound 流动性抵押
     address public compAddr;        // compound unitroller
-    uint public feeAlloc;        // 手续费分配方案: 0: 分配给LP; 1: 不分配给LP, 平台收取后兑换为 anchorToken
+    uint256 public feeAlloc;        // 手续费分配方案: 0: 分配给LP; 1: 不分配给LP, 平台收取后兑换为 anchorToken
+    // todo How many blocks are halved  182天 应该在 rewardToken 中处理
+    uint256 public halvingPeriod = 5256000;
 
     modifier ensure(uint deadline) {
         // solhint-disable-next-line
