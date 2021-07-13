@@ -14,25 +14,9 @@
 
 pragma solidity ^0.6.12;
 
-interface IRouter {
-    function factory() external view returns (address);
-    
-    function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts);
+interface IFactory {
 
-    function swapExactTokensForTokens(
-        uint amountIn,
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external returns (uint[] memory amounts);
-    
-    function swapExactETHForTokens(
-        uint amountOutMin,
-        address[] calldata path,
-        address to,
-        uint deadline)
-        external
-        payable
-        returns (uint[] memory amounts);
+    function router() external view returns (address);
+
+    function getPair(address tokenA, address tokenB) external view returns (address pair);
 }

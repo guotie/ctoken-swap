@@ -24,7 +24,7 @@ import "../../compound/CToken.sol";
 
 import "./PairStorage.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface IUnitroller {
     function compAccrued(address addr) external view returns (uint);
@@ -217,7 +217,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
     }
 
     // 获取 LP 抵押合约地址
-    function _getLPDepositAddr() private returns (address) {
+    function _getLPDepositAddr() private view returns (address) {
         return IDeBankRouter(IDeBankFactory(factory).router()).lpDepositAddr();
     }
 
@@ -564,8 +564,8 @@ contract DeBankPair is IDeBankPair, PairStorage {
         {// scope for reserve{0,1}Adjusted, avoids stack too deep errors
             uint balance0Adjusted = balance0.mul(10000).sub(amount0In.mul(feeRate));
             uint balance1Adjusted = balance1.mul(10000).sub(amount1In.mul(feeRate));
-            console.log("amount0In: %d amount1In: %d", amount0In, amount1In);
-            console.log("balanceAdjusted: %d  %d", balance0Adjusted, balance1Adjusted);
+            // console.log("amount0In: %d amount1In: %d", amount0In, amount1In);
+            // console.log("balanceAdjusted: %d  %d", balance0Adjusted, balance1Adjusted);
             require(balance0Adjusted.mul(balance1Adjusted) >= uint(_reserve0).mul(_reserve1).mul(10000 ** 2), 'DeBankSwap: K1');
         }
 

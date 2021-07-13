@@ -207,6 +207,13 @@ library Exchanges {
         return false;
     }
 
+    function isEBankExchange(uint flag) public pure returns (bool) {
+        if (flag == EXCHANGE_EBANK_EX) {
+            return true;
+        }
+        return false;
+    }
+
 
     // deposit eth from address from
     function depositETH(IWETH weth) public returns (uint256) {
@@ -290,6 +297,7 @@ library Exchanges {
     //////////////////////////////////////////////////////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////
 
+    /// todo 需要考虑 reserve 为 0 的情况
 
     /// @dev uniswap like exchange
     function uniswapLikeSwap(address router, address[] memory path, uint256 amountIn) public view returns (uint) {

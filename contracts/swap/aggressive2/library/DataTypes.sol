@@ -42,34 +42,47 @@ library DataTypes {
         address tokenOut;
         uint256 amountIn;
         uint256 amountOut;
-        uint256 gasLimit;
-        uint256 gasPrice;
+        uint256 tokenPriceGWei;
         address fromAddress;
         address dstReceiver;
         address[] midTokens;  // should always be token
         SwapFlagMap flag;
+    }
+
+    struct UniswapRouterParam {
+        uint256 amount;
+        address contract;
+        address to;
+        address[] path;
+    }
+
+    struct UniswapPairParam {
+        uint256 amount;
+        address to;
+        address[] pairs;
     }
 
     // struct 
     struct StepExecuteParams {
         uint256 flag;           // step execute flag 指示用哪种步骤去执行
-        address contractAddr;   // 合约地址
-        bytes[] data;           /// decode by executor
+        // bytes[] data;           /// decode by executor
+        bytes data;
     }
+
     /// @dev 兑换 入参
     struct SwapParams {
-        address to;
-        address tokenIn;
-        address tokenOut;
-        uint256 amountIn;
-        uint256 amountOut;
-        uint256 gasLimit;
-        uint256 gasPrice;
-        address fromAddress;
-        address dstReceiver;
-        address[] midTokens;  // should always be token
+        // address to;
+        // address tokenIn;
+        // address tokenOut;
+        // uint256 amountIn;
+        // uint256 amountOut;
+        // uint256 tokenPriceGWei;
+        // address fromAddress;
+        // address dstReceiver;
+        // address[] midTokens;  // should always be token
+        // SwapFlagMap flag;
         SwapFlagMap flag;
-
+        uint256 minAmt;
         StepExecuteParams[] steps;
     }
 
@@ -95,7 +108,10 @@ library DataTypes {
         address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
         address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
         
-        uint[][]  distributes;   // 一级为交易路径, 二级为该交易路径的所有parts对应的return
-        uint[]    gases;         // gas 费用估算
+        uint[]      gases;          // gas 费用估算
+        uint[]      pathIdx;        // 使用的 path 序号
+        uint[][]    distributes;    // 一级为交易路径, 二级为该交易路径的所有parts对应的return
+        int256[][]  netDistributes; // distributes - gases
+        Exchange[]  exchanges;
     }
 }
