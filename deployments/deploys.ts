@@ -36,9 +36,9 @@ export interface DeployContracts {
   WHT: ContractAddrAbi
   cWHT: ContractAddrAbi
   router: ContractAddrAbi
-  orderbook: ContractAddrAbi
-  onesplit: ContractAddrAbi
-  unoswapRouter: ContractAddrAbi
+  orderbook?: ContractAddrAbi
+  onesplit?: ContractAddrAbi
+  unoswapRouter?: ContractAddrAbi
 }
 
 // wETH 的地址
@@ -291,23 +291,32 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   const mdexFactoryCont = new ethers.Contract(mdexFactory.address, mdexFactory.abi, namedSigners[0])
   await mdexFactoryCont.setRouter(router.address)
 
-  const onesplit = await _deploy('OneSplit', {
+  const obPriceLogic = await _deploy('OBPriceLogic', {
     from: deployer,
-    args: [wht.address, lercFactoryDeployed.address],
-    log: log,
-  }, verify)
-
-  const orderbook = await _deploy('OrderBook', {
-    from: deployer,
-    args: [router.address, lercFactoryDeployed.address, wht.address, zeroAddress],
+    args: [],
     log: log
   }, verify)
 
-  const unoswapRouter = await _deploy('UnoswapRouter', {
-    from: deployer,
-    args: [wht.address, lercFactoryDeployed.address],
-    log: log
-  }, verify)
+  console.log('deploy OBPriceLogic at:', obPriceLogic.address)
+
+  // const orderbook = await _deploy('OrderBook', {
+  //   from: deployer,
+  //   args: [lercFactoryDeployed.address, lht.address, wht.address, zeroAddress],
+  //   libraries: { 'OBPriceLogic': obPriceLogic.address },
+  //   log: log
+  // }, verify)
+
+  // const onesplit = await _deploy('OneSplit', {
+  //   from: deployer,
+  //   args: [wht.address, lercFactoryDeployed.address],
+  //   log: log,
+  // }, verify)
+
+  // const unoswapRouter = await _deploy('UnoswapRouter', {
+  //   from: deployer,
+  //   args: [wht.address, lercFactoryDeployed.address],
+  //   log: log
+  // }, verify)
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////
   // deploy bank margin
@@ -328,9 +337,9 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     console.log('deploy lerc20DelegatorFactory at: ', lercFactoryDeployed.address)
     console.log('deploy CETH at: ', lht.address)
     console.log('deploy router at: ', router.address)
-    console.log('deploy onesplit at: ', onesplit.address)
-    console.log('deploy orderbook at: ', orderbook.address)
-    console.log('deploy unoswapRouter at: ', unoswapRouter.address)
+    // console.log('deploy onesplit at: ', onesplit.address)
+    // console.log('deploy orderbook at: ', orderbook.address)
+    // console.log('deploy unoswapRouter at: ', unoswapRouter.address)
   }
 
   return {
@@ -344,9 +353,9 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     cWHT: { address: lht.address, abi: await getAbiByContractName('LHT')},
     lErc20DelegatorFactory: { address: lercFactoryDeployed.address, abi: await getAbiByContractName('LErc20DelegatorFactory') },
     router: { address: router.address, abi: await getAbiByContractName('DeBankRouter') },
-    onesplit: { address: onesplit.address, abi: await getAbiByContractName('OneSplit') },
-    orderbook: { address: orderbook.address, abi: await getAbiByContractName('OrderBook') },
-    unoswapRouter: { address: unoswapRouter.address, abi: await getAbiByContractName('UnoswapRouter') },
+    // orderbook: { address: orderbook.address, abi: await getAbiByContractName('OrderBook') },
+    // onesplit: { address: onesplit.address, abi: await getAbiByContractName('OneSplit') },
+    // unoswapRouter: { address: unoswapRouter.address, abi: await getAbiByContractName('UnoswapRouter') },
   }
 }
 

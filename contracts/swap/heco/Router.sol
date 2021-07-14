@@ -337,6 +337,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // TransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
         // _safeTransferCtoken(tokenA, msg.sender, pair, amountA);
         // _safeTransferCtoken(tokenB, msg.sender, pair, amountB);
+        // console.log('addLiquidityUnderlying: pair=%s', pair);
         liquidity = IDeBankPair(pair).mint(to);
     }
 

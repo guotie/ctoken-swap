@@ -96,7 +96,7 @@ interface IOrderBook {
           uint orderId);
 }
 
-contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
+contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     using SafeMath for uint;
     using SafeMath for uint256;
 
@@ -307,7 +307,7 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
 
     // 调用前需要确保 srcToken destToken 都是 etoken
     // 交易对hash 区分方向 eth->usdt 与 usdt->eth 是不同的交易对
-    function _pairFor(address srcToken, address destToken) private view returns(uint pair) {
+    function _pairFor(address srcToken, address destToken) private pure returns(uint pair) {
       // if (srcToken == address(0)) {
       //     srcToken = wETH;
       // }
@@ -353,13 +353,13 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
           if (srcEToken == cETH) {
             balanceBefore = address(this).balance;
             ICToken(cETH).redeem(redeemAmt);
-            uint amt = address(this).balance.sub(balanceBefore);
-            TransferHelper.safeTransferETH(order.owner, amt);
+            uint amtToSend = address(this).balance.sub(balanceBefore);
+            TransferHelper.safeTransferETH(order.owner, amtToSend);
           } else {
             balanceBefore = IERC20(srcToken).balanceOf(address(this));
             ICToken(srcEToken).redeem(redeemAmt);
-            uint amt = IERC20(srcToken).balanceOf(address(this)).sub(balanceBefore);
-            TransferHelper.safeTransfer(srcToken, order.owner, amt);
+            uint amtToSend = IERC20(srcToken).balanceOf(address(this)).sub(balanceBefore);
+            TransferHelper.safeTransfer(srcToken, order.owner, amtToSend);
           }
         }
         if (remainingEToken > 0) {
@@ -709,11 +709,11 @@ contract OrderBook is OBStorage, IOrderBook, ReentrancyGuard {
         }
     }
 
-    function _getPairFee(address src, address dest) internal returns (DataTypes.OBPairConfigMap storage conf) {
+    function _getPairFee(address src, address dest) internal view returns (DataTypes.OBPairConfigMap storage conf) {
       address srcEToken = _getETokenAddress(src);
       address destEToken = _getETokenAddress(dest);
       uint256 pair = _pairFor(srcEToken, destEToken);
-      DataTypes.OBPairConfigMap storage conf = pairFeeRate[pair];
+      conf = pairFeeRate[pair];
       return conf;
     }
 

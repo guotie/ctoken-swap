@@ -49,7 +49,7 @@ contract OBStorage is Ownable {
     uint public defaultFeeTaker = 30;
     mapping(uint256 => DataTypes.OBPairConfigMap) public pairFeeRate;
     // 最低挂单量
-    mapping(address => uint256) minAmounts;
+    mapping(address => uint256) public minAmounts;
     mapping(address => mapping(address => uint)) public balanceOf;   // 代持用户的币
 
     // orders

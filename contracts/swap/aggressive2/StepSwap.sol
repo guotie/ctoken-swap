@@ -93,7 +93,10 @@ contract StepSwap is Ownable, StepSwapStorage {
                 uint[] memory amounts,
                 uint gas,
                 uint tokenPriceGWei
-            ) internal view returns(int[] memory) {
+            )
+            internal
+            pure
+            returns(int[] memory) {
         uint val = gas.mul(tokenPriceGWei);
         int256[] memory deducted = new int256[](amounts.length);
 
@@ -128,8 +131,8 @@ contract StepSwap is Ownable, StepSwapStorage {
                 amts = Exchanges.calcDistributes(ex, path, sd.amounts, sd.to);
                 if (sd.ctokenOut == true) {
                     // 转换为 ctoken
-                    for (uint i = 0; i < sd.amounts.length; i ++) {
-                        amts[i] = amts[i].mul(1e18).div(sd.rateOut);
+                    for (uint j = 0; j < sd.amounts.length; j ++) {
+                        amts[j] = amts[j].mul(1e18).div(sd.rateOut);
                     }
                     gas += 193404;
                 }
@@ -140,8 +143,8 @@ contract StepSwap is Ownable, StepSwapStorage {
                 amts = Exchanges.calcDistributes(ex, path, sd.cAmounts, sd.to);
                 if (sd.ctokenOut == true) {
                     // 转换为 ctoken
-                    for (uint i = 0; i < sd.amounts.length; i ++) {
-                        amts[i] = amts[i].mul(1e18).div(sd.rateOut);
+                    for (uint j = 0; j < sd.amounts.length; j ++) {
+                        amts[j] = amts[j].mul(1e18).div(sd.rateOut);
                     }
                     // deposit token 193404
                     // deposit eth   160537
@@ -182,8 +185,8 @@ contract StepSwap is Ownable, StepSwapStorage {
             amts = Exchanges.calcDistributes(ex, path, sd.cAmounts, sd.to);
             if (sd.ctokenOut != true) {
                 // 转换为 token redeem
-                for (uint i = 0; i < sd.amounts.length; i ++) {
-                    amts[i] = amts[i].mul(sd.rateOut).div(1e18);
+                for (uint j = 0; j < sd.amounts.length; j ++) {
+                    amts[j] = amts[j].mul(sd.rateOut).div(1e18);
                 }
                 // deposit token 193404
                 // deposit eth   160537
@@ -275,6 +278,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                 DataTypes.QuoteParams calldata args
             )
             external
+            view
             returns (DataTypes.SwapParams memory) {
         DataTypes.SwapFlagMap memory flag = args.flag;
         require(flag.tokenInIsCToken() == flag.tokenOutIsCToken(), "both token or ctoken"); // 输入输出必须同时为 token 或 ctoken
@@ -497,9 +501,9 @@ contract StepSwap is Ownable, StepSwapStorage {
                 DataTypes.SwapDistributes memory sd
             )
             private
-            view
+            pure
             returns (DataTypes.StepExecuteParams memory params) {
-        DataTypes.Exchange memory ex = sd.exchanges[idx];
+        // DataTypes.Exchange memory ex = sd.exchanges[idx];
 
         if (isCToken) {
             return _makeEBankRouteStep(
@@ -551,7 +555,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                 DataTypes.SwapParams memory params
             )
             private
-            view {
+            pure {
         uint routeIdx = 0;
         uint parts = sd.parts;
         uint remaining = amountIn;
@@ -701,7 +705,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                 address ctoken
             )
             private 
-            view
+            pure
             returns (DataTypes.StepExecuteParams memory step) {
         // address ctoken;
         // if (tokenOut == address(0)) {
@@ -734,7 +738,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                 // bool direct
             )
             private 
-            view
+            pure
             returns (DataTypes.StepExecuteParams memory step) {
         // todo flag 根据 输入 token 输出 token 决定
         step.flag = sd.exchanges[idx].exFlag;
@@ -789,7 +793,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                 // bool direct
             )
             private 
-            view
+            pure
             returns (DataTypes.StepExecuteParams memory step) {
         step.flag = flag;
         DataTypes.UniswapRouterParam memory rp;
@@ -810,7 +814,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                     uint[] memory distributes
                 )
                 private
-                view
+                pure
                 returns (int256 uniswapIdx, int256 ebankIdx) {
         uniswapIdx = -1;
         ebankIdx = -1;
@@ -833,7 +837,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                     uint[] memory distributes
                 )
                 private
-                view
+                pure
                 returns (bool) {
         for (uint i = 0; i < distributes.length; i ++) {
             if (distributes[i] > 0) {
@@ -854,7 +858,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                     uint[] memory distributes
                 )
                 private
-                view
+                pure
                 returns (uint part, uint amt) {
         // uint part = 0;
         

@@ -161,7 +161,7 @@ library Exchanges {
         }
     }
 
-    function getExchangeRoutes(uint flag, uint midTokens, uint complexLevel) public view returns (uint)  {
+    function getExchangeRoutes(uint flag, uint midTokens, uint complexLevel) public pure returns (uint)  {
         if (isUniswapLikeExchange(flag)) {
             return uniswapRoutes(midTokens, complexLevel);
         }
@@ -288,12 +288,12 @@ library Exchanges {
     }
 
     /// @dev aave deposit token
-    function aaveDepositToken(address aToken) public {
+    function aaveDepositToken(address aToken) public pure {
         aToken;
     }
 
     /// @dev withdraw aave token
-    function aaveWithdrawToken(address aToken, uint256 amt) public {
+    function aaveWithdrawToken(address aToken, uint256 amt) public pure {
         aToken;
         amt;
     }
