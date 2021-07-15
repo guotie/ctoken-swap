@@ -16,10 +16,10 @@ const network = hre.network
 
 const e18 = BigNumber.from('1000000000000000000')
 
+let deployContracts: DeployContracts
 // 测试 swap pair
 describe("ctoken swap 测试", function() {
   let tokens: Tokens
-  let deployContracts: DeployContracts
   let namedSigners: SignerWithAddress[]
 
   let mdexFactory: Contract
@@ -75,8 +75,15 @@ describe("ctoken swap 测试", function() {
     obABI = obArt.abi
     tokenABI = tokenArt.abi
 
-    let rr = await deployOrderBook(router.address,
+    console.log(
+        deployContracts.lErc20DelegatorFactory.address,
+        deployContracts.cWHT.address,
+        deployContracts.WHT.address,
+        ht
+      )
+    let rr = await deployOrderBook(
           deployContracts.lErc20DelegatorFactory.address,
+          deployContracts.cWHT.address,
           deployContracts.WHT.address,
           ht,
           deployer, true, true)
@@ -84,6 +91,7 @@ describe("ctoken swap 测试", function() {
     orderBookC = await getContractBy(obArt.abi, orderBook)
 
     console.info('USDT:', usdt, 'SEA:', sea, 'orderBook:', orderBook)
+    console.info('orderBook %s cETH: %s', orderBook, await orderBookC.cETH())
     expect(usdt).to.not.be.empty
     expect(sea).to.not.be.empty
   })
@@ -123,11 +131,12 @@ describe("ctoken swap 测试", function() {
       // , ctoken1 = getTokenContract(token1)
     let tx: any
     if (token0 === '0x0000000000000000000000000000000000000000') {
-      tx = await orderBookC.createOrder(token0, token1, deployer, ht, amtIn, amtOut, 0, 0, {value: amtIn})
+      tx = await orderBookC.createOrder(token0, token1, deployer, amtIn, amtOut, 0, {value: amtIn})
     } else {
-      await ctoken0.approve(orderBook, amtIn)
-      await ctoken0.transfer(orderBook, amtIn)
-      tx = await orderBookC.createOrder(token0, token1, deployer, deployer, amtIn, amtOut, 0, 0)
+      console.log('approve token0 ....', ctoken0.address)
+      await ctoken0.approve(orderBook, BigNumber.from(amtIn).mul(10000))
+      // await ctoken0.transfer(orderBook, amtIn)
+      tx = await orderBookC.createOrder(token0, token1, deployer, amtIn, amtOut, 0)
     }
 
     let receipt = await tx.wait(1)
@@ -150,7 +159,14 @@ describe("ctoken swap 测试", function() {
     return order
   }
 
+  const getBalance = async (token: string) => {
+    let ctoken = await getTokenContract(token)
+    return ctoken.balanceOf(deployer)
+  }
+
   it('createOrder', async () => {
+    let usdtBalanceBefore = await getBalance(usdt)
+
     let o1 = await putOrder(usdt, sea, 1000, 1000)
     let order1 = await getOrder(o1)
     console.log('order1 flag:', order1.flag.toHexString(), order1.pairAddrIdx.toHexString())
@@ -175,6 +191,14 @@ describe("ctoken swap 测试", function() {
     await cancelOrder(o3)
     order1 = await getOrder(o1)
     console.log('after cancel, order1:', order1.flag.toHexString())
+
+    // 比较 usdt 是否已经退回
+    let usdtBalanceAfter = await getBalance(usdt)
+    expect(usdtBalanceAfter).to.eq(usdtBalanceAfter)
+    // console.log('usdt balance:', usdtBalanceAfter.toString(), usdtBalanceAfter.toString());
+
+    let comp = await getContractAt(deployContracts.comptroller)
+    console.log("ceth listed:", (await comp.functions.markets(deployContracts.cWHT.address)).isListed)
     // await cancelOrder(o3)
     let o4 = await putOrder(ht, sea, 1000, 1000)
     await cancelOrder(o4)

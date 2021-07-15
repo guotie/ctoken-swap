@@ -21,7 +21,10 @@ import "./ICTokenFactory.sol";
 import "./ICToken.sol";
 import "./ICETH.sol";
 import "./OBPriceLogic.sol";
+import "./OBPairConfig.sol";
 import "./SafeMath.sol";
+
+import "hardhat/console.sol";
 
 interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint value);
@@ -99,6 +102,7 @@ interface IOrderBook {
 contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     using SafeMath for uint;
     using SafeMath for uint256;
+    using OBPairConfig for DataTypes.OBPairConfigMap;
 
     uint private constant _ORDER_CLOSED = 0x00000000000000000000000000000001;   // 128 bit
 
@@ -106,12 +110,11 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     // _wETH: eth/bnb/ht
     // _margin: 代持合约地址
     constructor(address _ctokenFactory, address _cETH, address _wETH, address _margin) public {
-      ctokenFactory = _ctokenFactory;
       cETH = _cETH;
       wETH = _wETH;
-      marginAddr = _margin;
+      marginAddr    = _margin;
+      ctokenFactory = _ctokenFactory;
     }
-
     modifier whenOpen() {
         require(closed == false, "order book closed");
         _;
@@ -190,7 +193,29 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     // 如果找到 addr 对应的 etoken 地址, 返回 etoken 地址; 否则, addr 本身就是 etoken, 返回 addr
+    function _getOrCreateETokenAddress(address addr) internal returns (address) {
+      if (addr == address(0)) {
+        return cETH;
+      }
+      address etoken = ICTokenFactory(ctokenFactory).getCTokenAddressPure(addr);
+      if (etoken == address(0)) {
+        // 严格情况下 这里要判断 addr 是否在 etoken mapping 中.
+        // 如果在, 才能说明 addr 是etoken;
+        // 如果不在, 说明该 token 还没有对应的 etoken, 需要创建对应的 etoken
+        address token = ICTokenFactory(ctokenFactory).getTokenAddress(addr);
+        if (token != address(0)) {
+          return addr;
+        }
+        // addr 是 token, 当不存在对应的etoken, 创建对应的 etoken
+        return ICTokenFactory(ctokenFactory).getCTokenAddress(addr);
+      }
+      return etoken;
+    }
+
     function _getETokenAddress(address addr) internal view returns (address) {
+      if (addr == address(0)) {
+        return cETH;
+      }
       address etoken = ICTokenFactory(ctokenFactory).getCTokenAddressPure(addr);
       if (etoken == address(0)) {
         return addr;
@@ -201,13 +226,18 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     // 创建订单
     // 调用前需要 approve
     function createOrder(
-        address srcToken,
-        address destToken,
-        address to,             // 兑换得到的token发送地址, 杠杆传用户地址
-        uint amountIn,
-        uint guaranteeAmountOut,       // 
-        // uint expiredAt,          // 过期时间
-        uint flag) public payable whenOpen nonReentrant returns (uint) {
+              address srcToken,
+              address destToken,
+              address to,             // 兑换得到的token发送地址, 杠杆传用户地址
+              uint amountIn,
+              uint guaranteeAmountOut,       // 
+              uint flag
+          )
+          public
+          payable
+          whenOpen
+          nonReentrant
+          returns (uint) {
       require(srcToken != destToken, "identical token");
 
       if (srcToken == address(0)) {
@@ -233,7 +263,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       order.timestamp = block.timestamp; // maskTimestamp(block.timestamp, expiredAt);
       order.flag = flag;
       order.tokenAmt.fulfiled = 0;
-      address etoken = _getETokenAddress(srcToken);
+      address etoken = _getOrCreateETokenAddress(srcToken);
       {
         order.tokenAmt.srcToken = srcToken;
         order.tokenAmt.srcEToken = etoken;
@@ -247,7 +277,9 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
             order.tokenAmt.amountInMint = IERC20(cETH).balanceOf(address(this)).sub(balanceBefore);
           } else {
             uint balanceBefore = IERC20(etoken).balanceOf(address(this));
+            IERC20(srcToken).approve(etoken, amountIn);
             ICToken(etoken).mint(amountIn);
+            ICToken(etoken).approve(etoken, 0);
             order.tokenAmt.amountInMint = IERC20(etoken).balanceOf(address(this)).sub(balanceBefore);
           }
         } else {
@@ -255,13 +287,15 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         }
       }
       order.tokenAmt.destToken = destToken;
-      order.tokenAmt.destEToken = _getETokenAddress(destToken);
+      address destEToken = _getOrCreateETokenAddress(destToken);
+      order.tokenAmt.destEToken = destEToken;
       order.tokenAmt.guaranteeAmountOut = guaranteeAmountOut;
 
       // src dest 必须同时为 token 或者 etoken
-      require((srcToken == etoken) == (destToken == order.tokenAmt.destToken), "both token or etoken");
+      require((srcToken == etoken) == (destToken == destEToken), "both token or etoken");
 
       if (msg.sender == marginAddr) {
+        require(isMargin(flag), "flag should be margin");
         // 代持合约只能挂 etoken
         require(etoken == srcToken, "src should be etoken");
         require(order.tokenAmt.destEToken == destToken, "dest should be etoken");
@@ -273,11 +307,28 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       // }
 
       // (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
-      order.pair = _pairFor(srcToken, destToken);
+      order.pair = _pairFor(etoken, destEToken);
 
       _putOrder(order);
 
       return idx;
+    }
+
+    function pairFor(address srcToken, address destToken) public view returns(uint pair) {
+      return _pairFor(_getETokenAddress(srcToken), _getETokenAddress(destToken));
+    }
+
+    // 调用前需要确保 srcToken destToken 都是 etoken
+    // 交易对hash 区分方向 eth->usdt 与 usdt->eth 是不同的交易对
+    function _pairFor(address srcToken, address destToken) private pure returns(uint pair) {
+      // if (srcToken == address(0)) {
+      //     srcToken = wETH;
+      // }
+      // if (destToken == address(0)) {
+      //     destToken = wETH;
+      // }
+      // (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
+      pair = uint(keccak256(abi.encodePacked(srcToken, destToken)));
     }
 
     // 获取所有订单列表
@@ -301,27 +352,11 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       }
     }
 
-    function pairFor(address srcToken, address destToken) public view returns(uint pair) {
-      return _pairFor(_getETokenAddress(srcToken), _getETokenAddress(destToken));
-    }
-
-    // 调用前需要确保 srcToken destToken 都是 etoken
-    // 交易对hash 区分方向 eth->usdt 与 usdt->eth 是不同的交易对
-    function _pairFor(address srcToken, address destToken) private pure returns(uint pair) {
-      // if (srcToken == address(0)) {
-      //     srcToken = wETH;
-      // }
-      // if (destToken == address(0)) {
-      //     destToken = wETH;
-      // }
-      // (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
-      pair = uint(keccak256(abi.encodePacked(srcToken, destToken)));
-    }
-
     function _orderClosed(uint flag) private pure returns (bool) {
       return (flag & _ORDER_CLOSED) != 0;
     }
-
+    
+    // 调用者判断是否有足够的 token 可以赎回
     function cancelOrder(uint orderId) public nonReentrant {
       DataTypes.OrderItem storage order = orders[orderId];
       bool margin = isMargin(order.flag);
@@ -334,25 +369,27 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       require(_orderClosed(order.flag) == false, "order has been closed");
       address srcToken = order.tokenAmt.srcToken;
       address srcEToken = order.tokenAmt.srcEToken;
-      uint amt = order.tokenAmt.amountIn.sub(order.tokenAmt.fulfiled);
+      uint amt = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
 
       if (srcToken != srcEToken) {
         // redeem etoken
         // 如果有足够多的 etoken 可以赎回, 则全部赎回; 否则尽可能多的赎回
-        uint cash = ICToken(srcEToken).getCash();
+        // uint cash = ICToken(srcEToken).getCash();
         uint redeemAmt = amt;
-        uint remainingEToken = 0;
-        if (cash < amt) {
-          redeemAmt = cash;
-          remainingEToken = amt.sub(cash);
-        }
+        // uint remainingEToken = 0;
+        // console.log("cancelOrder: cash: %d amt: %d", cash, amt);
+        // if (cash < amt) {
+        //   redeemAmt = cash;
+        //   remainingEToken = amt.sub(cash);
+        // }
 
         if (redeemAmt > 0) {
           // redeem token
           uint balanceBefore;
           if (srcEToken == cETH) {
+            console.log("redeem cETH:", cETH);
             balanceBefore = address(this).balance;
-            ICToken(cETH).redeem(redeemAmt);
+            ICETH(cETH).redeem(redeemAmt);
             uint amtToSend = address(this).balance.sub(balanceBefore);
             TransferHelper.safeTransferETH(order.owner, amtToSend);
           } else {
@@ -362,9 +399,9 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
             TransferHelper.safeTransfer(srcToken, order.owner, amtToSend);
           }
         }
-        if (remainingEToken > 0) {
-          TransferHelper.safeTransfer(srcEToken, order.owner, remainingEToken);
-        }
+        // if (remainingEToken > 0) {
+        //   TransferHelper.safeTransfer(srcEToken, order.owner, remainingEToken);
+        // }
       } else {
         TransferHelper.safeTransfer(srcToken, order.owner, amt);
       }
@@ -380,7 +417,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         // 通知杠杆合约处理 挂单 srcToken
         IMarginHolding(marginAddr).onCanceled(order.to, srcEToken, order.tokenAmt.destToken, order.tokenAmt.srcToken, amt);
       }
-
 
       emit CancelOrder(order.owner, order.tokenAmt.srcToken, order.tokenAmt.destToken, orderId);
       order.flag |= _ORDER_CLOSED;
@@ -415,7 +451,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     function _discountFee(uint256 amt, uint256 fee) private pure returns (uint256) {
         return amt.mul(fee).div(DENOMINATOR);
     }
-
 
     // srcToken destToken 都必须是 etoken
     // buyAmt: 待买走的挂卖token的数量, 未扣除手续费
@@ -728,7 +763,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
       conf.setFeeMaker(fee);
     }
-
 }
 
 // helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false

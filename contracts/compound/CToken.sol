@@ -732,7 +732,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* Fail if redeem not allowed */
         uint allowed = comptroller.redeemAllowed(address(this), redeemer, vars.redeemTokens);
         if (allowed != 0) {
-            console.log('redeemFresh: redeem not allowed');
+            console.log('redeemFresh: redeem not allowed:', allowed, address(this));
             // return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REDEEM_COMPTROLLER_REJECTION, allowed);
         }
 

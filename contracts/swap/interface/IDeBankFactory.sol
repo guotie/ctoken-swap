@@ -26,7 +26,7 @@ interface IDeBankFactory {
 
     function lpFeeRate() external view returns (uint256);
 
-    function lErc20DelegatorFactory() external view returns (LErc20DelegatorInterface);
+    // function lErc20DelegatorFactory() external view returns (LErc20DelegatorInterface);
 
     function anchorToken() external view returns (address);
 
@@ -36,7 +36,7 @@ interface IDeBankFactory {
 
     function allPairsLength() external view returns (uint);
 
-    function createPair(address tokenA, address tokenB) external returns (address pair);
+    function createPair(address tokenA, address tokenB, address ctoken0, address ctoken1) external returns (address pair);
 
     function setFeeTo(address) external;
 

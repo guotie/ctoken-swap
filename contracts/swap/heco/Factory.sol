@@ -40,7 +40,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     bytes32 public initCodeHash;
 
     // lend controller address. should be unitroller address, which is proxy of comptroller
-    LErc20DelegatorInterface public lErc20DelegatorFactory;
+    // LErc20DelegatorInterface public lErc20DelegatorFactory;
     // address public owner;
 
     // 由于0值与不存在无法区分，因此，设置的时候都在原值的基础上+1
@@ -50,11 +50,12 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
     // event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
-    // 创建时需要设置 LERC20 factory 地址
-    constructor(address _ctokenFacotry, address _anchorToken) public {
+    // 创建时需要设置 LERC20 factory 地址 --- 改在router中设置, factory 创建 pair 时需要提供 两个token地址 两个ctoken地址
+    // constructor(address _ctokenFacotry, address _anchorToken) public {
+    constructor(address _anchorToken) public {
         // owner = msg.sender;
         // feeToSetter = _feeToSetter;
-        lErc20DelegatorFactory = LErc20DelegatorInterface(_ctokenFacotry);
+        // lErc20DelegatorFactory = LErc20DelegatorInterface(_ctokenFacotry);
         initCodeHash = keccak256(abi.encodePacked(type(DeBankPair).creationCode));
 
         // anchorUnderlying = _anchorToken;
@@ -75,7 +76,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
     // 创建交易对
     // tokenA tokenB 都不能是 cToken
-    function createPair(address tokenA, address tokenB) external returns (address pair) {
+    function createPair(address tokenA, address tokenB, address ctoken0, address ctoken1) external returns (address pair) {
         require(tokenA != tokenB, 'SwapFactory: IDENTICAL_ADDRESSES');
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         require(token0 != address(0), 'SwapFactory: ZERO_ADDRESS');
@@ -83,7 +84,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
         
         // guotie
         // token0 token1 不能是 cToken
-        (address ctoken0, address ctoken1) = _checkOrCreateCToken(token0, token1);
+        // (address ctoken0, address ctoken1) = _checkOrCreateCToken(token0, token1);
 
         // single check is sufficient
         bytes memory bytecode = type(DeBankPair).creationCode;
@@ -161,31 +162,31 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
     // guotie
     // 检查 token 不是 cToken
-    function _checkTokenIsNotCToken(address token0, address token1) private view returns (uint) {
-        address ctoken0 = lErc20DelegatorFactory.getCTokenAddressPure(token0);
-        if (ctoken0 == address(0)) {
-            return 1;
-        }
+    // function _checkTokenIsNotCToken(address token0, address token1) private view returns (uint) {
+    //     address ctoken0 = lErc20DelegatorFactory.getCTokenAddressPure(token0);
+    //     if (ctoken0 == address(0)) {
+    //         return 1;
+    //     }
 
-        address ctoken1 = lErc20DelegatorFactory.getCTokenAddressPure(token1);
-        if (ctoken1 == address(0)) {
-            return 2;
-        }
+    //     address ctoken1 = lErc20DelegatorFactory.getCTokenAddressPure(token1);
+    //     if (ctoken1 == address(0)) {
+    //         return 2;
+    //     }
 
-        if(ctoken0 == ctoken1) {
-            return 3;
-        }
-        return 0;
-    }
+    //     if(ctoken0 == ctoken1) {
+    //         return 3;
+    //     }
+    //     return 0;
+    // }
 
-    function _checkOrCreateCToken(address token0, address token1) private returns (address ctoken0, address ctoken1) {
-        ctoken0 = lErc20DelegatorFactory.getCTokenAddress(token0);
-        require(ctoken0 != address(0), 'SwapFactory: cToken is 0');
-        ctoken1 = lErc20DelegatorFactory.getCTokenAddress(token1);
-        require(ctoken1 != address(0), 'SwapFactory: cToken is 0');
+    // function _checkOrCreateCToken(address token0, address token1) private returns (address ctoken0, address ctoken1) {
+    //     ctoken0 = lErc20DelegatorFactory.getCTokenAddress(token0);
+    //     require(ctoken0 != address(0), 'SwapFactory: cToken is 0');
+    //     ctoken1 = lErc20DelegatorFactory.getCTokenAddress(token1);
+    //     require(ctoken1 != address(0), 'SwapFactory: cToken is 0');
 
-        require(ctoken0 != ctoken1, 'SwapFactory: Dup cToken');
-    }
+    //     require(ctoken0 != ctoken1, 'SwapFactory: Dup cToken');
+    // }
 
     // calculates the CREATE2 address for a pair without making any external calls
     function pairFor(address tokenA, address tokenB) public view returns (address pair) {

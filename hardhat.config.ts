@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import 'solidity-coverage';
-import '@tenderly/hardhat-tenderly';
+// import '@tenderly/hardhat-tenderly';
 import 'hardhat-deploy';
 import 'hardhat-local-networks-config-plugin';
 import '@nomiclabs/hardhat-ethers';
@@ -176,10 +176,10 @@ export default {
       // },
     },
   },
-  tenderly: {
-    username: 'balancer',
-    project: 'v2',
-  },
+  // tenderly: {
+  //   username: 'balancer',
+  //   project: 'v2',
+  // },
   paths: {
     deploy: 'deployments/migrations',
     deployments: 'deployments/artifacts',

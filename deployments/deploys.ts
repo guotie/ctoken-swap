@@ -77,10 +77,33 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
 }
 
 // 部署 OrderBook
-export async function deployOrderBook(router: string, ctokenFactory: string, _weth: string, _margin: string, deployer: any, log: any, verify: any) {
+export async function deployOrderBook(
+                        ctokenFactory: string,
+                        _ceth: string,
+                        _weth: string,
+                        _margin: string,
+                        deployer: any,
+                        log: any,
+                        verify: any
+                      ) {
+  let l = await _deploy('OBPriceLogic', {
+                      from: deployer,
+                      args: [],
+                      log: log,
+                  }, false)
+  let c = await _deploy('OBPairConfig', {
+                      from: deployer,
+                      args: [],
+                      log: log,
+                  }, false)
+  console.log('deploy OBPriceLogic at:', l.address)
   return _deploy('OrderBook', {
       from: deployer,
-      args: [router, ctokenFactory, _weth, _margin],
+      args: [ctokenFactory, _ceth, _weth, _margin],
+      libraries: {
+          OBPriceLogic: l.address,
+          OBPairConfig: c.address
+      },
       log: log,
     }, verify);
 }
@@ -250,6 +273,13 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     args: [unitroller.address, interest.address, '15000000000000000000', 'WHT', 'WHT', 18, namedSigners[0].address],
     log: log,
   }, verify);
+
+  //
+  console.log('list markt LHT ...', lht.address)
+  // let cunitroller = await ethers.getContractAt(unitroller.abi, unitroller.address, namedSigners[0]);
+  await comptroller._supportMarket(lht.address)
+  let listed = await comptroller.markets(lht.address)
+  console.log('listed:', listed.isListed)
 
   let lercFactoryDeployed = await _deploy('LErc20DelegatorFactory', {
     from: deployer,

@@ -40,8 +40,9 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     address public factory;
     address public WHT;
     address public swapMining;
-    address[] public quoteTokens;
     address public cWHT;
+    address[] public quoteTokens;
+    LErc20DelegatorInterface public ctokenFactory;
 
     // 所有交易对产生的手续费收入, 各个交易对根据占比分配收益
     uint public allPairFee;
@@ -67,11 +68,12 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         _;
     }
 
-    constructor(address _factory, address _wht, address _cwht, uint _startBlock) public {
+    constructor(address _factory, address _wht, address _cwht, address _ctokenFactory) public {
         factory = _factory;
         WHT = _wht;
         cWHT = _cwht;
-        startBlock = _startBlock;
+        ctokenFactory = LErc20DelegatorInterface(_ctokenFactory);
+        // startBlock = _startBlock;
         // heco 链上的 usdt
         quoteTokens.push(IDeBankFactory(_factory).anchorToken()); // usdt
         quoteTokens.push(_cwht); // wht
@@ -145,15 +147,18 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     }
 
     function _getOrCreateCtoken(address token) private returns (address ctoken) {
-        ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddress(token);
+        // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddress(token);
+        ctoken = ctokenFactory.getCTokenAddress(token);
     }
 
     function _getCtoken(address token) private view returns (address ctoken) {
-        ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
+        // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
+        ctoken = ctokenFactory.getCTokenAddressPure(token);
     }
 
     function _getTokenByCtoken(address ctoken) private view returns (address token) {
-        token = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getTokenAddress(ctoken);
+        // token = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getTokenAddress(ctoken);
+        token = ctokenFactory.getTokenAddress(ctoken);
     }
 
     // function _safeTransferCtoken(address token, address from, address to, uint amt) private {
@@ -197,7 +202,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         address tokenB = _getTokenByCtoken(ctokenB);
         // create the pair if it doesn't exist yet
         if (IDeBankFactory(factory).getPair(tokenA, tokenB) == address(0)) {
-            IDeBankFactory(factory).createPair(tokenA, tokenB);
+            IDeBankFactory(factory).createPair(tokenA, tokenB, ctokenA, ctokenB);
         }
         // console.log("_addLiquidity getReserves");
         (uint reserveA, uint reserveB) = IDeBankFactory(factory).getReserves(tokenA, tokenB);

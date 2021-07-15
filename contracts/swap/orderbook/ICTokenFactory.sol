@@ -15,6 +15,9 @@ pragma solidity ^0.6.12;
 
 
 interface ICTokenFactory {
+    // 根据 token 地址获取对应的 ctoken 地址, 如果不存在, 创建对应的 etoekn
+    function getCTokenAddress(address token) external returns (address);
+
     // 根据 token 地址获取对应的 ctoken 地址
     function getCTokenAddressPure(address token) external view returns (address);
 

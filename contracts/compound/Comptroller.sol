@@ -22,6 +22,8 @@ import "./ComptrollerStorage.sol";
 import "./Unitroller.sol";
 import "./Governance/LendHub.sol";
 
+// for debug
+import "hardhat/console.sol";
 /**
  * @title Compound's Comptroller Contract
  * @author Compound
@@ -304,6 +306,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
 
     function redeemAllowedInternal(address cToken, address redeemer, uint redeemTokens) internal view returns (uint) {
         if (!markets[cToken].isListed) {
+            console.log("token not listed");
             return uint(Error.MARKET_NOT_LISTED);
         }
 
@@ -315,6 +318,7 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         /* Otherwise, perform a hypothetical liquidity check to guard against shortfall */
         (Error err, , uint shortfall) = getHypotheticalAccountLiquidityInternal(redeemer, CToken(cToken), redeemTokens, 0);
         if (err != Error.NO_ERROR) {
+            console.log("getHypotheticalAccountLiquidityInternal failed:", uint(err));
             return uint(err);
         }
         if (shortfall > 0) {

@@ -17,7 +17,15 @@ pragma solidity ^0.5.16;
 import "./ERC20.sol";
 
 contract Token is ERC20 {
-  constructor(string memory name_, string memory symbol_, uint totalSupply_, address holder_, uint8 decimals_) ERC20(name_, symbol_, decimals_) public {
+  constructor(
+              string memory name_,
+              string memory symbol_,
+              uint totalSupply_,
+              address holder_,
+              uint8 decimals_
+            )
+            public
+            ERC20(name_, symbol_, decimals_) {
     // _setupDecimals(8);
     _mint(holder_, totalSupply_);
   }

@@ -131,11 +131,11 @@ describe("ctoken router 测试", function() {
   // create pair
   const createPair = async (tokenA: string, tokenB: string) => {
     let pair = await mdexFactory.pairFor(tokenA, tokenB)
-    console.log('create pair for: %s %s, pair: %s', tokenA, tokenB, pair)
     if (pair !== '0x0000000000000000000000000000000000000000') {
       // alreday exist
       return pair
     }
+    // console.log('create pair for: %s %s', tokenA, tokenB)
     let tx = await mdexFactory.createPair(tokenA, tokenB)
     await tx.wait(2)
     pair = await mdexFactory.pairFor(tokenA, tokenB)
@@ -289,6 +289,8 @@ describe("ctoken router 测试", function() {
     const b0 = await pair.balanceOf(deployer)
     console.log('before mint, LP %s balance: %s', pair.address, b0.toString())
     if (token1 !== wht.address) {
+      let gas = await router.estimateGas.addLiquidityUnderlying(token0, token1, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(6))
+      console.log('addLiquidityUnderlying estimate gas:', gas.toString())
       const tx = await router.addLiquidityUnderlying(token0, token1, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(6))
       await tx.wait(1);
     } else {

@@ -176,10 +176,10 @@ contract LErc20 is CToken, CErc20Interface {
     function doTransferIn(address from, uint amount) internal returns (uint) {
         EIP20NonStandardInterface token = EIP20NonStandardInterface(underlying);
         uint balanceBefore = EIP20Interface(underlying).balanceOf(address(this));
-        console.log('balanceBefore:', balanceBefore);
+        console.log('balanceBefore:', EIP20Interface(underlying).balanceOf(from));
         console.log('spender:', address(this));
         console.log('from:', from);
-        console.log('allowance:', transferAllowances[from][address(this)]);
+        console.log('allowance:', EIP20Interface(underlying).allowance(from, address(this))); // transferAllowances[from][address(this)], amount);
         token.transferFrom(from, address(this), amount);
 
         bool success;
@@ -201,6 +201,7 @@ contract LErc20 is CToken, CErc20Interface {
         // Calculate the amount that was *actually* transferred
         uint balanceAfter = EIP20Interface(underlying).balanceOf(address(this));
         require(balanceAfter >= balanceBefore, "TOKEN_TRANSFER_IN_OVERFLOW");
+        console.log("doTransferIn success");
         return balanceAfter - balanceBefore;   // underflow already checked above, just subtract
     }
 
