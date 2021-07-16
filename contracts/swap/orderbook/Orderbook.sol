@@ -382,12 +382,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         // 如果有足够多的 etoken 可以赎回, 则全部赎回; 否则尽可能多的赎回
         // uint cash = ICToken(srcEToken).getCash();
         uint redeemAmt = amt;
-        // uint remainingEToken = 0;
-        // console.log("cancelOrder: cash: %d amt: %d", cash, amt);
-        // if (cash < amt) {
-        //   redeemAmt = cash;
-        //   remainingEToken = amt.sub(cash);
-        // }
 
         if (redeemAmt > 0) {
           // redeem token
@@ -431,12 +425,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       _removeOrder(order);
     }
 
-    // // 剩余可成交部分
-    // function _amountRemaining(uint amtTotal, uint fulfiled) internal pure returns (uint) {
-    //     // (amtTotal - fulfiled) * (1 - fee)
-    //     return amtTotal.sub(fulfiled);
-    // }
-
     /// @dev get maker fee rate
     function getMakerFeeRate(uint256 pair) public view returns (uint) {
       uint fee = pairFeeRate[pair].feeMaker();
@@ -460,70 +448,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         return amt.mul(fee).div(DENOMINATOR);
     }
 
-    // srcToken destToken 都必须是 etoken
-    // buyAmt: 待买走的挂卖token的数量, 未扣除手续费
-    // outAmt: 挂卖得到的token 的数量, 未扣除手续费
-    // function _swap(address srcToken,
-    //         address destToken,
-    //         address maker,
-    //         address taker,
-    //         uint takerAmt,
-    //         uint makerAmt,
-    //         bool margin) private {
-    //   if (margin) {
-    //     // 回调
-    //     IMarginHolding(marginAddr).onFulfiled(maker, srcToken, destToken, makerAmt, takerAmt);
-    //   } else {
-    //     balanceOf[destToken][maker] += makerAmt;
-    //   }
-
-    //   // 买家得到的币
-    //   // if (srcToken == address(0)) {
-    //   //   TransferHelper.safeTransferETH(buyer, buyAmt);
-    //   // } else {
-    //     TransferHelper.safeTransfer(srcToken, taker, takerAmt);
-    //   // }
-    // }
-
-    /// @dev fulfil orderbook order, token in and token out is token
-    // function fulfilOrderUnderlying(uint orderId,
-    //         bool partialFill,
-    //         uint amtToTaken,
-    //         address to,
-    //         bytes calldata data) external payable whenOpen nonReentrant returns (uint, uint) {
-    //   DataTypes.OrderItem storage order = orders[orderId];
-    //   if ((order.flag & _ORDER_CLOSED) > 0) {
-    //       return (0, 0);
-    //   }
-
-    //   uint left = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
-
-    //   if(left < amtToTaken) {
-    //     if (partialFill == false) {
-    //       return (0, 0);
-    //     } else {
-    //       amtToTaken = left;
-    //     }
-    //   } // , "not enough");
-
-
-    //   if (to == address(0)) {
-    //     to = msg.sender;
-    //   }
-
-    // }
-
-    struct TransferMintParam {
-      bool isTokenIn;
-      bool partialFill;
-      address srcToken;
-      address srcEToken;
-      address destEToken;
-      uint amtToTaken;
-      uint amtDest;
-      address to;
-    }
-
     struct FulFilAmt {
       bool isToken;      // 是否是 token
       uint256 filled;    // 成交的 srcEToken
@@ -533,31 +457,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       uint256 amtDest;       // taker 付出 srcEToken
       uint256 amtDestToken;  // taker 付出的 srcToken
     }
-
-    /// @dev fulfilOrderUnderlying 输入 token, 输出 token
-    // function fulfilOrderUnderlying(
-    //             uint orderId,
-    //             uint amtToTaken,
-    //             address to,
-    //             bool partialFill,
-    //             bytes calldata data
-    //           )
-    //           external
-    //           payable
-    //           whenOpen
-    //           nonReentrant
-    //           returns (FulFilAmt memory fulFilAmt) {
-    //   DataTypes.OrderItem storage order = orders[orderId];
-
-    //   if ((order.flag & _ORDER_CLOSED) > 0) {
-    //       return fulFilAmt;
-    //   }
-
-    //   if (to == address(0)) {
-    //     to = msg.sender;
-    //   }
-
-    // }
 
 
     /// @dev fulfilOrder orderbook order, etoken in and etoken out
@@ -669,56 +568,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         }
     }
 
-
-    function _tranferOrMint(TransferMintParam memory param, uint left) private returns (uint filled) {
-        address to = param.to;
-        uint amtToTaken = param.amtToTaken;
-
-        if (param.isTokenIn) {
-          // mint
-          address srcToken = param.srcToken;
-          uint minted;
-
-          if (srcToken == address(0)) {
-            uint balanceBefore = IERC20(cETH).balanceOf(address(this));
-            ICETH(cETH).mint{value: msg.value}();
-            minted = IERC20(cETH).balanceOf(address(this)).sub(balanceBefore);
-            // require(minted > amtToTaken, "mint not enough cETH");
-          } else {
-            address srcEToken = param.srcEToken;
-            // address srcToken = param.srcToken;
-
-            TransferHelper.safeTransferFrom(srcToken, msg.sender, address(this), amtToTaken);
-            IERC20(srcToken).approve(srcEToken, amtToTaken);
-            uint balanceBefore = IERC20(srcToken).balanceOf(address(this));
-            // uint rateIn = OBPriceLogic.getCurrentExchangeRate(ICToken(srcEToken));
-            // uint amtIn = amtToTaken.mul(rateIn).div(1e18);
-            // TransferHelper.safeTransferFrom(srcToken, to, srcEToken, amtIn);
-            ICToken(srcEToken).mint(amtToTaken);
-            minted = IERC20(srcToken).balanceOf(address(this)).sub(balanceBefore);
-          }
-
-          if (minted > left) {
-            require(param.partialFill, "not enough to fulfil");
-            
-            filled = left;
-          } else {
-            filled = minted;
-          }
-          // transfer dest token to taker
-        } else {
-          if (amtToTaken > left) {
-            require(param.partialFill, "not enough to fulfil");
-            
-            filled = left;
-          }
-          TransferHelper.safeTransferFrom(param.srcEToken, msg.sender, address(this), filled);
-
-          address destEToken = param.destEToken;
-          TransferHelper.safeTransferFrom(destEToken, to, address(this), param.amtDest);
-        }
-    }
-
     /// @dev 根据order的兑换比例, 手续费, 计算兑换得到的dest token的兑换数量. 如果 是 token, 则调用 EToken 的接口更新 exchangeRate, 因此，这个方法不是只读方法
     /// @param fulFilAmt 各种成交数量, taker买到的币的数量 taker 付出的币的数量 maker 得到的和卖出的币的数量
     function _getFulfiledAmt(
@@ -731,10 +580,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       // 挂单者在不扣除手续费的情况下得到的币的数量
       fulFilAmt.amtDest = OBPriceLogic.convertBuyAmountByETokenIn(tokenAmt, amtToTaken);
 
-      // address srcEToken = tokenAmt.srcEToken;
-      // address destEToken = tokenAmt.destEToken;
-      // address maker = order.to;
-      // uint256 pair = order.pair;
       // taker得到的币，扣除手续费
       fulFilAmt.takerAmt = amtToTaken.mul(DENOMINATOR-getTakerFeeRate(pair)).div(DENOMINATOR);
       // maker 得到的币数量，扣除手续费
@@ -747,43 +592,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         fulFilAmt.takerAmtToken = fulFilAmt.takerAmt.mul(srcRate).div(1e18);
         fulFilAmt.amtDestToken = fulFilAmt.amtDest.mul(destRate).div(1e18);
       }
-      // if (isMargin(order.flag)) {
-      //   // 回调
-      //   IMarginHolding(marginAddr).onFulfiled(maker, srcEToken, destEToken, makerAmt, takerAmt);
-      // } else {
-      //   balanceOf[destEToken][maker] += makerAmt;
-      // }
-
-      // // todo 买家希望得到的是那种币
-      // // 买家得到的币
-      // // if (srcToken == address(0)) {
-      // //   TransferHelper.safeTransferETH(buyer, buyAmt);
-      // // } else {
-      // // TransferHelper.safeTransfer(srcEToken, taker, takerAmt);
-
-      // // _swap(tokenAmt.srcEToken, destToken, order.to, to, takerAmt, makerAmt, isMargin(order.flag));
-
-      // order.tokenAmt.fulfiled += amtToTaken;
-
-      // if (order.tokenAmt.fulfiled >= order.tokenAmt.amountInMint) {
-      //   //
-      //   order.flag |= _ORDER_CLOSED;
-      //   _removeOrder(order);
-      // }
-
-      // return (takerAmt, makerAmt, amtDest);
     }
-
-    // function fulfilOrders(uint[] memory orderIds, uint[] memory amtToTaken) external whenOpen {
-    //     require(orderIds.length == amtToTaken.length, "array length should equal");
-
-    //     for (uint i = 0; i < orderIds.length; i ++) {
-    //       try fulfilOrder(orderIds[i], amtToTaken[i]) {
-    //       } catch {
-    //         // nothing
-    //       }
-    //     }
-    // }
 
     // withdraw etoken
     // token should be etoken
