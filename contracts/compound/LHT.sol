@@ -74,6 +74,7 @@ contract LHT is CToken, ILHT {
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
     function redeem(uint redeemTokens) external returns (uint) {
+        console.log("redeem LHT:", redeemTokens);
         return redeemInternal(redeemTokens);
     }
 
@@ -167,6 +168,7 @@ contract LHT is CToken, ILHT {
     }
 
     function doTransferOut(address payable to, uint amount) internal {
+        console.log("LHT doTransferOut:", to, amount);
         /* Send the Ether, with minimal gas and revert on failure */
         to.transfer(amount);
     }

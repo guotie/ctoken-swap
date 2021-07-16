@@ -4,7 +4,7 @@ import { BigNumber, BigNumberish, Contract } from 'ethers'
 
 import { getContractAt, getContractBy, getContractByNameAddr } from '../utils/contracts'
 
-import { DeployContracts, deployAll, deployTokens, Tokens, getTokenContract, getCTokenContract, deployWHT } from '../deployments/deploys'
+import { DeployContracts, deployAll, deployTokens, Tokens, getTokenContract, getCTokenContract, deployWHT, zeroAddress } from '../deployments/deploys'
 import createCToken from './shared/ctoken'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import sleep from '../utils/sleep';
@@ -128,6 +128,15 @@ describe("ctoken router 测试", function() {
     await createPair(doge, wht.address)
   })
 
+  const getOrCreateCTokenAddress = async (token: string) => {
+    let ctoken = await delegatorFactory.getCTokenAddressPure(token)
+    if (ctoken !== zeroAddress) {
+      return ctoken
+    }
+    // create it !
+    await delegatorFactory.getCTokenAddress(token)
+    return delegatorFactory.getCTokenAddressPure(token)
+  }
   // create pair
   const createPair = async (tokenA: string, tokenB: string) => {
     let pair = await mdexFactory.pairFor(tokenA, tokenB)
@@ -135,8 +144,10 @@ describe("ctoken router 测试", function() {
       // alreday exist
       return pair
     }
+    let ctokenA = await getOrCreateCTokenAddress(tokenA)
+      , ctokenB = await getOrCreateCTokenAddress(tokenB)
     // console.log('create pair for: %s %s', tokenA, tokenB)
-    let tx = await mdexFactory.createPair(tokenA, tokenB)
+    let tx = await mdexFactory.createPair(tokenA, tokenB, ctokenA, ctokenB)
     await tx.wait(2)
     pair = await mdexFactory.pairFor(tokenA, tokenB)
     console.log('create pair: tokenA: %s tokenB: %s', tokenA, tokenB, pair)
@@ -270,6 +281,7 @@ describe("ctoken router 测试", function() {
     const tx = await router.addLiquidity(ctoken0.address, ctoken1.address, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(60), {gasLimit: gas})
     await tx.wait(1);
     const b1 = await pair.balanceOf(deployer)
+    expect(b1).to.gt(b0)
     console.log('after mint, LP %s balance: %s', pair.address, b1.toString())
   }
 

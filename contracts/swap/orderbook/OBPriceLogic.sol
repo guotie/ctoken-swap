@@ -49,35 +49,47 @@ library OBPriceLogic {
         return rate.add(inc);
     }
 
-    /// @dev 根据价格计算 amtToTaken 对应的 amtOut
+    function refreshTokenExchangeRate(ICToken ctoken) public returns (uint256) {
+        return ctoken.exchangeRateCurrent();
+    }
+
+    /// @dev 根据价格计算 amtToTaken 对应的 amtOut. 如果挂单时 destToken 是 ctoken, 则直接计算比例; 否则, 需要将挂单设置的guaranteeAmountOut转换为 etoken 数量, 再计算
     /// @param data OBPrice to calcutation
     /// @param amtToTaken amount to taken, in etoken
     /// @return maker 得到的币数量; 单位 etoken 
-    function convertBuyAmountByETokenIn(DataTypes.TokenAmount memory data, uint amtToTaken) public view returns (uint) {
-        address src = data.srcToken;
-        address srcEToken = data.srcEToken;
+    function convertBuyAmountByETokenIn(
+                    DataTypes.TokenAmount memory data,
+                    uint amtToTaken
+                )
+                public
+                view
+                returns (uint) {
+        // address src = data.srcToken;
+        // address srcEToken = data.srcEToken;
         address dst = data.destToken;
         address dstEToken = data.destEToken;
-        // uint256 feeTaker = DENOMINATOR - data.feeTaker;
-        // uint256 feeMaker = DENOMINATOR - data.feeMaker;
+        // // uint256 feeTaker = DENOMINATOR - data.feeTaker;
+        // // uint256 feeMaker = DENOMINATOR - data.feeMaker;
 
-        if (src == srcEToken && dst == dstEToken) {
+        if (dst == dstEToken) {
             // 挂单就是以 etoken 来挂的
-            return amtToTaken.mul(data.guaranteeAmountOut).div(data.amountIn);
-            // return amtToSent;
+            return amtToTaken.mul(data.guaranteeAmountOut).div(data.amountInMint);
         }
+        uint destRate = getCurrentExchangeRate(ICToken(dstEToken));
+        uint destEAmt = data.guaranteeAmountOut.mul(1e18).div(destRate);
+        return amtToTaken.mul(destEAmt).div(data.amountInMint);
 
-        // 由于目前 create order已经限制了必须同时为 token 或者 etoken
-        require(src != srcEToken && dst != dstEToken, "invalid orderbook tokens");
+        // // 由于目前 create order已经限制了必须同时为 token 或者 etoken
+        // require(src != srcEToken && dst != dstEToken, "invalid orderbook tokens");
         
-        // price = amtOut/amtIn = eAmtOut*rateOut/(eAmtIn*rateIn)
-        // eprice = (price*rateIn)/rateOut = (amtOut*rateIn)/(amtIn*rateOut)
-        uint256 rateIn = getCurrentExchangeRate(ICToken(srcEToken));
-        uint256 rateOut = getCurrentExchangeRate(ICToken(dstEToken));
+        // // price = amtOut/amtIn = eAmtOut*rateOut/(eAmtIn*rateIn)
+        // // eprice = (price*rateIn)/rateOut = (amtOut*rateIn)/(amtIn*rateOut)
+        // uint256 rateIn = getCurrentExchangeRate(ICToken(srcEToken));
+        // uint256 rateOut = getCurrentExchangeRate(ICToken(dstEToken));
 
-        // 吃单者需要转入的币的数量
-        return amtToTaken.mul(rateIn).mul(data.guaranteeAmountOut).div(data.amountIn).div(rateOut);
-        // return (amtToSendByEToken, amtToTaken);
+        // // 吃单者需要转入的币的数量
+        // return amtToTaken.mul(rateIn).mul(data.guaranteeAmountOut).div(data.amountIn).div(rateOut);
+        // // return (amtToSendByEToken, amtToTaken);
     }
 
 

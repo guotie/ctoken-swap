@@ -644,8 +644,10 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
     function redeemInternal(uint redeemTokens) internal nonReentrant returns (uint) {
+        console.log("redeemInternal:", redeemTokens);
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
+            console.log("accrueInterest failed:", error);
             // accrueInterest emits logs on errors, but we still want to log the fact that an attempted redeem failed
             return fail(Error(error), FailureInfo.REDEEM_ACCRUE_INTEREST_FAILED);
         }
@@ -774,6 +776,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          *  On success, the cToken has redeemAmount less of cash.
          *  doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
          */
+        console.log("prepare to doTransferOut ....", vars.redeemAmount);
         doTransferOut(redeemer, vars.redeemAmount);
 
         /* We write previously calculated values into storage */

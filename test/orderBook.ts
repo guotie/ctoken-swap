@@ -160,6 +160,9 @@ describe("ctoken swap 测试", function() {
   }
 
   const getBalance = async (token: string) => {
+    if (token === '0' || token === '') {
+      return ethers.provider.getBalance(deployer)
+    }
     let ctoken = await getTokenContract(token)
     return ctoken.balanceOf(deployer)
   }
@@ -199,6 +202,7 @@ describe("ctoken swap 测试", function() {
 
     let comp = await getContractAt(deployContracts.comptroller)
     console.log("ceth listed:", (await comp.functions.markets(deployContracts.cWHT.address)).isListed)
+    let htBalanceBefore = await getBalance('0')
     // await cancelOrder(o3)
     let o4 = await putOrder(ht, sea, 1000, 1000)
     await cancelOrder(o4)
@@ -206,6 +210,10 @@ describe("ctoken swap 测试", function() {
     await cancelOrder(o5)
     let o6 = await putOrder(ht, sea, 1000, 2000)
     await cancelOrder(o6)
+
+    let htBalanceAfter = await getBalance('0')
+    console.log('ht balance:', htBalanceBefore.toString(), htBalanceAfter.toString())
+    // expect(htBalanceAfter).to.eq(htBalanceBefore)
   })
 
   // 对于买家来说的 tokenIn tokenOut
@@ -222,7 +230,7 @@ describe("ctoken swap 测试", function() {
       console.log('tokenIn %s, balance: %s', tokenIn, await tokenC.balanceOf(deployer))
       console.log('tokenOut %s, balance: %s', tokenIn, await tokenOutC.balanceOf(deployer))
       await tokenC.approve(orderBook, amt)
-      await orderBookC.fulfilOrder(orderId, amt)
+      await orderBookC.fulfilOrder(orderId, amt, deployer, true, true)
       console.log('orderbook balance: %s', tokenIn, await tokenC.balanceOf(deployer))
       console.log('tokenIn %s, balance: %s', tokenIn, await tokenC.balanceOf(deployer))
       console.log('tokenOut %s, balance: %s', tokenIn, await tokenOutC.balanceOf(deployer))

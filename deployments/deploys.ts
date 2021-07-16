@@ -305,7 +305,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   const mdexFactory = await _deploy('DeBankFactory', {
     from: deployer,
     // 10% 60% 稳定币 usdt 地址
-    args: [lercFactoryDeployed.address, anchorToken],
+    args: [ anchorToken],
     // args: [namedSigners[0].address, lercFactoryDeployed.address, anchorToken],
     log: log,
   }, verify);
@@ -313,7 +313,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   const router = await _deploy('DeBankRouter', {
     from: deployer,
     // factory wht lht startBlock
-    args: [mdexFactory.address, wht.address, lht.address, 0],
+    args: [mdexFactory.address, wht.address, lht.address, lercFactoryDeployed.address],
     log: log
   }, verify)
 

@@ -104,6 +104,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
     function addNewCToken(address token,address cToken) public returns (uint){
         // require(msg.sender == admin_, "no auth");
 
+        comptroller._supportMarket(cToken);
         //包含两个币互相对应关系
         tokenKeyMapping[token] = cToken;
         cTokenKeyMapping[cToken] = token;
