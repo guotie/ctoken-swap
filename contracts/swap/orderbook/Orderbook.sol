@@ -374,7 +374,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       }
       require(_orderClosed(order.flag) == false, "order has been closed");
 
-      /// 退回未成交部分
+      // 退回未成交部分
       address srcToken = order.tokenAmt.srcToken;
       address srcEToken = order.tokenAmt.srcEToken;
       uint amt = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
@@ -477,7 +477,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     /// @param isToken 用户输入 token 且得到 token, 调用者须 approve 且确保 srcEToken 的 cash 足够兑付
     /// @param partialFill 是否允许部分成交(正好此时部分被其他人taken)
     /// @param isTokenIn taker 的卖出币是否是 token
-    ////// @param data flashloan 合约执行代码
+    /// @param data flashloan 合约执行代码
     /// @return fulFilAmt (买到的币数量, 付出的币数量)
     function fulfilOrder(
                 uint orderId,
