@@ -3,10 +3,13 @@ const { expect } = require("chai");
 import { BigNumber, BigNumberish, Contract, getDefaultProvider } from 'ethers'
 
 import { getContractAt, getContractBy } from '../utils/contracts'
+import { camtToAmount } from '../helpers/exchangRate'
+import { getCTokenContract } from '../helpers/contractHelper'
+
 // import { getCreate2Address } from '@ethersproject/address'
 // import { pack, keccak256 } from '@ethersproject/solidity'
 
-import { DeployContracts, deployAll, deployTokens, Tokens, getTokenContract, getCTokenContract, deployOrderBook } from '../deployments/deploys'
+import { DeployContracts, deployAll, deployTokens, Tokens, getTokenContract, deployOrderBook } from '../deployments/deploys'
 // import createCToken from './shared/ctoken'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 // import sleep from '../utils/sleep';
@@ -30,12 +33,14 @@ describe("ctoken swap 测试", function() {
   let buyer: SignerWithAddress
   let usdt: string
   let sea: string
+  let cusdt: string
+  let csea: string
   let usdtC: Contract
   let seaC: Contract
   let orderBook: string
   let orderBookC: Contract
   let ht = '0x0000000000000000000000000000000000000000'
-
+  let delegatorFactory: Contract
   let buyItems: number[] = []
   let sellItems: number[] = []
 
@@ -68,6 +73,12 @@ describe("ctoken swap 测试", function() {
     sea = tokens.addresses.get('SEA')!
     usdtC = await getTokenContract(usdt, namedSigners[0])
     seaC = await getTokenContract(sea, namedSigners[0])
+    // const delegatorFactoryContract = await getCon
+    delegatorFactory = await getContractAt(deployContracts.lErc20DelegatorFactory)
+    cusdt = await delegatorFactory.getCTokenAddressPure(usdt)
+    console.log('cusdt address:', cusdt)
+    csea = await delegatorFactory.getCTokenAddressPure(sea)
+    console.log('csea address:', csea)
 
     // 部署 SEA/USDT 交易对
     const obArt = await hre.artifacts.readArtifact('OrderBook')
@@ -216,37 +227,51 @@ describe("ctoken swap 测试", function() {
     // expect(htBalanceAfter).to.eq(htBalanceBefore)
   })
 
+  const balanceOf = async (tokenC: Contract, owner: string) => {
+    let amt = await tokenC.balanceOf(owner)
+    return amt.toString()
+  }
   // 对于买家来说的 tokenIn tokenOut
-  const dealOrder = async (tokenIn: string, tokenOut: string, orderId: BigNumberish, amt: BigNumberish) => {
+  const dealOrder = async (tokenIn: string, tokenOut: string, orderId: BigNumberish, amt: BigNumberish, isToken = true) => {
     let tokenC = await getTokenContract(tokenIn)
       , tokenOutC = await getTokenContract(tokenOut)
 
     if (tokenIn == ht) {
       await tokenC.transfer(orderBook, {value: amt})
       console.log('token %s, balance: %s', tokenIn, )
-      await orderBookC.fulfilOrder(orderId, amt, {value: amt})
+      await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [], {value: amt})
     } else {
+      let namt: BigNumber
+      if (isToken) {
+        let ctokenIn = await delegatorFactory.getCTokenAddressPure(tokenIn)
+        let ctokenInC = getCTokenContract(ctokenIn, namedSigners[0])
+        namt = await camtToAmount(ctokenInC, amt)
+      } else {
+        namt = BigNumber.from(amt)
+      }
+      namt = BigNumber.from('100000000000000000000000000000000')
       // await token
-      console.log('tokenIn %s, balance: %s', tokenIn, await tokenC.balanceOf(deployer))
-      console.log('tokenOut %s, balance: %s', tokenIn, await tokenOutC.balanceOf(deployer))
-      await tokenC.approve(orderBook, amt)
-      await orderBookC.fulfilOrder(orderId, amt, deployer, true, true)
-      console.log('orderbook balance: %s', tokenIn, await tokenC.balanceOf(deployer))
-      console.log('tokenIn %s, balance: %s', tokenIn, await tokenC.balanceOf(deployer))
-      console.log('tokenOut %s, balance: %s', tokenIn, await tokenOutC.balanceOf(deployer))
+      console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenC, deployer))
+      console.log('tokenOut %s, balance: %s', tokenOut, await balanceOf(tokenOutC, deployer))
+      console.log('aprrove %s', tokenIn, namt.toString())
+      await tokenC.approve(orderBook, namt)
+      await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [])
+      console.log('orderbook balance: %s', tokenIn, await balanceOf(tokenC, deployer))
+      console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenC, deployer))
+      console.log('tokenOut %s, balance: %s', tokenIn, await balanceOf(tokenOutC, deployer))
 
       let order = await orderBookC.orders(orderId)
       console.log('order status:', order.flag.toHexString(), order.pairAddrIdx.toHexString())
     }
-
   }
 
   it('fulfil order', async () => {
-    let o1 = await putOrder(usdt, sea, 1000, 1000)
+    let o1 = await putOrder(usdt, sea, 100000, 300000)
 
     await dealOrder(sea, usdt, o1, 200)
     await dealOrder(sea, usdt, o1, 200)
     await dealOrder(sea, usdt, o1, 600)
+    await cancelOrder(o1)
   })
 
   // it('cancelOrder', async () => {

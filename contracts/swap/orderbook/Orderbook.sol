@@ -373,6 +373,8 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         require(msg.sender == owner() || msg.sender == order.owner, "cancelOrder: no auth");
       }
       require(_orderClosed(order.flag) == false, "order has been closed");
+
+      /// 退回未成交部分
       address srcToken = order.tokenAmt.srcToken;
       address srcEToken = order.tokenAmt.srcEToken;
       uint amt = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
@@ -395,10 +397,12 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
             uint amtToSend = address(this).balance.sub(balanceBefore);
             TransferHelper.safeTransferETH(order.owner, amtToSend);
           } else {
+            console.log("redeem token:", srcEToken, redeemAmt);
             balanceBefore = IERC20(srcToken).balanceOf(address(this));
             ICToken(srcEToken).redeem(redeemAmt);
             uint amtToSend = IERC20(srcToken).balanceOf(address(this)).sub(balanceBefore);
             TransferHelper.safeTransfer(srcToken, order.owner, amtToSend);
+            console.log("redeem token success", srcEToken, redeemAmt);
           }
         }
         // if (remainingEToken > 0) {
@@ -411,9 +415,15 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       // 杠杆用户成交的币已经转给代持合约, 这里只处理非杠杆用户的币，还给用户
       if (!margin) {
         address dest = order.tokenAmt.destEToken;
+        address destToken = order.tokenAmt.destToken;
         uint balance = balanceOf[dest][order.to];
         if (balance > 0) {
-          _withdraw(order.to, srcEToken, balance, balance);
+          console.log("withdraw fulfiled to maker:", order.to, balance);
+          if (dest == destToken) {
+              _withdraw(order.to, dest, balance, balance);
+          } else {
+              _withdrawUnderlying(order.to, destToken, dest, balance, balance);
+          }
         }
       } else {
         // 通知杠杆合约处理 挂单 srcToken
@@ -504,30 +514,40 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         }
       }
       _getFulfiledAmt(tokenAmt, fulFilAmt, order.pair);
+
+      console.log("takerAmt=%d makerAmt=%d filled=%d", fulFilAmt.takerAmt, fulFilAmt.makerAmt, fulFilAmt.filled);
       
       // 验证转入 taker 的币
       address destEToken = order.tokenAmt.destEToken;
       address srcEToken = order.tokenAmt.srcEToken;
+
+      // 先转币给 taker
+      if (isToken) {
+            // redeem srcEToken
+          IERC20(srcEToken).approve(srcEToken, fulFilAmt.takerAmt);
+          ICToken(srcEToken).redeem(fulFilAmt.takerAmt);
+          TransferHelper.safeTransfer(order.tokenAmt.srcToken, to, fulFilAmt.takerAmtToken);
+      } else {
+          TransferHelper.safeTransfer(srcEToken, to, fulFilAmt.takerAmt);
+      }
+      console.log("transfer srcToken to taker success: %s %d", order.tokenAmt.srcToken, fulFilAmt.takerAmtToken);
+
+      // 从 taker 哪里转入 destToken / destEToken
       if (data.length > 0) {
-        uint256 balanceBefore = IERC20(destEToken).balanceOf(address(this));
-        IHswapV2Callee(to).hswapV2Call(msg.sender, fulFilAmt.takerAmt, fulFilAmt.makerAmt, data);
-        uint256 transferIn = IERC20(destEToken).balanceOf(address(this)).sub(balanceBefore);
-        require(transferIn >= fulFilAmt.amtDest, "not enough");
+          uint256 balanceBefore = IERC20(destEToken).balanceOf(address(this));
+          IHswapV2Callee(to).hswapV2Call(msg.sender, fulFilAmt.takerAmt, fulFilAmt.amtDest, data);
+          uint256 transferIn = IERC20(destEToken).balanceOf(address(this)).sub(balanceBefore);
+          require(transferIn >= fulFilAmt.amtDest, "not enough");
       } else {
           if (isToken) {
             address destToken = order.tokenAmt.destToken;
-            TransferHelper.safeTransferFrom(destEToken, msg.sender, address(this), fulFilAmt.amtDestToken);
+            TransferHelper.safeTransferFrom(destToken, msg.sender, address(this), fulFilAmt.amtDestToken);
             // mint
             IERC20(destToken).approve(destEToken, fulFilAmt.amtDestToken);
             ICToken(destEToken).mint(fulFilAmt.amtDestToken);
-            // redeem srcEToken
-            IERC20(srcEToken).approve(srcEToken, fulFilAmt.takerAmt);
-            ICToken(srcEToken).redeem(fulFilAmt.takerAmt);
-            TransferHelper.safeTransfer(order.tokenAmt.srcToken, to, fulFilAmt.takerAmtToken);
           } else {
             // taker 得到 srcEToken, maker 得到的 destEToken, 暂存在 合约中
             TransferHelper.safeTransferFrom(destEToken, msg.sender, address(this), fulFilAmt.amtDest);
-            TransferHelper.safeTransfer(srcEToken, to, fulFilAmt.takerAmt);
           }
       }
 
