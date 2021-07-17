@@ -340,7 +340,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     // 获取所有订单列表
-    function getAllOrders() public view returns(DataTypes.OrderItem[] memory allOrders) {
+    function getAllOrders() external view returns(DataTypes.OrderItem[] memory allOrders) {
       uint total = 0;
       uint id = 0;
       for (uint i = 0; i < orderId; i ++) {
@@ -456,13 +456,15 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       return fee - 1;
     }
 
-    function _discountFee(uint256 amt, uint256 fee) private pure returns (uint256) {
-        return amt.mul(fee).div(DENOMINATOR);
-    }
+    // function _discountFee(uint256 amt, uint256 fee) private pure returns (uint256) {
+    //     return amt.mul(fee).div(DENOMINATOR);
+    // }
 
     struct FulFilAmt {
       bool isToken;      // 是否是 token
       uint256 filled;    // 成交的 srcEToken
+      uint256 takerFee;  // taker 手续费
+      uint256 makerFee;  // maker 手续费
       uint256 takerAmt;  // taker 得到的 srcEToken = amtDest - fee
       uint256 takerAmtToken; // taker 得到的 srcToken = amtDestToken - fee
       uint256 makerAmt;      // maker 得到的 destEToken
@@ -552,6 +554,8 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
           }
       }
 
+      // todo 将手续费转给 feeTo
+
       // 更改相关的状态
       // 1. 增加 maker 的 balance; 如果是 margin, 转币给 margin, 并执行回调
       // 2. 修改order状态
@@ -580,6 +584,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
           balanceOf[destEToken][maker] += makerGot;
         }
 
+        // 已成交
         order.tokenAmt.fulfiled = order.tokenAmt.fulfiled.add(filled);
 
         if (order.tokenAmt.fulfiled >= order.tokenAmt.amountInMint) {
@@ -601,10 +606,12 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       // 挂单者在不扣除手续费的情况下得到的币的数量
       fulFilAmt.amtDest = OBPriceLogic.convertBuyAmountByETokenIn(tokenAmt, amtToTaken);
 
+      fulFilAmt.takerFee = amtToTaken.mul(getTakerFeeRate(pair)).div(DENOMINATOR);
+      fulFilAmt.makerFee = amtToTaken.mul(getMakerFeeRate(pair)).div(DENOMINATOR);
       // taker得到的币，扣除手续费
-      fulFilAmt.takerAmt = amtToTaken.mul(DENOMINATOR-getTakerFeeRate(pair)).div(DENOMINATOR);
+      fulFilAmt.takerAmt = amtToTaken.sub(fulFilAmt.takerFee);
       // maker 得到的币数量，扣除手续费
-      fulFilAmt.makerAmt = fulFilAmt.amtDest.mul(DENOMINATOR-getMakerFeeRate(pair)).div(DENOMINATOR);
+      fulFilAmt.makerAmt = fulFilAmt.amtDest.sub(fulFilAmt.makerFee);
 
       if (fulFilAmt.isToken) {
         // address srcEToken = tokenAmt.srcEToken;
