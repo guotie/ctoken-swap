@@ -115,7 +115,9 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       wETH = _wETH;
       marginAddr    = _margin;
       ctokenFactory = _ctokenFactory;
+      feeTo = msg.sender;
     }
+
     modifier whenOpen() {
         require(closed == false, "order book closed");
         _;
@@ -476,7 +478,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     /// @param to 合约地址或者 msg.sender
     /// @param isToken 用户输入 token 且得到 token, 调用者须 approve 且确保 srcEToken 的 cash 足够兑付
     /// @param partialFill 是否允许部分成交(正好此时部分被其他人taken)
-    /// @param isTokenIn taker 的卖出币是否是 token
     /// @param data flashloan 合约执行代码
     /// @return fulFilAmt (买到的币数量, 付出的币数量)
     function fulfilOrder(
@@ -655,6 +656,12 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         _withdrawUnderlying(msg.sender, token, etoken, total, amt);
     }
 
+    /// @dev 设置 feeTo 地址
+    function setFeeTo(address to) external onlyOwner {
+      feeTo = to;
+    }
+
+    /// @dev TODO 需要关闭 转出手续费
     function adminTransfer(address token, address to, uint amt) external onlyOwner {
         if (token == address(0)) {
           TransferHelper.safeTransferETH(to, amt);

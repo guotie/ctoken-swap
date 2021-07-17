@@ -43,6 +43,7 @@ contract OBStorage is Ownable {
     address public cETH;  // compound ETH token
     address public ctokenFactory;
     address public marginAddr;  // 代持合约
+    address public feeTo;       // 手续费地址
 
     // maker 手续费 && taker 手续费
     uint public defaultFeeMaker = 30;

@@ -1,6 +1,6 @@
 // import { Contract } from 'ethers/lib/ethers';
 
-import { fstat, writeFileSync } from "fs";
+import { writeFileSync } from "fs";
 
 // import { HardhatRuntimeEnvironment } from 'hardhat/types';
 const hre = require('hardhat')

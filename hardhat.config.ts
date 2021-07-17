@@ -1,3 +1,6 @@
+import path from 'path';
+import fs from 'fs';
+
 import 'dotenv/config';
 import 'solidity-coverage';
 // import '@tenderly/hardhat-tenderly';
@@ -39,6 +42,26 @@ const DEPLOYER_PRIVATE_KEY =
 
 const CONTROLLER_PRIVATE_KEY =
   process.env.CONTROLLER_PRIVATE_KEY || '0000000000000000000000000000000000000000000000000000000000000000';
+
+
+const SKIP_LOAD = process.env.SKIP_LOAD === 'true';
+// Prevent to load scripts before compilation and typechain
+if (!SKIP_LOAD) {
+  // ['misc', 'migrations', 'dev', 'full', 'verifications', 'deployments', 'helpers'].forEach(
+  //   (folder) => {
+      const tasksPath = path.join(__dirname, 'tasks') //, folder);
+      fs.readdirSync(tasksPath)
+        .filter((pth) => pth.includes('.ts'))
+        .forEach((task) => {
+          require(`${tasksPath}/${task}`);
+        });
+  //   }
+  // );
+}
+
+task("hello", "Prints 'Hello, World!'", async () => {
+  console.log("Hello, World!");
+});
 
 export default {
   networks: {
