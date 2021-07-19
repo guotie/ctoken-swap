@@ -19,7 +19,7 @@ import { DataTypes } from "./DataTypes.sol";
 library OBPairConfig {
     uint constant internal MASK_FEE_MAKER  = 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff; // prettier-ignore
     uint constant internal MASK_FEE_TAKER  = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000; // prettier-ignore
-    uint constant internal FEE_DENOMINATOR = 10000;
+    // uint constant internal FEE_DENOMINATOR = 10000;
 
     uint constant internal MAX_FEE_RATE = 1000; // 10%
 

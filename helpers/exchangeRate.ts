@@ -1,13 +1,11 @@
-import { BigNumber, BigNumberish, Contract } from 'ethers'
-
-const hre = require('hardhat')
-const ethers = hre.ethers
+import { BigNumber, Contract, BigNumberish } from 'ethers'
+import { getProvider } from './contractHelper'
 // import { BigNumber, BigNumberish, Contract } from 'ethers'
 
 const e18 = BigNumber.from('1000000000000000000')
 
 export const getBlockNumber = async () => {
-    return ethers.provider.getBlockNumber()
+    return getProvider().getBlockNumber()
 }
 
 // 计算 ctoken 当前的 exchangeRate
@@ -26,7 +24,7 @@ export const getCTokenRate = async (ctoken: Contract) => {
 
 // ctoken 数量转换为对应的 token 数量
 // amt = camt * exchangeRate
-export const camtToAmount = async (ctoken: Contract, camt: BigNumberish): Promise<BigNumber> => {
+export const camtToAmount = async (ctoken: Contract, camt: BigNumberish) => {
     let rate = await getCTokenRate(ctoken)
 
     let amt = BigNumber.from(camt).mul(rate).div(e18) // .add(1)
@@ -36,7 +34,7 @@ export const camtToAmount = async (ctoken: Contract, camt: BigNumberish): Promis
 
 // token 数量转换为对应的 ctoken 数量
 // camt = amt / exchangeRate
-export const amountToCAmount = async (ctoken: Contract, amt: BigNumberish): Promise<BigNumber> => {
+export const amountToCAmount = async (ctoken: Contract, amt: BigNumberish) => {
     let rate = await getCTokenRate(ctoken)
 
     let camt = BigNumber.from(amt).mul(e18).div(rate)

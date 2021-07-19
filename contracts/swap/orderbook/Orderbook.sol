@@ -124,7 +124,8 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     receive() external payable {
-        // assert(msg.sender == WHT || msg.sender == cWHT);
+        //  cETH 中赎回
+        // assert(msg.sender == cWHT);
         // only accept HT via fallback from the WHT contract
     }
 
@@ -142,16 +143,20 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
     function _putOrder(DataTypes.OrderItem storage order) internal {
       uint orderId = order.orderId;
-      bool margin = isMargin(order.flag);
+      uint flag = order.flag;
+      bool margin = isMargin(flag);
       uint addrIdx;
       uint pairIdx;
+      address owner = order.owner;
 
       if (margin) {
-          addrIdx = marginOrders[order.owner].length;
-          marginOrders[order.owner].push(orderId);
+          // margin 订单取 to 地址
+          owner = order.to;
+          addrIdx = marginOrders[owner].length;
+          marginOrders[owner].push(orderId);
       } else {
-          addrIdx = addressOrders[order.owner].length;
-          addressOrders[order.owner].push(orderId);
+          addrIdx = addressOrders[owner].length;
+          addressOrders[owner].push(orderId);
       }
 
       pairIdx = pairOrders[order.pair].length;
@@ -159,13 +164,13 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
       order.pairAddrIdx = maskAddrPairIndex(pairIdx, addrIdx);
 
-      emit CreateOrder(order.owner,
+      emit CreateOrder(owner,
           order.tokenAmt.srcToken,
           order.tokenAmt.destToken,
           orderId,
           order.tokenAmt.amountIn,
           order.tokenAmt.guaranteeAmountOut,
-          order.flag);
+          flag);
     }
 
     function _removeOrder(DataTypes.OrderItem memory order) private {
@@ -175,17 +180,20 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         address owner = order.owner;
         uint rIdx;
         bool margin = isMargin(order.flag);
-        
+
         if (margin) {
-            if ((marginOrders[owner].length > 1) && (addrIdx != marginOrders[owner].length-1)) {
-              rIdx = marginOrders[owner][marginOrders[owner].length - 1];
+            owner = order.to;
+            uint lastIdx = marginOrders[owner].length-1;
+            if (addrIdx != lastIdx) {
+              rIdx = marginOrders[owner][lastIdx];
               marginOrders[owner][addrIdx] = rIdx;
               orders[rIdx].pairAddrIdx = updateAddrIdx(orders[rIdx].pairAddrIdx, addrIdx);
             }
             marginOrders[owner].pop();
         } else {
-            if ((addressOrders[owner].length > 1) && (addrIdx != addressOrders[owner].length-1)) {
-              rIdx = addressOrders[owner][addressOrders[owner].length - 1];
+            uint lastIdx = addressOrders[owner].length-1;
+            if (addrIdx != lastIdx) {
+              rIdx = addressOrders[owner][lastIdx];
               addressOrders[owner][addrIdx] = rIdx;
               orders[rIdx].pairAddrIdx = updateAddrIdx(orders[rIdx].pairAddrIdx, addrIdx);
             }
@@ -202,26 +210,26 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
     // 如果找到 addr 对应的 etoken 地址, 返回 etoken 地址; 否则, addr 本身就是 etoken, 返回 addr
     function _getOrCreateETokenAddress(address addr) internal returns (address) {
-      if (addr == address(0)) {
+      if (addr == address(0) || addr = wETH) {
         return cETH;
       }
       address etoken = ICTokenFactory(ctokenFactory).getCTokenAddressPure(addr);
       if (etoken == address(0)) {
-        // 严格情况下 这里要判断 addr 是否在 etoken mapping 中.
-        // 如果在, 才能说明 addr 是etoken;
+        // 这里要判断 addr 是否在 etoken mapping 中.
+        // 如果在, 才能说明 addr 是 etoken;
         // 如果不在, 说明该 token 还没有对应的 etoken, 需要创建对应的 etoken
         address token = ICTokenFactory(ctokenFactory).getTokenAddress(addr);
         if (token != address(0)) {
           return addr;
         }
-        // addr 是 token, 当不存在对应的etoken, 创建对应的 etoken
+        // addr 是 token, 当不存在对应的 etoken, 创建对应的 etoken
         return ICTokenFactory(ctokenFactory).getCTokenAddress(addr);
       }
       return etoken;
     }
 
     function _getETokenAddress(address addr) internal view returns (address) {
-      if (addr == address(0)) {
+      if (addr == address(0) || addr = wETH) {
         return cETH;
       }
       address etoken = ICTokenFactory(ctokenFactory).getCTokenAddressPure(addr);
@@ -236,7 +244,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     function createOrder(
               address srcToken,
               address destToken,
-              address to,             // 兑换得到的token发送地址, 杠杆传用户地址
+              address to,             // 兑换得到的 token 发送地址, 杠杆传用户地址
               uint amountIn,
               uint guaranteeAmountOut,       // 
               uint flag
@@ -245,7 +253,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
           payable
           whenOpen
           nonReentrant
-          returns (uint) {
+          returns (uint idx) {
       require(srcToken != destToken, "identical token");
 
       if (srcToken == address(0)) {
@@ -262,7 +270,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         // 最低挂单量限制
         require(amountIn > minAmounts[srcToken], "less than min amount");
       }
-      uint idx = orderId ++;
+      idx = orderId ++;
       DataTypes.OrderItem storage order = orders[idx];
       order.orderId = idx;
       order.owner = msg.sender;
@@ -306,20 +314,13 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         require(isMargin(flag), "flag should be margin");
         // 代持合约只能挂 etoken
         require(etoken == srcToken, "src should be etoken");
+        require(to != msg.sender, "to should be user's address");
         require(order.tokenAmt.destEToken == destToken, "dest should be etoken");
       }
-      // if (destToken != order.tokenAmt.destEToken) {
 
-      // } else {
-      //   order.tokenAmt.guaranteeAmountOutEToken = guaranteeAmountOut;
-      // }
-
-      // (address token0, address token1) = srcToken < destToken ? (srcToken, destToken) : (destToken, srcToken);
       order.pair = _pairFor(etoken, destEToken);
 
       _putOrder(order);
-
-      return idx;
     }
 
     function pairFor(address srcToken, address destToken) public view returns(uint pair) {
@@ -547,14 +548,21 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
             TransferHelper.safeTransferFrom(destToken, msg.sender, address(this), fulFilAmt.amtDestToken);
             // mint
             IERC20(destToken).approve(destEToken, fulFilAmt.amtDestToken);
-            ICToken(destEToken).mint(fulFilAmt.amtDestToken);
+            uint ret = ICToken(destEToken).mint(fulFilAmt.amtDestToken);
+            require(ret == 0, "mint failed");
           } else {
             // taker 得到 srcEToken, maker 得到的 destEToken, 暂存在 合约中
             TransferHelper.safeTransferFrom(destEToken, msg.sender, address(this), fulFilAmt.amtDest);
           }
       }
 
-      // todo 将手续费转给 feeTo
+      // 将手续费转给 feeTo
+      if (fulFilAmt.takerFee > 0) {
+        TransferHelper.safeTransfer(srcEToken, feeTo, fulFilAmt.takerFee);
+      }
+      if (fulFilAmt.makerFee > 0) {
+        TransferHelper.safeTransfer(destEToken, feeTo, fulFilAmt.makerFee);
+      }
 
       // 更改相关的状态
       // 1. 增加 maker 的 balance; 如果是 margin, 转币给 margin, 并执行回调
@@ -669,13 +677,13 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     /// @dev TODO 需要关闭 转出手续费
-    function adminTransfer(address token, address to, uint amt) external onlyOwner {
-        if (token == address(0)) {
-          TransferHelper.safeTransferETH(to, amt);
-        } else {
-          TransferHelper.safeTransfer(token, to, amt);
-        }
-    }
+    // function adminTransfer(address token, address to, uint amt) external onlyOwner {
+    //     if (token == address(0)) {
+    //       TransferHelper.safeTransferETH(to, amt);
+    //     } else {
+    //       TransferHelper.safeTransfer(token, to, amt);
+    //     }
+    // }
 
     function _getPairFee(address src, address dest) internal view returns (DataTypes.OBPairConfigMap storage conf) {
       address srcEToken = _getETokenAddress(src);
