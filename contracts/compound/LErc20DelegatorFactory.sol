@@ -50,7 +50,7 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
         //判断comptroller 中有没有 ctoken,有的话直接返回
         if(cToken == address(0)){
             cToken = newDelegator(token);
-            console.log('ctoken of %s not exist, create it: %s', token, cToken);
+            // console.log('ctoken of %s not exist, create it: %s', token, cToken);
         }
         //没有 则创建并返回
         return cToken;
@@ -85,8 +85,8 @@ contract LErc20DelegatorFactory is LErc20DelegatorInterface {
                 comptroller,
                 interestRateModel_,
                 initialExchangeRateMantissa_,
-                strConcat("L", hrc20.name()) ,
-                strConcat("L",hrc20.symbol()) ,
+                strConcat("e", hrc20.name()) ,
+                strConcat("e", hrc20.symbol()) ,
                 decimals_,
                 admin_,
                 implementation_,

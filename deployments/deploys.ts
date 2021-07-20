@@ -310,10 +310,16 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     log: log,
   }, verify);
 
+  // const exchangeRateLib = await _deploy('ExchangeRate', {
+  //       from: deployer,
+  //       args: [],
+  //       log: log,
+  //     }, verify)
   const router = await _deploy('DeBankRouter', {
     from: deployer,
     // factory wht lht startBlock
     args: [mdexFactory.address, wht.address, lht.address, lercFactoryDeployed.address],
+    // libraries: { 'ExchangeRate': exchangeRateLib.address },
     log: log
   }, verify)
 

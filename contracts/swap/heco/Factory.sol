@@ -60,7 +60,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
         // anchorUnderlying = _anchorToken;
         anchorToken = _anchorToken; // lErc20DelegatorFactory.getCTokenAddressPure(_anchorToken);
-        require(anchorToken != address(0), "cToken of anchorToken is 0");
+        require(anchorToken != address(0), "eToken of anchorToken is 0");
     }
 
     function allPairsLength() external view returns (uint) {
@@ -134,7 +134,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     function setPairFeeRate(address pair, uint feeRate) external onlyOwner {
         // require(msg.sender == feeToSetter, 'SwapFactory: FORBIDDEN');
         // 最高手续费不得高于2%
-        require(feeRate <= 200, "SwapFactory: feeRate too high");
+        require(feeRate <= 200, "DeBankSwapFactory: feeRate too high");
         IDeBankPair(pair).updateFeeRate(feeRate);
     }
 

@@ -1,9 +1,9 @@
 // import { Contract } from 'ethers/lib/ethers';
 
 import { writeFileSync } from "fs";
-
 // import { HardhatRuntimeEnvironment } from 'hardhat/types';
 const hre = require('hardhat')
+// require('hardhat-log-remover');
 
 const TASK_FLATTEN_GET_FLATTENED_SOURCE = 'flatten:get-flattened-sources';
 const TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS = 'compile:solidity:get-source-paths';
@@ -11,6 +11,8 @@ const TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS = 'compile:solidity:get-source-path
 const SOLIDITY_PRAGMA = 'pragma solidity';
 const LICENSE_IDENTIFIER = 'License-Identifier';
 const EXPERIMENTAL_ABIENCODER = 'pragma experimental ABIEncoderV2;';
+// const CONSOLE_LOG = 'console.log'
+// const CONSOLE_IMPORT = 'import "hardhat/console.sol";'
 
 
 // const encodeDeployParams = (instance: Contract, args: (string | string[])[]) => {
@@ -52,8 +54,18 @@ const findPath = async (id: string): Promise<string> => {
 };
 
 // Hardhat Flattener, similar to truffle flattener
-const hardhatFlattener = async (filePath: string) =>
-  await hre.run(TASK_FLATTEN_GET_FLATTENED_SOURCE, { files: [filePath] });
+const hardhatFlattener = async (filePath: string): Promise<string> => {
+  // await hre.run('remove-logs')
+  return await hre.run(TASK_FLATTEN_GET_FLATTENED_SOURCE, { files: [filePath] });
+}
+
+const removeComments = (source: any) => {
+  return source.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
+}
+
+const removeBlankLines = (source: any) => {
+  return source.replace(/^\s*[\r\n]/gm, '')
+}
 
 // Verify a smart contract at Polygon Matic network via a GET request to the block explorer
 export const flattenContract = async (
@@ -62,23 +74,14 @@ export const flattenContract = async (
   // instance: Contract,
   // args: (string | string[])[]
 ) => {
-  /*
-    ${net == mumbai or mainnet}
-    https://explorer-${net}.maticvigil.com/api
-    ?module=contract
-    &action=verify
-    &addressHash={addressHash}
-    &name={name}
-    &compilerVersion={compilerVersion}
-    &optimization={false}
-    &contractSourceCode={contractSourceCode}
-  */
-  // const network = (DRE as HardhatRuntimeEnvironment).network.name;
-  // const net = network === EthereumNetworkNames.matic ? 'mainnet' : network;
+
   const filePath = await findPath(id);
   // const encodedConstructorParams = encodeDeployParams(instance, args);
-  const flattenSourceCode = await hardhatFlattener(filePath);
+  let flattenSourceCode = await hardhatFlattener(filePath);
+  // console.log(flattenSourceCode)
 
+  flattenSourceCode = removeComments(flattenSourceCode)
+  // flattenSourceCode = removeBlankLines(flattenSourceCode)
   // Remove pragmas and license identifier after first match, required by block explorers like explorer-mainnet.maticgivil.com or Etherscan
   const cleanedSourceCode = removeLines(
     removeLines(removeLines(flattenSourceCode, LICENSE_IDENTIFIER, 1), SOLIDITY_PRAGMA, 1),

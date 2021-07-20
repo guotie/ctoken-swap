@@ -1,15 +1,23 @@
 const hre = require('hardhat')
-const ethers = hre.ethers
+// const ethers = hre.ethers
+import { flattenContract } from '../helpers/flatten'
 
-async function flat(src: string, to: string) {
-  // let output = 
-  await hre.run("flatten", {
-      files: [src],
-      output: to
-  })
+// flattenContract('Orderbook', './deploy/Orderbook.sol')
+flattenContract('Orderbook', './deploy/Orderbook.sol')
+flattenContract('Factory', './deploy/Factory.sol')
+flattenContract('Router', './deploy/Router.sol')
+flattenContract('StepSwap', './deploy/StepSwap.sol')
 
-  // console.log(output)
-}
 
-flat('contracts/swap/heco/Factory.sol', 'flatten/Facotroy.sol')
-flat('contracts/swap/heco/Router.sol', 'flatten/Router.sol')
+// async function flat(src: string, to: string) {
+//   // let output = 
+//   await hre.run("flatten", {
+//       files: [src],
+//       output: to
+//   })
+
+//   // console.log(output)
+// }
+
+// flat('contracts/swap/heco/Factory.sol', 'flatten/Facotroy.sol')
+// flat('contracts/swap/heco/Router.sol', 'flatten/Router.sol')

@@ -3,7 +3,7 @@ const { expect } = require("chai");
 import { BigNumber, BigNumberish, Contract, getDefaultProvider } from 'ethers'
 
 import { getContractAt, getContractBy } from '../utils/contracts'
-import { camtToAmount } from '../helpers/exchangRate'
+import { camtToAmount } from '../helpers/exchangeRate'
 import { getCTokenContract } from '../helpers/contractHelper'
 
 // import { getCreate2Address } from '@ethersproject/address'
@@ -21,7 +21,7 @@ const e18 = BigNumber.from('1000000000000000000')
 
 let deployContracts: DeployContracts
 // 测试 swap pair
-describe("ctoken swap 测试", function() {
+describe("orderbook 测试", function() {
   let tokens: Tokens
   let namedSigners: SignerWithAddress[]
 
@@ -48,6 +48,8 @@ describe("ctoken swap 测试", function() {
   const e18 = BigNumber.from('1000000000000000000')
   const e30 = BigNumber.from('1000000000000000000000000000000')
 
+  this.timeout(60000000);
+
   before(async () => {
     namedSigners = await ethers.getSigners()
     deployer = namedSigners[0].address
@@ -61,7 +63,7 @@ describe("ctoken swap 测试", function() {
       addresses.push(tokens.addresses.get(key)!)
     }
 
-    deployContracts = await deployAll({log: true, anchorToken: tokens.addresses.get('USDT'), addresses: addresses})
+    deployContracts = await deployAll({log: true, anchorToken: tokens.addresses.get('USDT'), addresses: addresses}, true)
     // console.log('deploy contracts', deployTokens())
     // await getContractAt(deployContracts.unitroller)
     // delegatorFactory = await getContractAt(deployContracts.lErc20DelegatorFactory)
@@ -107,47 +109,22 @@ describe("ctoken swap 测试", function() {
     expect(sea).to.not.be.empty
   })
 
-  // 存 token mint cToken
-  const depositToken = async (token: Contract, ctoken: Contract, amount: BigNumberish) => {
-    await token.approve(ctoken.address, amount)
-    let tx = await ctoken.functions.mint(amount)
-    await token.approve(ctoken.address, 0)
-    await tx.wait(2)
-  }
-
-  const transfer = async (token: Contract, to: string, amount: BigNumberish) => {
-    await expect(token.transfer(to, amount)).to.emit(token, 'Transfer')
-    // await tx.wait(2)
-  }
-
-  const calcPrice = (price: string) => {
-    let s = price
-    if (s.indexOf('.') < 0) {
-      return BigNumber.from(price).mul(e30)
-    }
-
-    // 
-    let parts = s.split('.')
-      , zs = +parts[0]
-      , xs = +('0.' + parts[1])
-
-      let p = BigNumber.from(zs).mul(e30)
-
-      // 忽略8位以后的值
-      return p.add(BigNumber.from(Math.floor(xs * 10000000000)).mul(e30).div(10000000000))
-  }
 
   const putOrder = async (token0: string, token1: string, amtIn: BigNumberish, amtOut: BigNumberish) => {
     const ctoken0 = await getTokenContract(token0)
       // , ctoken1 = getTokenContract(token1)
     let tx: any
     if (token0 === '0x0000000000000000000000000000000000000000') {
-      tx = await orderBookC.createOrder(token0, token1, deployer, amtIn, amtOut, 0, {value: amtIn})
+      let gas = await orderBookC.estimateGas.createOrder(token0, token1, deployer, amtIn, amtOut, 0, {value: amtIn})
+      console.log('estimate ht gas:', gas.toString())
+      tx = await orderBookC.createOrder(token0, token1, deployer, amtIn, amtOut, 0, {value: amtIn, gasLimit: gas})
     } else {
       console.log('approve token0 ....', ctoken0.address)
       await ctoken0.approve(orderBook, BigNumber.from(amtIn).mul(10000))
       // await ctoken0.transfer(orderBook, amtIn)
-      tx = await orderBookC.createOrder(token0, token1, deployer, amtIn, amtOut, 0)
+      let gas = await orderBookC.estimateGas.createOrder(token0, token1, deployer, amtIn, amtOut, 0)
+      console.log('estimate gas:', gas.toString())
+      tx = await orderBookC.createOrder(token0, token1, deployer, amtIn, amtOut, 0, {gasLimit: gas})
     }
 
     let receipt = await tx.wait(1)
@@ -162,6 +139,14 @@ describe("ctoken swap 测试", function() {
   const cancelOrder = async (orderId: BigNumberish) => {
     console.log('cancel order:', orderId)
     await orderBookC.cancelOrder(orderId)
+  }
+
+  const withdraw = async (etoken: string, amt = 0) => {
+    await orderBookC.withdraw(etoken, amt)
+  }
+
+  const withdrawUnderlying = async (token: string, amt = 0) => {
+    await orderBookC.withdrawUnderlying(token, amt)
   }
 
   const getOrder = async (orderId: BigNumberish) => {
@@ -237,13 +222,15 @@ describe("ctoken swap 测试", function() {
       , tokenOutC = await getTokenContract(tokenOut)
 
     if (tokenIn == ht) {
-      await tokenC.transfer(orderBook, {value: amt})
+      // await tokenC.transfer(orderBook, {value: amt})
       console.log('token %s, balance: %s', tokenIn, )
       await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [], {value: amt})
     } else {
       let namt: BigNumber
       if (isToken) {
+        // console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenC, deployer))
         let ctokenIn = await delegatorFactory.getCTokenAddressPure(tokenIn)
+        console.log('ctoken: %s', ctokenIn)
         let ctokenInC = getCTokenContract(ctokenIn, namedSigners[0])
         namt = await camtToAmount(ctokenInC, amt)
       } else {
@@ -255,7 +242,10 @@ describe("ctoken swap 测试", function() {
       console.log('tokenOut %s, balance: %s', tokenOut, await balanceOf(tokenOutC, deployer))
       console.log('aprrove %s', tokenIn, namt.toString())
       await tokenC.approve(orderBook, namt)
-      await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [])
+
+      let gas = await orderBookC.estimateGas.fulfilOrder(orderId, amt, deployer, true, true, [])
+      console.log('estimate gas:', gas.toString())
+      await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [], {gasLimit: gas})
       console.log('orderbook balance: %s', tokenIn, await balanceOf(tokenC, deployer))
       console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenC, deployer))
       console.log('tokenOut %s, balance: %s', tokenIn, await balanceOf(tokenOutC, deployer))
@@ -265,14 +255,33 @@ describe("ctoken swap 测试", function() {
     }
   }
 
-  it('fulfil order', async () => {
+  it('fulfil order, then cancel order', async () => {
     let o1 = await putOrder(usdt, sea, 100000, 300000)
 
     await dealOrder(sea, usdt, o1, 200)
-    await dealOrder(sea, usdt, o1, 200)
-    await dealOrder(sea, usdt, o1, 600)
+    // await dealOrder(sea, usdt, o1, 200)
+    // await dealOrder(sea, usdt, o1, 600)
     await cancelOrder(o1)
   })
+
+  it('fulfil order, then withdraw', async () => {
+    let o1 = await putOrder(usdt, sea, 100000, 300000)
+
+    await dealOrder(sea, usdt, o1, 200)
+    // await dealOrder(sea, usdt, o1, 200)
+    // await dealOrder(sea, usdt, o1, 600)
+    await withdraw(csea, 0)
+  })
+
+  it('fulfil order, then withdrawUnderlying', async () => {
+    let o1 = await putOrder(usdt, sea, 100000, 300000)
+
+    await dealOrder(sea, usdt, o1, 200)
+    // await dealOrder(sea, usdt, o1, 200)
+    // await dealOrder(sea, usdt, o1, 600)
+    await withdrawUnderlying(csea, 0)
+  })
+
 
   // it('cancelOrder', async () => {
   //   for (let i of buyItems) {

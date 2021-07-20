@@ -30,7 +30,7 @@ interface IDeBankRouter {
     
     function compAddr() external view returns (address);
 
-    function startBlock() external view returns (uint);
+    // function startBlock() external view returns (uint);
 
     function swapMining() external view returns (address);
 

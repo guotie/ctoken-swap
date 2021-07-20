@@ -24,7 +24,7 @@ import "./OBPriceLogic.sol";
 import "./OBPairConfig.sol";
 import "./SafeMath.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint value);
@@ -90,8 +90,8 @@ interface IOrderBook {
           address indexed taker,
           uint orderId,
           uint amt,
-          uint amtOut,
-          uint remaining);
+          uint amtOut);
+          // uint remaining);
 
     event CancelOrder(address indexed owner,
           address indexed srcToken,
@@ -104,7 +104,8 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     using SafeMath for uint256;
     using OBPairConfig for DataTypes.OBPairConfigMap;
 
-    uint private constant _ORDER_CLOSED = 0x00000000000000000000000000000001;   // 128 bit
+    uint private constant _ORDER_CLOSED  = 0x00000000000000000000000000000001;   // 128 bit
+    uint private constant _HALF_MAX_UINT = uint(-1) >> 1;                            // 0x8fffffffffff...
 
     // _ctokenFactory: ctoken 工厂
     // _wETH: eth/bnb/ht
@@ -210,7 +211,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
     // 如果找到 addr 对应的 etoken 地址, 返回 etoken 地址; 否则, addr 本身就是 etoken, 返回 addr
     function _getOrCreateETokenAddress(address addr) internal returns (address) {
-      if (addr == address(0) || addr = wETH) {
+      if (addr == address(0) || addr == wETH) {
         return cETH;
       }
       address etoken = ICTokenFactory(ctokenFactory).getCTokenAddressPure(addr);
@@ -229,7 +230,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     function _getETokenAddress(address addr) internal view returns (address) {
-      if (addr == address(0) || addr = wETH) {
+      if (addr == address(0) || addr == wETH) {
         return cETH;
       }
       address etoken = ICTokenFactory(ctokenFactory).getCTokenAddressPure(addr);
@@ -320,6 +321,14 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
       order.pair = _pairFor(etoken, destEToken);
 
+      // 授权 省去后续 cancel withdraw 授权的麻烦
+      if (IERC20(destEToken).allowance(address(this), destEToken) < _HALF_MAX_UINT) {
+          IERC20(destEToken).approve(destEToken, uint(-1));
+      }
+      if (IERC20(etoken).allowance(address(this), etoken) < _HALF_MAX_UINT) {
+          IERC20(etoken).approve(destEToken, uint(-1));
+      }
+
       _putOrder(order);
     }
 
@@ -365,6 +374,24 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       return (flag & _ORDER_CLOSED) != 0;
     }
     
+    /// @dev 赎回 etoken
+    function _redeemTransfer(
+                    address token,
+                    address etoken,
+                    address to,
+                    uint256 redeemAmt
+                ) private {
+        uint ret = ICToken(etoken).redeem(redeemAmt);
+        require(ret == 0, "redeem failed");
+        // console.log("redeem ceth:", ret, redeemAmt);
+
+        if (token == address(0)) {
+            TransferHelper.safeTransferETH(to, address(this).balance);
+        } else {
+            TransferHelper.safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
+        }
+    }
+
     // 调用者判断是否有足够的 token 可以赎回
     function cancelOrder(uint orderId) public nonReentrant {
       DataTypes.OrderItem storage order = orders[orderId];
@@ -386,27 +413,32 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         // redeem etoken
         // 如果有足够多的 etoken 可以赎回, 则全部赎回; 否则尽可能多的赎回
         // uint cash = ICToken(srcEToken).getCash();
-        uint redeemAmt = amt;
+        // uint redeemAmt = amt;
 
-        if (redeemAmt > 0) {
+        if (amt > 0) {
+          _redeemTransfer(srcToken, srcEToken, order.owner, amt);
+          /*
           // redeem token
           uint balanceBefore;
           if (srcEToken == cETH) {
-            console.log("redeem cETH:", cETH, order.owner);
-            console.log("casH: %d redeemAmt: %d", ICToken(cETH).getCash(), redeemAmt);
+            // console.log("redeem cETH:", cETH, order.owner);
+            // console.log("casH: %d redeemAmt: %d", ICToken(cETH).getCash(), redeemAmt);
             balanceBefore = address(this).balance;
             uint ret = ICToken(cETH).redeem(redeemAmt);
-            console.log("redeem ceth:", ret, redeemAmt);
+            require(ret == 0, "redeem eth failed");
+            // console.log("redeem ceth:", ret, redeemAmt);
             uint amtToSend = address(this).balance.sub(balanceBefore);
             TransferHelper.safeTransferETH(order.owner, amtToSend);
           } else {
-            console.log("redeem token:", srcEToken, redeemAmt);
+            // console.log("redeem token:", srcEToken, redeemAmt);
             balanceBefore = IERC20(srcToken).balanceOf(address(this));
-            ICToken(srcEToken).redeem(redeemAmt);
+            uint ret = ICToken(srcEToken).redeem(redeemAmt);
+            require(ret == 0, "redeem failed");
             uint amtToSend = IERC20(srcToken).balanceOf(address(this)).sub(balanceBefore);
             TransferHelper.safeTransfer(srcToken, order.owner, amtToSend);
-            console.log("redeem token success", srcEToken, redeemAmt);
+            // console.log("redeem token success", srcEToken, redeemAmt);
           }
+          */
         }
         // if (remainingEToken > 0) {
         //   TransferHelper.safeTransfer(srcEToken, order.owner, remainingEToken);
@@ -421,7 +453,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         address destToken = order.tokenAmt.destToken;
         uint balance = balanceOf[dest][order.to];
         if (balance > 0) {
-          console.log("withdraw fulfiled to maker:", order.to, balance);
+          // console.log("withdraw fulfiled to maker:", order.to, balance);
           if (dest == destToken) {
               _withdraw(order.to, dest, balance, balance);
           } else {
@@ -433,7 +465,12 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         IMarginHolding(marginAddr).onCanceled(order.to, srcEToken, order.tokenAmt.destToken, order.tokenAmt.srcToken, amt);
       }
 
-      emit CancelOrder(order.owner, order.tokenAmt.srcToken, order.tokenAmt.destToken, orderId);
+      emit CancelOrder(
+                  order.owner,
+                  order.tokenAmt.srcToken,
+                  order.tokenAmt.destToken,
+                  orderId
+              );
       order.flag |= _ORDER_CLOSED;
       _removeOrder(order);
     }
@@ -456,10 +493,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
       return fee - 1;
     }
-
-    // function _discountFee(uint256 amt, uint256 fee) private pure returns (uint256) {
-    //     return amt.mul(fee).div(DENOMINATOR);
-    // }
 
     struct FulFilAmt {
       bool isToken;      // 是否是 token
@@ -519,22 +552,24 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       }
       _getFulfiledAmt(tokenAmt, fulFilAmt, order.pair);
 
-      console.log("takerAmt=%d makerAmt=%d filled=%d", fulFilAmt.takerAmt, fulFilAmt.makerAmt, fulFilAmt.filled);
+      // console.log("takerAmt=%d makerAmt=%d filled=%d", fulFilAmt.takerAmt, fulFilAmt.makerAmt, fulFilAmt.filled);
       
       // 验证转入 taker 的币
-      address destEToken = order.tokenAmt.destEToken;
-      address srcEToken = order.tokenAmt.srcEToken;
+      address destEToken = tokenAmt.destEToken;
+      address srcEToken = tokenAmt.srcEToken;
 
       // 先转币给 taker
       if (isToken) {
             // redeem srcEToken
-          IERC20(srcEToken).approve(srcEToken, fulFilAmt.takerAmt);
-          ICToken(srcEToken).redeem(fulFilAmt.takerAmt);
-          TransferHelper.safeTransfer(order.tokenAmt.srcToken, to, fulFilAmt.takerAmtToken);
+          // IERC20(srcEToken).approve(srcEToken, fulFilAmt.takerAmt);
+          // uint ret = ICToken(srcEToken).redeem(fulFilAmt.takerAmt);
+          // require(ret == 0, "redeem failed");
+          // TransferHelper.safeTransfer(tokenAmt.srcToken, to, fulFilAmt.takerAmtToken);
+          _redeemTransfer(tokenAmt.srcToken, srcEToken, to, fulFilAmt.takerAmt);
       } else {
           TransferHelper.safeTransfer(srcEToken, to, fulFilAmt.takerAmt);
       }
-      console.log("transfer srcToken to taker success: %s %d", order.tokenAmt.srcToken, fulFilAmt.takerAmtToken);
+      // console.log("transfer srcToken to taker success: %s %d %d", tokenAmt.srcToken, fulFilAmt.takerAmt, fulFilAmt.takerAmtToken);
 
       // 从 taker 哪里转入 destToken / destEToken
       if (data.length > 0) {
@@ -544,7 +579,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
           require(transferIn >= fulFilAmt.amtDest, "not enough");
       } else {
           if (isToken) {
-            address destToken = order.tokenAmt.destToken;
+            address destToken = tokenAmt.destToken;
             TransferHelper.safeTransferFrom(destToken, msg.sender, address(this), fulFilAmt.amtDestToken);
             // mint
             IERC20(destToken).approve(destEToken, fulFilAmt.amtDestToken);
@@ -569,9 +604,14 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       // 2. 修改order状态
       _updateOrder(order, fulFilAmt.filled, fulFilAmt.makerAmt);
 
-      // return (fulFilAmt.takerAmt, makerAmt);
+      emit FulFilOrder(
+              order.owner,
+              msg.sender,
+              orderId,
+              fulFilAmt.filled,
+              fulFilAmt.amtDest
+            );
     }
-
 
     /// @dev 更新状态
     function _updateOrder(
@@ -641,32 +681,50 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     function _withdrawUnderlying(address user, address token, address etoken, uint total, uint amt) private {
         balanceOf[etoken][user] = total.sub(amt);
 
-        if (etoken == cETH) {
-          uint balanceBefore = address(this).balance;
-          ICETH(cETH).redeem(amt);
-          uint redeemAmt = address(this).balance.sub(balanceBefore);
-          TransferHelper.safeTransferETH(user, redeemAmt);
-        } else {
-          uint balanceBefore = IERC20(token).balanceOf(address(this));
-          ICToken(etoken).redeem(amt);
-          uint redeemAmt = IERC20(token).balanceOf(address(this)).sub(balanceBefore);
-          TransferHelper.safeTransfer(token, user, redeemAmt);
-        }
+        // if (etoken == cETH) {
+        //   uint balanceBefore = address(this).balance;
+        //   // approve
+        //   IERC20(cETH).approve(cETH, amt);
+        //   uint ret = ICETH(cETH).redeem(amt);
+        //   require(ret == 0, "redeem eth failed");
+        //   uint redeemAmt = address(this).balance.sub(balanceBefore);
+        //   TransferHelper.safeTransferETH(user, redeemAmt);
+        // } else {
+        //   uint balanceBefore = IERC20(token).balanceOf(address(this));
+        //   // approve
+        //   IERC20(etoken).approve(etoken, amt);
+        //   uint ret = ICToken(etoken).redeem(amt);
+        //   require(ret == 0, "redeem failed");
+        //   uint redeemAmt = IERC20(token).balanceOf(address(this)).sub(balanceBefore);
+        //   TransferHelper.safeTransfer(token, user, redeemAmt);
+        // }
+        _redeemTransfer(token, etoken, user, amt);
     }
 
     // 用户成交后，资金由合约代管, 用户提现得到自己的 etoken
-    function withdraw(address token, uint amt) external {
-        uint total = balanceOf[token][msg.sender];
-        require(total >= amt, "not enough asset");
+    function withdraw(address etoken, uint amt) external {
+        uint total = balanceOf[etoken][msg.sender];
+        require(total > 0, "no asset");
+        if (amt == 0) {
+            amt = total;
+        } else {
+            require(total >= amt, "not enough asset");
+        }
 
-        _withdraw(msg.sender, token, total, amt);
+        _withdraw(msg.sender, etoken, total, amt);
     }
 
     // 用户成交后，资金由合约代管, 用户提现得到自己的 token
     function withdrawUnderlying(address token, uint amt) external {
         address etoken = _getETokenAddress(token);
         uint total = balanceOf[etoken][msg.sender];
-        require(total >= amt, "not enough asset");
+
+        require(total > 0, "no asset");
+        if (amt == 0) {
+            amt = total;
+        } else {
+            require(total >= amt, "not enough asset");
+        }
 
         _withdrawUnderlying(msg.sender, token, etoken, total, amt);
     }

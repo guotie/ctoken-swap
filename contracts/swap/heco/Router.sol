@@ -34,6 +34,10 @@ interface ISwapMining {
     function swap(address account, address input, address output, uint256 amount) external returns (bool);
 }
 
+interface IRewardToken {
+    function reward(uint256 blockNumber) external view returns (uint256);
+}
+
 contract DeBankRouter is IDeBankRouter, Ownable {
     using SafeMath for uint256;
 
@@ -49,18 +53,18 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // 上一个块的总手续费
     uint public allPairFeeLastBlock;
     // 开始分配收益的块
-    uint public startBlock;
+    // uint public startBlock;
     // 记录当前手续费的块数
     uint public currentBlock;
     // tokens created per block to all pair LP
     uint256 public lpPerBlock;      // LP 每块收益
-    uint256 public traderPerBlock;  // 交易者每块收益
+    // uint256 public traderPerBlock;  // 交易者每块收益
     address public rewardToken;     // 收益 token
-    address public lpDepositAddr;   // compound 流动性抵押
-    address public compAddr;        // compound unitroller
+    // address public lpDepositAddr;   // compound 流动性抵押
+    // address public compAddr;        // compound unitroller
     uint256 public feeAlloc;        // 手续费分配方案: 0: 分配给LP; 1: 不分配给LP, 平台收取后兑换为 anchorToken
     // todo How many blocks are halved  182天 应该在 rewardToken 中处理
-    uint256 public halvingPeriod = 5256000;
+    // uint256 public halvingPeriod = 5256000;
 
     modifier ensure(uint deadline) {
         // solhint-disable-next-line
@@ -90,6 +94,11 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         pair = IDeBankFactory(factory).getPair(tokenA, tokenB);
     }
 
+    function setFeeAlloc(uint _feeAlloc) public onlyOwner {
+        require(_feeAlloc == 0 || _feeAlloc == 1, "invalid param feeAlloc");
+        feeAlloc = _feeAlloc;
+    }
+
     function setSwapMining(address _swapMininng) public onlyOwner {
         swapMining = _swapMininng;
     }
@@ -108,43 +117,44 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         quoteTokens.push(token);
     }
 
-    function phase(uint256 blockNumber) public view returns (uint256) {
-        if (halvingPeriod == 0) {
-            return 0;
-        }
-        if (blockNumber > startBlock) {
-            return (blockNumber.sub(startBlock).sub(1)).div(halvingPeriod);
-        }
-        return 0;
-    }
+    // function phase(uint256 blockNumber) public view returns (uint256) {
+    //     if (halvingPeriod == 0) {
+    //         return 0;
+    //     }
+    //     if (blockNumber > startBlock) {
+    //         return (blockNumber.sub(startBlock).sub(1)).div(halvingPeriod);
+    //     }
+    //     return 0;
+    // }
 
     // 计算块奖励
     function reward(uint256 blockNumber) public view returns (uint256) {
         if (rewardToken == address(0)) {
             return 0;
         }
+        return IRewardToken(rewardToken).reward(blockNumber);
         // todo totalSupply !!!
         // if (IERC20(rewardToken).totalSupply() > 1e28) {
         //     return 0;
         // }
-        uint256 _phase = phase(blockNumber);
-        return lpPerBlock.div(2 ** _phase);
+        // uint256 _phase = phase(blockNumber);
+        // return lpPerBlock.div(2 ** _phase);
     }
 
     // todo to be removed
-    function getBlockRewards(uint256 _lastRewardBlock) public view returns (uint256) {
-        uint256 blockReward = 0;
-        uint256 n = phase(_lastRewardBlock);
-        uint256 m = phase(block.number);
-        while (n < m) {
-            n++;
-            uint256 r = n.mul(halvingPeriod).add(startBlock);
-            blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
-            _lastRewardBlock = r;
-        }
-        blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
-        return blockReward;
-    }
+    // function getBlockRewards(uint256 _lastRewardBlock) public view returns (uint256) {
+    //     uint256 blockReward = 0;
+    //     uint256 n = phase(_lastRewardBlock);
+    //     uint256 m = phase(block.number);
+    //     while (n < m) {
+    //         n++;
+    //         uint256 r = n.mul(halvingPeriod).add(startBlock);
+    //         blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
+    //         _lastRewardBlock = r;
+    //     }
+    //     blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
+    //     return blockReward;
+    // }
 
     function _getOrCreateCtoken(address token) private returns (address ctoken) {
         // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddress(token);
@@ -1108,14 +1118,90 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     //     return IDeBankFactory(factory).getAmountIn(amountOut, reserveIn, reserveOut);
     // }
 
-    function getAmountsOut(uint256 amountIn, address[] memory path, address to) public view returns (uint256[] memory amounts){
+    function getAmountsOut(uint256 amountIn, address[] memory path, address to) public view returns (uint256[] memory amounts) {
         return IDeBankFactory(factory).getAmountsOut(amountIn, path, to);
     }
 
-    function getAmountsIn(uint256 amountOut, address[] memory path, address to) public view returns (uint256[] memory amounts){
+    function getAmountsIn(uint256 amountOut, address[] memory path, address to) public view returns (uint256[] memory amounts) {
         return IDeBankFactory(factory).getAmountsIn(amountOut, path, to);
     }
 
+}
+
+library SwapExchangeRate {
+    using SafeMath for uint;
+    using SafeMath for uint256;
+
+    function getCurrentExchangeRate(ICToken ctoken) public view returns (uint256) {
+        uint rate = ctoken.exchangeRateStored();
+        uint supplyRate = ctoken.supplyRatePerBlock();
+        uint lastBlock = ctoken.accrualBlockNumber();
+        uint blocks = block.number.sub(lastBlock);
+        uint inc = rate.mul(supplyRate).mul(blocks);
+        return rate.add(inc);
+    }
+
+    // function getCtoken(address ctokenFactory, address token) public view returns (address ctoken) {
+    //     // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
+    //     ctoken = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(token);
+    // }
+
+    function path2cpath(
+                    address ctokenFactory,
+                    address[] memory path
+                )
+                public
+                view
+                returns (address[] memory) {
+        address[] memory cpath = new address[](path.length);
+
+        for (uint i = 0; i < path.length; i ++) {
+            cpath[i] = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(path[i]);
+        }
+        return cpath;
+    }
+
+    /// @dev 给定 amountIn, 计算能够兑换得到的amountOut
+    /// @param path token 数组, 注意: 必须是token的地址!!!
+    function getAmountsOutUnderlying(
+                    address factory,
+                    address ctokenFactory,
+                    uint256 amountIn,
+                    address[] memory path,
+                    address to
+                )
+                public
+                view
+                returns (uint256[] memory amounts, uint256 amountOut) {
+        //
+        address[] memory cpath = path2cpath(ctokenFactory, path);
+        uint256 rateIn = getCurrentExchangeRate(ICToken(cpath[0]));
+        uint256 cAmtIn = amountIn.mul(1e18).div(rateIn);
+        amounts = IDeBankFactory(factory).getAmountsOut(cAmtIn, cpath, to);
+        uint256 rateOut = getCurrentExchangeRate(ICToken(cpath[cpath.length-1]));
+        amountOut = amounts[amounts.length-1].mul(rateOut).div(1e18);
+    }
+
+    /// @dev 给定 amountOut, 计算输入的amountIn
+    /// @param path token 数组, 注意: 必须是token的地址!!!
+    function getAmountsInUnderlying(
+                    address factory,
+                    address ctokenFactory,
+                    uint256 amountOut,
+                    address[] memory path,
+                    address to
+                )
+                public
+                view
+                returns (uint256[] memory amounts, uint256 amountIn) {
+        //
+        address[] memory cpath = path2cpath(ctokenFactory, path);
+        uint256 rateOut = getCurrentExchangeRate(ICToken(cpath[cpath.length-1]));
+        uint256 cAmtOut = amountOut.mul(1e18).div(rateOut);
+        amounts = IDeBankFactory(factory).getAmountsIn(cAmtOut, cpath, to);
+        uint256 rateIn = getCurrentExchangeRate(ICToken(cpath[0]));
+        amountIn = amounts[0].mul(rateIn).div(1e18);
+    }
 }
 
 
