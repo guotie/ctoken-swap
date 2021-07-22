@@ -69,6 +69,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         ctokenFactory = ICTokenFactory(_factory);
     }
 
+    /// @dev 在给定中间交易对数量和复杂度的情况下, 有多少种兑换路径
     function calcExchangeRoutes(uint midTokens, uint complexLevel) public view returns (uint total) {
         uint i;
 
@@ -281,7 +282,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             view
             returns (DataTypes.SwapParams memory) {
         DataTypes.SwapFlagMap memory flag = args.flag;
-        require(flag.tokenInIsCToken() == flag.tokenOutIsCToken(), "both token or ctoken"); // 输入输出必须同时为 token 或 ctoken
+        require(flag.tokenInIsCToken() == flag.tokenOutIsCToken(), "both token or etoken"); // 输入输出必须同时为 token 或 ctoken
 
         // bool ctokenIn = flag.tokenInIsCToken();
         // bool ctokenOut = flag.tokenOutIsCToken();

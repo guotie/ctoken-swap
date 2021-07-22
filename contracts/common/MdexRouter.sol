@@ -6,6 +6,8 @@ import "./libraries/SafeMath.sol";
 import "./IMdexFactory.sol";
 import "./IMdexPair.sol";
 
+import "hardhat/console.sol";
+
 interface IMdexRouter {
     function factory() external pure returns (address);
 
@@ -215,7 +217,9 @@ contract MdexRouter is IMdexRouter, Ownable {
         if (IMdexFactory(factory).getPair(tokenA, tokenB) == address(0)) {
             IMdexFactory(factory).createPair(tokenA, tokenB);
         }
+        // console.log("_addLiquidity:", factory, IMdexFactory(factory).getPair(tokenA, tokenB));
         (uint reserveA, uint reserveB) = IMdexFactory(factory).getReserves(tokenA, tokenB);
+        // console.log("pair reserve:", reserveA, reserveB);
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
         } else {

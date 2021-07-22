@@ -208,7 +208,6 @@ library DataTypes {
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
-        uint256 amountOut;
         uint256 tokenPriceGWei;
         address fromAddress;
         address dstReceiver;
@@ -412,7 +411,7 @@ library PathFinder {
             partsLeft = parent[curExchange][partsLeft];
         }
 
-        returnAmount = (answer[n - 1][s] == 0) ? 0 : answer[n - 1][s];
+        returnAmount = (answer[n - 1][s] <= 0) ? int256(0) : answer[n - 1][s];
     }
 }
 
@@ -1128,6 +1127,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         ctokenFactory = ICTokenFactory(_factory);
     }
 
+    
     function calcExchangeRoutes(uint midTokens, uint complexLevel) public view returns (uint total) {
         uint i;
 
@@ -1340,7 +1340,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             view
             returns (DataTypes.SwapParams memory) {
         DataTypes.SwapFlagMap memory flag = args.flag;
-        require(flag.tokenInIsCToken() == flag.tokenOutIsCToken(), "both token or ctoken"); 
+        require(flag.tokenInIsCToken() == flag.tokenOutIsCToken(), "both token or etoken"); 
 
         
         

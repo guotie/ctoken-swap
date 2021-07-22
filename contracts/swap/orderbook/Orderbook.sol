@@ -465,14 +465,15 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         IMarginHolding(marginAddr).onCanceled(order.to, srcEToken, order.tokenAmt.destToken, order.tokenAmt.srcToken, amt);
       }
 
+      order.flag |= _ORDER_CLOSED;
+      _removeOrder(order);
+
       emit CancelOrder(
                   order.owner,
                   order.tokenAmt.srcToken,
                   order.tokenAmt.destToken,
                   orderId
               );
-      order.flag |= _ORDER_CLOSED;
-      _removeOrder(order);
     }
 
     /// @dev get maker fee rate
@@ -506,6 +507,24 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       uint256 amtDestToken;  // taker 付出的 srcToken
     }
 
+    function fulfilOrders(
+                uint[] memory orderIds,
+                uint[] memory amtToTakens,
+                address to,
+                bool isToken,
+                bool partialFill,
+                bytes calldata data
+              )
+              external
+              payable
+              whenOpen
+              nonReentrant {
+        require(orderIds.length == amtToTakens.length, "invalid param");
+
+        for (uint i = 0; i < orderIds.length; i ++) {
+          fulfilOrder(orderIds[i], amtToTakens[i], to, isToken, partialFill, data);
+        }
+    }
 
     /// @dev fulfilOrder orderbook order, etoken in and etoken out
     // order 成交, 收取成交后的币的手续费, 普通订单, maker 成交的币由合约代持; taker 的币发给用户, amtToTaken 是 src EToken 的数量
@@ -524,7 +543,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
                 bool partialFill,
                 bytes calldata data
               )
-              external
+              public
               payable
               whenOpen
               nonReentrant

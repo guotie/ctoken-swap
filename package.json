@@ -13,8 +13,7 @@
     "test": "hardhat test",
     "clean": "hardhat clean",
     "flatten": "ts-node scripts/flatten.ts",
-    "flat:all": "hardhat flatten:all",
-    "compile": "hardhat compile"
+    "compile": "hardhat clean && hardhat compile"
   },
   "author": "bit.god@yandex.com",
   "license": "ISC",

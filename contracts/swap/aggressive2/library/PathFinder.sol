@@ -57,6 +57,6 @@ library PathFinder {
             partsLeft = parent[curExchange][partsLeft];
         }
 
-        returnAmount = (answer[n - 1][s] == 0) ? 0 : answer[n - 1][s];
+        returnAmount = (answer[n - 1][s] <= 0) ? int256(0) : answer[n - 1][s];
     }
 }

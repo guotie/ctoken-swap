@@ -7,6 +7,8 @@ import { abi as tokenABI } from './abi/Token.json'
 import { abi as orderBookABI } from './abi/OrderBook.json'
 import { abi as ctokenFactoryABI } from './abi/LErc20DelegatorFactory.json'
 
+const hre = require('hardhat')
+
 let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hecotest': {
         'USDT': '0x04F535663110A392A6504839BEeD34E019FdB4E0',
@@ -30,6 +32,20 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'Router': '',
         'OrderBook': '',
     }
+}
+
+interface ISwap {
+    fa: string     // factory address
+    fc?: Contract  // factory contract
+    ra: string     // router address
+    rc?: Contract  // router contract
+}
+
+interface ITokenPair {
+    token:  string
+    etoken: string
+    tokenc?:  Contract
+    etokenc?: Contract
 }
 
 const endpoints: { [index: string]: string } = {
@@ -96,6 +112,14 @@ function getCTokenFactoryContract(address: string, signerOrProvider?: Signer | P
     return new Contract(address, ctokenFactoryABI, signerOrProvider ?? getProvider())
 }
 
+async function getTokenPair(factory: string, token: string, signerOrProvider?: Signer | Provider): Promise<ITokenPair> {
+    let etoken = await getETokenAddress(factory, token)
+        , tokenc = getTokenContract(token, signerOrProvider)
+        , etokenc = getCTokenContract(etoken, signerOrProvider)
+
+    return {token: token, tokenc: tokenc, etoken: etoken, etokenc: etokenc}
+}
+
 // 获取 eToken 对应的 token 地址
 async function getTokenAddress(factory: string, etoken: string) {
     let ctokenFactory = getCTokenFactoryContract(factory) // addressOf('ctokenFactory'))
@@ -103,26 +127,45 @@ async function getTokenAddress(factory: string, etoken: string) {
 }
 
 // 获取 token 对应的 etoken 地址
-async function getETokenAddress(factory: string, token: string) {
-    let ctokenFactory = getCTokenFactoryContract(factory) // addressOf('ctokenFactory'))
-    return ctokenFactory.getCTokenAddressPure(token)
+async function getETokenAddress(factory: string | Contract, token: string, signerOrProvider?: Signer | Provider): Promise<string> {
+    if (typeof factory === 'string') {
+        let ctokenFactory = getCTokenFactoryContract(factory, signerOrProvider) // addressOf('ctokenFactory'))
+        return ctokenFactory.getCTokenAddressPure(token)
+    } else {
+        return factory.getCTokenAddressPure(token)
+    }
 }
 
 function getOrderbookContract(address = contractAddress[NETWORK]['OrderBook'], signerOrProvider?: Signer | Provider) {
-    return new Contract(address, orderBookABI, signerOrProvider)
+    return new Contract(address, orderBookABI, signerOrProvider ?? getProvider())
+}
+
+// 根据 abi 地址获取 Contract
+function getContractByAddressABI(addr: string, abi: string, signerOrProvider?: Signer | Provider) {
+    return new Contract(addr, abi, signerOrProvider ?? getProvider())
+}
+// 根据 abi 地址获取 Contract
+async function getContractByAddressName(addr: string, name: string, signerOrProvider?: Signer | Provider) {
+    const art = await hre.artifacts.readArtifact(name)
+    return new Contract(addr, art.abi, signerOrProvider ?? getProvider())
 }
 
 export {
     NETWORK,
+    setNetwork,
+    setContractAddress,
     addressOf,
     // contractAddress,
     getProvider,
     getSigner,
+    getTokenPair,
     getTokenAddress,
     getETokenAddress,
     getTakerSigner,
     getTokenContract,
     getCTokenContract,
     getOrderbookContract,
-    getCTokenFactoryContract
+    getCTokenFactoryContract,
+    getContractByAddressABI,
+    getContractByAddressName
 }

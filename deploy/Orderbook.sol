@@ -131,11 +131,7 @@ contract ReentrancyGuard {
 
 
 library DataTypes {
-    uint constant internal  SRC_IS_ETOKEN = 0x00001; 
-    uint constant internal DEST_IS_ETOKEN = 0x00002;
- 
     struct TokenAmount {
-        
         address srcToken;
         address destToken;
         address srcEToken;             
@@ -144,7 +140,6 @@ library DataTypes {
         uint amountInMint;             
         uint fulfiled;                 
         uint guaranteeAmountOut;       
-        
     }
 
     struct OrderItem {
@@ -153,7 +148,7 @@ library DataTypes {
       uint pair;               
       uint timestamp;          
       uint flag;
-      address owner;
+      address owner;           
       address to;              
       TokenAmount tokenAmt;
     }
@@ -1121,14 +1116,15 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         IMarginHolding(marginAddr).onCanceled(order.to, srcEToken, order.tokenAmt.destToken, order.tokenAmt.srcToken, amt);
       }
 
+      order.flag |= _ORDER_CLOSED;
+      _removeOrder(order);
+
       emit CancelOrder(
                   order.owner,
                   order.tokenAmt.srcToken,
                   order.tokenAmt.destToken,
                   orderId
               );
-      order.flag |= _ORDER_CLOSED;
-      _removeOrder(order);
     }
 
     
@@ -1162,6 +1158,24 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       uint256 amtDestToken;  
     }
 
+    function fulfilOrders(
+                uint[] memory orderIds,
+                uint[] memory amtToTakens,
+                address to,
+                bool isToken,
+                bool partialFill,
+                bytes calldata data
+              )
+              external
+              payable
+              whenOpen
+              nonReentrant {
+        require(orderIds.length == amtToTakens.length, "invalid param");
+
+        for (uint i = 0; i < orderIds.length; i ++) {
+          fulfilOrder(orderIds[i], amtToTakens[i], to, isToken, partialFill, data);
+        }
+    }
 
     
     
@@ -1180,7 +1194,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
                 bool partialFill,
                 bytes calldata data
               )
-              external
+              public
               payable
               whenOpen
               nonReentrant
@@ -1358,8 +1372,8 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     
-    function withdraw(address token, uint amt) external {
-        uint total = balanceOf[token][msg.sender];
+    function withdraw(address etoken, uint amt) external {
+        uint total = balanceOf[etoken][msg.sender];
         require(total > 0, "no asset");
         if (amt == 0) {
             amt = total;
@@ -1367,7 +1381,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
             require(total >= amt, "not enough asset");
         }
 
-        _withdraw(msg.sender, token, total, amt);
+        _withdraw(msg.sender, etoken, total, amt);
     }
 
     
