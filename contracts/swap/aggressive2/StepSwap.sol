@@ -116,6 +116,8 @@ contract StepSwap is Ownable, StepSwapStorage {
         params.flag = args.flag;
         params.block = block.number;
         params.amountIn = args.amountIn;
+        params.tokenIn = args.tokenIn;
+        /// todo 根据 slip 计算出 minAmt
         _makeSwapSteps(args.amountIn, swapDistributes, params);
         return params;
     }
@@ -123,7 +125,39 @@ contract StepSwap is Ownable, StepSwapStorage {
     /// @dev 根据参数执行兑换
     // 用户需要授权
     function unoswap(DataTypes.SwapParams calldata args) public payable returns (DataTypes.StepExecuteParams[] memory) {
-        args;
+        if (args.flag.tokenInIsETH() == false) {
+            // transfer
+            TransferHelper.safeTransferFrom(args.tokenIn, msg.sender, address(this), args.amountIn);
+        } else {
+            require(msg.value >= args.amountIn, "not enough value");
+        }
+
+        address tokenOut;
+        for (uint i = 0; i < args.steps.length; i ++) {
+            DataTypes.StepExecuteParams memory step = args.steps[i];
+            uint flag = step.flag;
+            // do swap
+            if (flag == DataTypes.STEP_UNISWAP_PAIR_SWAP) {
+
+            } else if (flag == DataTypes.STEP_UNISWAP_ROUTER_TOKENS_TOKENS) {
+
+            } else if (flag == DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS) {
+
+            } else if (flag == DataTypes.STEP_EBANK_ROUTER_TOKENS_TOKENS) {
+
+            }
+        }
+        /// 
+        // transfer to user
+        if (args.flag.tokenOutIsETH()) {
+            uint balance = address(this).balance;
+            require(balance >= args.minAmt, "less than minAmt");
+            TransferHelper.safeTransferETH(msg.sender, balance);
+        } else {
+            uint balance = IERC20(tokenOut).balanceOf(address(this));
+            require(balance >= args.minAmt, "less than minAmt");
+            TransferHelper.safeTransfer(tokenOut, msg.sender, balance);
+        }
     }
 
     /// @dev 在给定中间交易对数量和复杂度的情况下, 有多少种兑换路径
@@ -839,5 +873,35 @@ contract StepSwap is Ownable, StepSwapStorage {
 
     function setCtokenFactory(address factory) external onlyOwner {
         ctokenFactory = ICTokenFactory(factory);
+    }
+}
+
+// helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false
+library TransferHelper {
+    function safeApprove(address token, address to, uint value) internal {
+        // bytes4(keccak256(bytes('approve(address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x095ea7b3, to, value));
+        require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: APPROVE_FAILED');
+    }
+
+    function safeTransfer(address token, address to, uint value) internal {
+        // bytes4(keccak256(bytes('transfer(address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0xa9059cbb, to, value));
+        require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: TRANSFER_FAILED');
+    }
+
+    function safeTransferFrom(address token, address from, address to, uint value) internal {
+        // bytes4(keccak256(bytes('transferFrom(address,address,uint256)')));
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x23b872dd, from, to, value));
+        require(success && (data.length == 0 || abi.decode(data, (bool))), 'TransferHelper: TRANSFER_FROM_FAILED');
+    }
+
+    function safeTransferETH(address to, uint value) internal {
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success,) = to.call.value(value)(new bytes(0));
+        require(success, 'TransferHelper: ETH_TRANSFER_FAILED');
     }
 }

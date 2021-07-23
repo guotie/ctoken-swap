@@ -40,7 +40,7 @@ library SwapFlag {
     }
 
     /// @dev if token out is ETH
-    function tokenIsETH(DataTypes.SwapFlagMap memory self) public pure returns (bool) {
+    function tokenOutIsETH(DataTypes.SwapFlagMap memory self) public pure returns (bool) {
         return (self.data & FLAG_TOKEN_OUT_ETH) != 0;
     }
 

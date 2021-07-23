@@ -32,6 +32,7 @@ library DataTypes {
     uint256 public constant STEP_EBANK_ROUTER_ETH_TOKENS        = 0x0000000106;  // prettier-ignore
     uint256 public constant STEP_EBANK_ROUTER_TOKENS_ETH        = 0x0000000107;  // prettier-ignore
 
+    // todo slip, 16 bit, 分母: 10000
     struct SwapFlagMap {
         // bit 0-7 parts, 8 bit
         // bit 8-63: flag token in/out, 64 bit
@@ -92,8 +93,9 @@ library DataTypes {
         // address[] midTokens;  // should always be token
         // SwapFlagMap flag;
         SwapFlagMap flag;
-        uint256 minAmt;
+        address tokenIn;
         uint256 amountIn;
+        uint256 minAmt;
         uint256 block;   // 计算结果的 block
         StepExecuteParams[] steps;
     }
