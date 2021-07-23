@@ -22,6 +22,8 @@ interface IDeBankFactory {
 
     function router() external view returns (address);
 
+    function compAddr() external view returns (address);
+    
     // function feeToSetter() external view returns (address);
 
     function lpFeeRate() external view returns (uint256);

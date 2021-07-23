@@ -33,8 +33,8 @@ library DataTypes {
     uint256 public constant STEP_EBANK_ROUTER_TOKENS_ETH        = 0x0000000107;  // prettier-ignore
 
     struct SwapFlagMap {
-        // bit 0-63: flag token in/out, 64 bit
-        // bit 64-71 parts, 8 bit
+        // bit 0-7 parts, 8 bit
+        // bit 8-63: flag token in/out, 64 bit
         // bit 72-79 max main part, 8 bit
         // bit 80-81 complex level, 2 bit
         // bit 82    allow partial fill
@@ -107,8 +107,8 @@ library DataTypes {
 
     /// @dev 计算各个交易所的每个parts的return
     struct SwapDistributes {
-        bool        ctokenIn;     // 卖出的币是否是 ctoken
-        bool        ctokenOut;    // 买到的币是否是 ctoken
+        bool        isCtoken;     // 买入、卖出的币是否是 ctoken
+        // bool     ctokenOut;    // 买到的币是否是 ctoken
         address     to;           // 交易者地址
         address     tokenIn;
         address     tokenOut;

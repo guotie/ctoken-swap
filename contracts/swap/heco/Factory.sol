@@ -38,6 +38,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     address public anchorToken;           // 手续费锚定币种
     address public router;                // 在 pair 中使用
     bytes32 public initCodeHash;
+    address public compAddr;        // compound unitroller
 
     // lend controller address. should be unitroller address, which is proxy of comptroller
     // LErc20DelegatorInterface public lErc20DelegatorFactory;

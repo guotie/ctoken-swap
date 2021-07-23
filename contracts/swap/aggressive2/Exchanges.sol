@@ -12,6 +12,7 @@ import "./library/SafeMath.sol";
 import "./library/DataTypes.sol";
 import "./library/SwapFlag.sol";
 
+// import "hardhat/console.sol";
 // import "./interface/IAToken.sol";
 
 /**
@@ -62,6 +63,16 @@ library Exchanges {
         return count;
     }
 
+    /// @dev _itemInArray item 是否在数组 vec 中
+    function _itemInArray(address[] memory vec, address item) private pure returns (bool) {
+        for (uint i = 0; i < vec.length; i ++) {
+            if (item == vec[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// @dev 递归计算特定 complex 下 paths 数组: P(midTokens, complex)
     function calcPathComplex(
                 address[][] memory paths,
@@ -69,13 +80,17 @@ library Exchanges {
                 uint complex,
                 address token1,
                 address[] memory midTokens,
-                address[] memory path) internal pure returns (uint) {
+                address[] memory path
+            )
+            internal
+            pure
+            returns (uint) {
         if (complex == 0) {
             address[] memory npath = new address[](path.length+1);
             for (uint i = 0; i < path.length; i ++) {
                 npath[i] = path[i];
             }
-            npath[path.length-1] = token1;
+            npath[npath.length-1] = token1;
             paths[idx] = npath;
             return idx+1;
         }
@@ -86,7 +101,7 @@ library Exchanges {
                 npath[ip] = path[ip];
             }
             address midToken = midTokens[i];
-            npath[path.length-1] = midToken;
+            npath[npath.length-1] = midToken;
 
             uint nMidLen = 0;
             for (uint j = 0; j < midTokens.length; j ++) {
@@ -107,16 +122,7 @@ library Exchanges {
             idx = calcPathComplex(paths, idx, complex-1, token1, nMidTokens, npath);
             // npath.pop();
         }
-    }
-
-    /// @dev _itemInArray item 是否在数组 vec 中
-    function _itemInArray(address[] memory vec, address item) private pure returns (bool) {
-        for (uint i = 0; i < vec.length; i ++) {
-            if (item == vec[i]) {
-                return true;
-            }
-        }
-        return false;
+        return idx;
     }
 
     // 计算所有路径
@@ -126,9 +132,9 @@ library Exchanges {
                 address[] memory midTokens,
                 uint complexLevel
             )
-                internal
-                pure
-                returns (address[][] memory paths) {
+            public
+            pure
+            returns (address[][] memory paths) {
         // uint complexLevel = args.flag.getComplexLevel();
         uint mids = midTokens.length;
         // address token0 = args.tokenIn;
@@ -143,6 +149,8 @@ library Exchanges {
         }
 
         uint total = uniswapRoutes(mids, complexLevel);
+        // console.log("mids=%d complex=%d total path=%d", mids, complexLevel, total);
+
         uint idx = 0;
         paths = new address[][](total);
         // paths[idx] = new address[]{token0, token1};
@@ -170,9 +178,12 @@ library Exchanges {
     }
 
     function linearInterpolation(
-        uint256 value,
-        uint256 parts
-    ) internal pure returns(uint256[] memory rets) {
+                    uint256 value,
+                    uint256 parts
+                )
+                internal
+                pure
+                returns(uint256[] memory rets) {
         rets = new uint256[](parts);
         for (uint i = 0; i < parts; i++) {
             rets[i] = value.mul(i + 1).div(parts);
@@ -181,10 +192,14 @@ library Exchanges {
 
     /// @dev calcDistributes calc swap exchange
     function calcDistributes(
-                DataTypes.Exchange memory ex,
-                address[] memory path,
-                uint[] memory amts,
-                address to) public view returns (uint256[] memory distributes){
+                    DataTypes.Exchange memory ex,
+                    address[] memory path,
+                    uint[] memory amts,
+                    address to
+                )
+                public
+                view
+                returns (uint256[] memory distributes) {
         uint flag = ex.exFlag;
         address addr = ex.contractAddr;
 
@@ -205,7 +220,9 @@ library Exchanges {
 
     // 是否是 uniswap 类似的交易所
     function isUniswapLikeExchange(uint flag) public pure returns (bool) {
-        if (flag == EXCHANGE_UNISWAP_V2 || flag == EXCHANGE_UNISWAP_V3 || flag == EXCHANGE_EBANK_EX) {
+        if (flag == EXCHANGE_UNISWAP_V2 ||
+            flag == EXCHANGE_UNISWAP_V3 ||
+            flag == EXCHANGE_EBANK_EX) {
             return true;
         }
         return false;
@@ -242,7 +259,14 @@ library Exchanges {
     }
 
     /// @dev 计算 token 能够 mint 得到多少 ctoken
-    function convertCompoundCtokenMinted(address ctoken, uint[] memory amounts, uint parts) public view returns (uint256[] memory) {
+    function convertCompoundCtokenMinted(
+                    address ctoken,
+                    uint[] memory amounts,
+                    uint parts
+                )
+                public
+                view
+                returns (uint256[] memory) {
         uint256 rate = _calcExchangeRate(ICToken(ctoken));
         uint256[] memory cAmts = new uint256[](parts);
 
@@ -253,7 +277,14 @@ library Exchanges {
     }
 
     /// @dev 计算 ctoken 能够 redeem 得到多少 token
-    function convertCompoundTokenRedeemed(address ctoken, uint[] memory cAmounts, uint parts) public view returns (uint256[] memory) {
+    function convertCompoundTokenRedeemed(
+                    address ctoken,
+                    uint[] memory cAmounts,
+                    uint parts
+                )
+                public
+                view
+                returns (uint256[] memory) {
         uint256 rate = _calcExchangeRate(ICToken(ctoken));
         uint256[] memory amts = new uint256[](parts);
 
@@ -266,7 +297,12 @@ library Exchanges {
     // mint token in compound
     // token must NOT be ETH, ETH should _depositETH first, then do compound mint
     // 币已经转到合约地址
-    function compoundMintToken(address ctoken, uint256 amount) public returns (uint256) {
+    function compoundMintToken(
+                    address ctoken,
+                    uint256 amount
+                )
+                public
+                returns (uint256) {
         uint256 balanceBefore = IERC20(ctoken).balanceOf(address(this));
         ICToken(ctoken).mint(amount);
 
@@ -274,7 +310,12 @@ library Exchanges {
     }
 
     /// @dev compund mint ETH
-    function compoundMintETH(address weth, uint amount) public returns (uint256) {
+    function compoundMintETH(
+                    address weth,
+                    uint amount
+                )
+                public
+                returns (uint256) {
         IWETH(weth).deposit{value: amount}();
 
         return compoundMintToken(address(weth), amount);
@@ -304,19 +345,42 @@ library Exchanges {
     /// todo 需要考虑 reserve 为 0 的情况
 
     /// @dev uniswap like exchange
-    function uniswapLikeSwap(address router, address[] memory path, uint256 amountIn) public view returns (uint) {
+    function uniswapLikeSwap(
+                    address router,
+                    address[] memory path,
+                    uint256 amountIn
+                )
+                public
+                view
+                returns (uint) {
         uint[] memory amounts = IRouter(router).getAmountsOut(amountIn, path);
         return amounts[amounts.length - 1];
     }
 
     /// @dev ebank exchange
-    function ebankSwap(address router, address[] memory path, uint256 amountIn, address to) public view returns (uint) {
+    function ebankSwap(
+                    address router,
+                    address[] memory path,
+                    uint256 amountIn,
+                    address to
+                )
+                public
+                view
+                returns (uint) {
         uint[] memory amounts = IDeBankRouter(router).getAmountsOut(amountIn, path, to);
         return amounts[amounts.length - 1];
     }
 
     /// @dev swap stable coin in curve
-    function curveSwap(address addr, uint i, uint j, uint dx) public view returns (uint) {
+    function curveSwap(
+                    address addr,
+                    uint i,
+                    uint j,
+                    uint dx
+                )
+                public
+                view
+                returns (uint) {
         return ICurve(addr).get_dy(int128(i), int128(j), dx);
     }
 }

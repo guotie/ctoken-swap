@@ -3,6 +3,8 @@
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
+import "hardhat/console.sol";
+
 /// @dev 寻找最优路径
 
 library PathFinder {
@@ -11,7 +13,7 @@ library PathFinder {
         int256[][] memory amounts // exchangesReturns
     )
         public
-        pure
+        view
         returns(
             int256 returnAmount,
             uint256[] memory distribution
@@ -19,6 +21,7 @@ library PathFinder {
     {
         uint256 n = amounts.length;
 
+        console.log("amounts length:", n, s, amounts[0].length);
         int256[][] memory answer = new int256[][](n); // int[n][s+1]
         uint256[][] memory parent = new uint256[][](n); // int[n][s+1]
 
@@ -34,6 +37,7 @@ library PathFinder {
             }
             parent[0][j] = 0;
         }
+        console.log("initialized...");
 
         for (uint i = 1; i < n; i++) {
             for (uint j = 0; j <= s; j++) {
@@ -50,6 +54,7 @@ library PathFinder {
         }
 
         distribution = new uint256[](n);
+        console.log("distribution:", n);
 
         uint256 partsLeft = s;
         for (uint curExchange = n - 1; partsLeft > 0; curExchange--) {
@@ -58,5 +63,6 @@ library PathFinder {
         }
 
         returnAmount = (answer[n - 1][s] <= 0) ? int256(0) : answer[n - 1][s];
+        console.log("return amount:", uint(returnAmount));
     }
 }

@@ -227,16 +227,19 @@ contract DeBankPair is IDeBankPair, PairStorage {
     }
 
     // 获取 LP 抵押合约地址
-    function _getLPDepositAddr() private view returns (address) {
-        return IDeBankRouter(IDeBankFactory(factory).router()).lpDepositAddr();
+    function _isMarginHoldingAddr(address addr) private view returns (bool) {
+        addr;
+        // todo 判断那些地址是杠杆代持合约地址
+        return false;
+        // return IDeBankRouter(IDeBankFactory(factory).router()).lpDepositAddr();
     }
 
     function _transfer(address from, address to, uint value) private {
         balanceOf[from] = balanceOf[from].sub(value);
         balanceOf[to] = balanceOf[to].add(value);
         // 更改挖矿权
-        address addr = _getLPDepositAddr();
-        if (from != addr && to != addr) {
+        // address addr = _getLPDepositAddr();
+        if (_isMarginHoldingAddr(from) == false && _isMarginHoldingAddr(to) == false) {
             _updateRewardShare();
             // ctoken 挖矿, 负债, 在 totalSupply 减少之前更新
             _updateCtokenMintPerShare();
@@ -371,7 +374,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         if (lhb == address(0)) {
             return 0;
         }
-        address unitroller = IDeBankRouter(IDeBankFactory(factory).router()).compAddr();    // 从 factory/router 中获取
+        address unitroller = IDeBankFactory(factory).compAddr();    // 从 factory/router 中获取
 
         // 有部分币存在 compAccrued 中，没有转出来
         return IERC20(lhb).balanceOf(address(this)) + IUnitroller(unitroller).compAccrued(address(this));
@@ -418,7 +421,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
 
     // 领取交易对两个 ctoken 的存币挖矿收益
     function _claimPairComp() private {
-        address unitroller = IDeBankRouter(IDeBankFactory(factory).router()).compAddr();    // 从 factory/router 中获取
+        address unitroller = IDeBankFactory(factory).compAddr();    // 从 factory/router 中获取
         CToken[] memory cTokens = new CToken[](2); // memory cTokens
 
         cTokens[0] = CToken(cToken0);

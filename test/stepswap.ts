@@ -62,10 +62,23 @@ describe("聚合交易测试", function() {
         , s3: Swap = {fa: '', fc: undefined, ra: '', rc: undefined}
     
     let stepSwapC: Contract
+        , exLibC: Contract
   
     // e18 是 18位数
     const e18 = BigNumber.from('1000000000000000000')
     const deploy = hre.deployments.deploy
+    // uint256 public constant FLAG_TOKEN_IN_ETH          = 0x000000000100; // prettier-ignore
+    // uint256 public constant FLAG_TOKEN_IN_TOKEN        = 0x000000000200; // prettier-ignore
+    // uint256 public constant FLAG_TOKEN_IN_CTOKEN       = 0x000000000400; // prettier-ignore
+    // uint256 public constant FLAG_TOKEN_OUT_ETH         = 0x000000000800; // prettier-ignore
+    // uint256 public constant FLAG_TOKEN_OUT_TOKEN       = 0x000000001000; // prettier-ignore
+    // uint256 public constant FLAG_TOKEN_OUT_CTOKEN      = 0x000000002000; // prettier-ignore
+    const FLAG_TOKEN_IN_ETH      = BigNumber.from('0x000000000100')
+    const FLAG_TOKEN_IN_TOKEN    = BigNumber.from('0x000000000200')
+    const FLAG_TOKEN_IN_CTOKEN   = BigNumber.from('0x000000000400')
+    const FLAG_TOKEN_OUT_ETH     = BigNumber.from('0x000000000800')
+    const FLAG_TOKEN_OUT_TOKEN   = BigNumber.from('0x000000001000')
+    const FLAG_TOKEN_OUT_CTOKEN  = BigNumber.from('0x000000002000')
 
     before(async () => {
         namedSigners = await ethers.getSigners()
@@ -154,10 +167,12 @@ describe("聚合交易测试", function() {
         s.fa = dr.address
         s.fc = new ethers.Contract(dr.address, dr.abi, signer)
         let initHash = await s.fc!.getInitCodeHash()
-        console.log('initHash:', initHash)
+        // console.log('initHash:', initHash)
         await s.fc!.setInitCodeHash(initHash)
         s.ra = router.address
         s.rc = new ethers.Contract(router.address, router.abi, signer)
+
+        return s
     }
 
     const deployTestFixture = async (_wht: string, _ceth: string, _ctokenFactory: string) => {
@@ -165,7 +180,10 @@ describe("聚合交易测试", function() {
         await deployFactoryRouter('0x20', _wht, s2)
         await deployFactoryRouter('0x30', _wht, s3)
 
-        await deployStepSwap(_wht, _ceth, _ctokenFactory)
+        let c = await deployStepSwap(_wht, _ceth, _ctokenFactory)
+        await c.addExchange(1, s1.ra)
+        await c.addExchange(1, s2.ra)
+        await c.addExchange(1, s3.ra)
     }
 
     const deadlineTs = (second: number) => {
@@ -255,8 +273,10 @@ describe("聚合交易测试", function() {
             deterministicDeployment: false, // new Date().toString()
           })
 
+        exLibC = new ethers.Contract(e.address, e.abi, namedSigners[0])
         stepSwapC = new ethers.Contract(result.address, result.abi, namedSigners[0])
         console.log('deploy StepSwap:', result.address)
+        return stepSwapC
     }
     
     // create pair
@@ -271,12 +291,14 @@ describe("聚合交易测试", function() {
         await tx.wait(1)
     }
 
+    
     it('no-middle-token', async () => {
         // await addTestLiquidityByFactory(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
         await addTestLiquidity(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
         await addTestLiquidity(s2.rc!, s2.fc!, seac, usdtc, '2000000000000000000000', '40000000', deployer)
         await addTestLiquidity(s3.rc!, s3.fc!, seac, usdtc, '4000000000000000000000', '80000000', deployer)
 
+        let parts = BigNumber.from(50).or(FLAG_TOKEN_IN_TOKEN).or(FLAG_TOKEN_OUT_TOKEN)
         let res = await stepSwapC.getExpectedReturnWithGas({
             to: deployer,
             tokenIn: sea,
@@ -286,9 +308,10 @@ describe("聚合交易测试", function() {
             fromAddress: deployer,
             dstReceiver: deployer,
             midTokens: [],
-            flag: { data: 0 },
+            flag: { data: parts },
         })
 
         console.log('res:', res)
     })
+    
 })
