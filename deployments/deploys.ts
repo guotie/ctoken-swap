@@ -278,8 +278,8 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   console.log('list markt LHT ...', lht.address)
   // let cunitroller = await ethers.getContractAt(unitroller.abi, unitroller.address, namedSigners[0]);
   await comptroller._supportMarket(lht.address)
-  let listed = await comptroller.markets(lht.address)
-  console.log('listed:', listed.isListed)
+  // let listed = await comptroller.markets(lht.address)
+  // console.log('listed:', listed.isListed)
 
   let lercFactoryDeployed = await _deploy('LErc20DelegatorFactory', {
     from: deployer,

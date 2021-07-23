@@ -63,7 +63,7 @@ library PathFinder {
         returnAmount = (answer[n - 1][s] <= 0) ? int256(0) : answer[n - 1][s];
         console.log("return amount:", uint(returnAmount));
         for (uint i = 0; i < n; i ++) {
-            console.log("distribution[%d]: %d", i, distribution[i]);
+            console.log("distribution[%d]: %d %d", i, distribution[i], uint(amounts[i][s]));
         }
     }
 }

@@ -11,6 +11,7 @@ import { DeployContracts, deployAll, deployTokens, Tokens } from '../deployments
 
 import createCToken from './shared/ctoken'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { AbiCoder } from 'ethers/lib/utils';
 // import sleep from '../utils/sleep';
 // import { deployContract } from 'ethereum-waffle';
 const hre = require('hardhat')
@@ -292,6 +293,23 @@ describe("聚合交易测试", function() {
     }
 
     
+    const printParam = (res: any) => {
+        console.log("mintAmtOut=%s routes=%s block=%s", res.minAmt.toString(), res.steps.length, res.block.toString())
+        for (let i = 0; i < res.steps.length; i ++) {
+            let step = res.steps[i]
+                , flag = step.flag
+            console.log('route %d flag %s', i, flag.toString(), step.data)
+            if (flag.eq(1)) {
+
+            } else if (flag.eq(2)) {
+
+            } else if (flag.eq(BigNumber.from('0x101'))) {
+                console.log('uniswap router token->token')
+            }
+            // AbiCoder.decode('', step)
+        }
+    }
+
     it('no-middle-token', async () => {
         // await addTestLiquidityByFactory(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
         await addTestLiquidity(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
@@ -303,7 +321,7 @@ describe("聚合交易测试", function() {
             to: deployer,
             tokenIn: sea,
             tokenOut: usdt,
-            amountIn: BigNumber.from('2000000000000000000000'),
+            amountIn: BigNumber.from('5000000000000000000'),
             tokenPriceGWei: 0,
             fromAddress: deployer,
             dstReceiver: deployer,
@@ -311,7 +329,7 @@ describe("聚合交易测试", function() {
             flag: { data: parts },
         })
 
-        console.log('res:', res)
+        printParam(res)
     })
     
 })

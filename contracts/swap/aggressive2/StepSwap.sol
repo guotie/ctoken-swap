@@ -109,14 +109,21 @@ contract StepSwap is Ownable, StepSwapStorage {
                 // curve todo
             }
         }
-        // todo desposit eth withdraw eth 的 gas 费用
         console.log("calc done");
 
         // 根据 dist 构建交易步骤
         DataTypes.SwapParams memory params;
         params.flag = args.flag;
+        params.block = block.number;
+        params.amountIn = args.amountIn;
         _makeSwapSteps(args.amountIn, swapDistributes, params);
         return params;
+    }
+
+    /// @dev 根据参数执行兑换
+    // 用户需要授权
+    function unoswap(DataTypes.SwapParams calldata args) public payable returns (DataTypes.StepExecuteParams[] memory) {
+        args;
     }
 
     /// @dev 在给定中间交易对数量和复杂度的情况下, 有多少种兑换路径
@@ -472,8 +479,9 @@ contract StepSwap is Ownable, StepSwapStorage {
             private
             view
             returns (DataTypes.StepExecuteParams memory params) {
+        console.log("_buildUniswapLikeSteps: amt=%d idx=%d useRouter:", amt, idx, useRouter);
         if (useRouter) {
-            _makeUniswapLikeRouteStep(amt, idx, sd);
+            return _makeUniswapLikeRouteStep(amt, idx, sd);
         }
         return _makeUniswapLikePairStep(amt, idx, sd);
     }
@@ -668,8 +676,9 @@ contract StepSwap is Ownable, StepSwapStorage {
             private 
             pure
             returns (DataTypes.StepExecuteParams memory step) {
-        // todo flag 根据 输入 token 输出 token 决定
-        step.flag = sd.exchanges[idx].exFlag;
+        // uniswap router
+        step.flag = DataTypes.STEP_UNISWAP_ROUTER_TOKENS_TOKENS;
+        // step.flag = sd.exchanges[idx].exFlag;
 
         DataTypes.UniswapRouterParam memory rp;
         rp.contractAddr = sd.exchanges[idx].contractAddr;
@@ -709,7 +718,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             rp.pairs[i] = factory.getPair(paths[i], paths[i+1]);
         }
 
-        step.flag = sd.exchanges[idx].exFlag;
+        step.flag = DataTypes.STEP_UNISWAP_PAIR_SWAP;
         step.data = abi.encode(rp);
     }
 
@@ -800,11 +809,6 @@ contract StepSwap is Ownable, StepSwapStorage {
         }
 
         amt = _partAmount(amountIn, part, sd.parts);
-    }
-
-    /// @dev 根据参数执行兑换
-    function unoswap(DataTypes.SwapParams calldata args) public payable returns (DataTypes.StepExecuteParams[] memory) {
-        args;
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

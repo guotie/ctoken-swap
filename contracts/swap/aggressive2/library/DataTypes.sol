@@ -70,15 +70,13 @@ library DataTypes {
 
     struct UniswapPairParam {
         uint256 amount;
-        // address to;
         address[] pairs;
     }
 
     // struct 
     struct StepExecuteParams {
         uint256 flag;           // step execute flag 指示用哪种步骤去执行
-        // bytes[] data;           /// decode by executor
-        bytes data;
+        bytes   data;
     }
 
     /// @dev 兑换 入参
@@ -95,6 +93,8 @@ library DataTypes {
         // SwapFlagMap flag;
         SwapFlagMap flag;
         uint256 minAmt;
+        uint256 amountIn;
+        uint256 block;   // 计算结果的 block
         StepExecuteParams[] steps;
     }
 
