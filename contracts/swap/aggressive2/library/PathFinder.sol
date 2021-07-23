@@ -37,7 +37,6 @@ library PathFinder {
             }
             parent[0][j] = 0;
         }
-        console.log("initialized...");
 
         for (uint i = 1; i < n; i++) {
             for (uint j = 0; j <= s; j++) {
@@ -54,7 +53,6 @@ library PathFinder {
         }
 
         distribution = new uint256[](n);
-        console.log("distribution:", n);
 
         uint256 partsLeft = s;
         for (uint curExchange = n - 1; partsLeft > 0; curExchange--) {
@@ -64,5 +62,8 @@ library PathFinder {
 
         returnAmount = (answer[n - 1][s] <= 0) ? int256(0) : answer[n - 1][s];
         console.log("return amount:", uint(returnAmount));
+        for (uint i = 0; i < n; i ++) {
+            console.log("distribution[%d]: %d", i, distribution[i]);
+        }
     }
 }

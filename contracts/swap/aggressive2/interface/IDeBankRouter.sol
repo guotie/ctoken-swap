@@ -15,6 +15,8 @@
 pragma solidity ^0.6.12;
 
 interface IDeBankRouter {
+    function factory() external view returns (address);
+    
     /// @dev getAmountsOut 对比 IRouter 增加了 to 参数, 可以根据 to 来决定手续费率
     function getAmountsOut(uint256 amountIn, address[] calldata path, address to) external view returns (uint256[] memory amounts);
 

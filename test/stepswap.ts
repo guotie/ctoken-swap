@@ -303,7 +303,7 @@ describe("聚合交易测试", function() {
             to: deployer,
             tokenIn: sea,
             tokenOut: usdt,
-            amountIn: BigNumber.from('30000000000000000000'),
+            amountIn: BigNumber.from('2000000000000000000000'),
             tokenPriceGWei: 0,
             fromAddress: deployer,
             dstReceiver: deployer,

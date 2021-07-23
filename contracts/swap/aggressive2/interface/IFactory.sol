@@ -19,4 +19,10 @@ interface IFactory {
     function router() external view returns (address);
 
     function getPair(address tokenA, address tokenB) external view returns (address pair);
+
+    function getReserves(address tokenA, address tokenB) external view returns (uint256 reserveA, uint256 reserveB);
+    
+    function getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) external view returns (uint256 amountOut);
+    
+    function getAmountsOut(uint256 amountIn, address[] calldata path) external view returns (uint256[] memory amounts);
 }

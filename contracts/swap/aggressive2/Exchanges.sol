@@ -5,8 +5,10 @@ pragma experimental ABIEncoderV2;
 
 import "./interface/IWETH.sol";
 import "./interface/ICToken.sol";
+import "./interface/IFactory.sol";
 import "./interface/IRouter.sol";
 import "./interface/IDeBankRouter.sol";
+import "./interface/IDeBankFactory.sol";
 import "./interface/ICurve.sol";
 import "./library/SafeMath.sol";
 import "./library/DataTypes.sol";
@@ -203,14 +205,14 @@ library Exchanges {
         uint flag = ex.exFlag;
         address addr = ex.contractAddr;
 
-        distributes = new uint256[](amts.length);
+        distributes = new uint256[](amts.length+1);
         if (flag == EXCHANGE_UNISWAP_V2 || flag == EXCHANGE_UNISWAP_V3) {
             for (uint i = 0; i < amts.length; i ++) {
-                distributes[i] = uniswapLikeSwap(addr, path, amts[i]);
+                distributes[i+1] = uniswapLikeSwap(addr, path, amts[i]);
             }
         } else if (flag == EXCHANGE_EBANK_EX) {
             for (uint i = 0; i < amts.length; i ++) {
-                distributes[i] = ebankSwap(addr, path, amts[i], to);
+                distributes[i+1] = ebankSwap(addr, path, amts[i], to);
             }
         } else {
             // should NOT reach here
@@ -353,7 +355,21 @@ library Exchanges {
                 public
                 view
                 returns (uint) {
-        uint[] memory amounts = IRouter(router).getAmountsOut(amountIn, path);
+        IFactory factory = IFactory(IRouter(router).factory());
+        uint[] memory amounts = new uint[](path.length);
+        amounts[0] = amountIn;
+        for (uint i = 0; i < path.length - 1; i ++) {
+            address pair = factory.getPair(path[i], path[i+1]);
+            if (pair == address(0)) {
+                return 0;
+            }
+            (uint ra, uint rb) = factory.getReserves(path[i], path[i+1]);
+            if (ra == 0 || rb == 0) {
+                return 0;
+            }
+            amounts[i+1] = factory.getAmountOut(amounts[i], ra, rb);
+        }
+        // uint[] memory amounts = IRouter(router).getAmountsOut(amountIn, path);
         return amounts[amounts.length - 1];
     }
 
@@ -367,8 +383,28 @@ library Exchanges {
                 public
                 view
                 returns (uint) {
-        uint[] memory amounts = IDeBankRouter(router).getAmountsOut(amountIn, path, to);
+        IDeBankFactory factory = IDeBankFactory(IDeBankRouter(router).factory());
+        uint[] memory amounts = new uint[](path.length);
+        amounts[0] = amountIn;
+        for (uint i = 0; i < path.length - 1; i ++) {
+            address pair = factory.getPair(path[i], path[i+1]);
+            if (pair == address(0)) {
+                return 0;
+            }
+            (uint ra, uint rb, uint feeRate, bool outAnchorToken) = factory.getReservesFeeRate(path[i], path[i + 1], to);
+            if (ra == 0 || rb == 0) {
+                return 0;
+            }
+            if (outAnchorToken) {
+                amounts[i + 1] = factory.getAmountOutFeeRateAnchorToken(amounts[i], ra, rb, feeRate);
+            } else {
+                amounts[i + 1] = factory.getAmountOutFeeRate(amounts[i], ra, rb, feeRate);
+            }
+        }
+        // uint[] memory amounts = IRouter(router).getAmountsOut(amountIn, path);
         return amounts[amounts.length - 1];
+        // uint[] memory amounts = IDeBankRouter(router).getAmountsOut(amountIn, path, to);
+        // return amounts[amounts.length - 1];
     }
 
     /// @dev swap stable coin in curve
