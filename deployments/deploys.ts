@@ -2,6 +2,7 @@
 const hre = require('hardhat')
 const ethers = hre.ethers
 
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { BigNumber, Contract, Signer } from 'ethers'
 import { network } from 'hardhat'
 import sleep from '../utils/sleep'
@@ -74,6 +75,51 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
   } catch(err) {
     console.error('deploy %s failed:', name, err)
   }
+}
+
+export async function deployStepSwap(
+                        wethAddr: string,
+                        ceth: string,
+                        _ctokenFactory: string,
+                        signer: SignerWithAddress,
+                        log: boolean,
+                        verify: boolean
+                      ) {
+  let deployer = signer.address
+  let e = await _deploy('Exchanges', {
+              from: deployer,
+              args: [],
+              log: log,
+          }, verify)
+
+  let p = await _deploy('PathFinder', {
+              from: deployer,
+              args: [],
+              log: log,
+          }, false)
+
+  let s = await _deploy('SwapFlag', {
+              from: deployer,
+              args: [],
+              log: log
+          }, false)
+  let result = await _deploy('StepSwap', {
+      from: deployer,
+      args: [wethAddr, ceth, _ctokenFactory],
+      log: log,
+      libraries: {
+          // DataTypes: d.address,
+          Exchanges: e.address,
+          PathFinder: p.address,
+          SwapFlag: s.address,
+      },
+      // deterministicDeployment: false, // new Date().toString()
+    }, verify)
+
+  // let exLibC = new ethers.Contract(e.address, e.abi, signer)
+  let stepSwapC = new ethers.Contract(result.address, result.abi, signer)
+  console.log('deploy StepSwap:', stepSwapC.address)
+  return stepSwapC
 }
 
 // 部署 OrderBook

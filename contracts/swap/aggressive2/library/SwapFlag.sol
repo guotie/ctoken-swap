@@ -29,6 +29,10 @@ library SwapFlag {
         return (self.data & FLAG_TOKEN_TOKEN) != 0;
     }
 
+    function tokenIsToken(uint flag) public pure returns (bool) {
+        return (flag & FLAG_TOKEN_TOKEN) != 0;
+    }
+    
     /// @dev if token in/out is ctoken
     function tokenIsCToken(DataTypes.SwapFlagMap memory self) public pure returns (bool) {
         return (self.data & FLAG_TOKEN_CTOKEN) != 0;

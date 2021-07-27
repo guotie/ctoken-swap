@@ -21,7 +21,6 @@ library PathFinder {
     {
         uint256 n = amounts.length;
 
-        console.log("amounts length:", n, s, amounts[0].length);
         int256[][] memory answer = new int256[][](n); // int[n][s+1]
         uint256[][] memory parent = new uint256[][](n); // int[n][s+1]
 
@@ -29,6 +28,7 @@ library PathFinder {
             answer[i] = new int256[](s + 1);
             parent[i] = new uint256[](s + 1);
         }
+        // console.log("amounts length:", n, s, amounts[0].length);
 
         for (uint j = 0; j <= s; j++) {
             answer[0][j] = amounts[0][j];
@@ -37,6 +37,7 @@ library PathFinder {
             }
             parent[0][j] = 0;
         }
+        // console.log("amounts length 2:", n, s, amounts[0].length);
 
         for (uint i = 1; i < n; i++) {
             for (uint j = 0; j <= s; j++) {
@@ -51,6 +52,7 @@ library PathFinder {
                 }
             }
         }
+        console.log("amounts length 3:", n, s, amounts[0].length);
 
         distribution = new uint256[](n);
 

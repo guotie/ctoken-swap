@@ -44,16 +44,61 @@ library DataTypes {
     }
 
     /// @dev 询价 计算最佳兑换路径的入参
+    struct RoutePathParams {
+        address tokenIn;
+        address tokenOut;
+        address[] midTokens;      // should always be token
+        uint256 mainRoutes;           // distributeCounts
+        uint256 complex;
+        uint256 parts;
+        bool allowPartial;
+        bool allowBurnchi;
+    }
+
+    /// @dev 询价 计算最佳兑换路径的入参
     struct QuoteParams {
         address to;
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
-        uint256 tokenPriceGWei;
-        address fromAddress;
-        address dstReceiver;
-        address[] midTokens;  // should always be token
-        SwapFlagMap flag;
+        address[] midTokens;      // should always be token
+        uint256 mainRoutes;           // distributeCounts
+        uint256 complex;
+        uint256 parts;
+        // uint256 routes;           // distributeCounts
+        bool allowPartial;
+        bool allowBurnchi;
+        // uint256 tokenPriceGWei;
+        // address fromAddress;
+        // address dstReceiver;
+        // address[] midTokens;      // should always be token
+        // Exchange[]  exchanges;
+        // address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
+        // address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
+        // SwapFlagMap flag;
+    }
+
+    // swap reserves; exchange rates
+    struct SwapReserveRates {
+        bool isEToken;
+        bool allowBurnchi;
+        bool allEbank;                  // 是否全部都由 ebank 兑换
+        uint256 ebankAmt;
+        uint256 amountIn;
+        uint256 swapRoutes;             // 最终经过多少个 route 来兑换
+        address tokenIn;
+        address tokenOut;
+        address etokenIn;
+        address etokenOut;
+        uint256 routes;                 // distributeCounts 交易所数量 * 路径数量
+        uint256 rateIn;
+        uint256 rateOut;
+        uint256[]  fees;
+        Exchange[]  exchanges;
+        address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
+        address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
+        uint256[][] reserves;     // [routes][path]
+        uint256[] distributes;    // 各个 swap 路径分配的兑换数量, 对于 ebank 是 etoken 的数量， 其他 swap 是 token 数量
     }
 
     struct UniswapRouterParam {
@@ -92,8 +137,9 @@ library DataTypes {
         // address dstReceiver;
         // address[] midTokens;  // should always be token
         // SwapFlagMap flag;
-        SwapFlagMap flag;
+        // SwapFlagMap flag;
         address tokenIn;
+        address tokenOut;
         uint256 amountIn;
         uint256 minAmt;
         uint256 block;   // 计算结果的 block
@@ -119,11 +165,11 @@ library DataTypes {
         uint256     rateOut;      // token out exchange rate
         uint[]      amounts;      // split into parts
         uint[]      cAmounts;     // mint to ctoken amounts
-        address[]   midTokens;    // middle token list
-        address[]   midCTokens;   // middle ctoken list
+        // address[]   midTokens;    // middle token list
+        // address[]   midCTokens;   // middle ctoken list
         address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
         address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
-        
+
         uint[]      gases;          // gas 费用估算
         uint[]      pathIdx;        // 使用的 path 序号
         uint[][]    distributes;    // 一级为交易路径, 二级为该交易路径的所有parts对应的return

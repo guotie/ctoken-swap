@@ -205,12 +205,13 @@ library Exchanges {
         uint flag = ex.exFlag;
         address addr = ex.contractAddr;
 
-        distributes = new uint256[](amts.length+1);
         if (flag == EXCHANGE_UNISWAP_V2 || flag == EXCHANGE_UNISWAP_V3) {
-            for (uint i = 0; i < amts.length; i ++) {
-                distributes[i+1] = uniswapLikeSwap(addr, path, amts[i]);
-            }
+            distributes = uniswapLikeSwap(addr, path, amts);
+            // for (uint i = 0; i < amts.length; i ++) {
+            //     distributes[i+1] = uniswapLikeSwap(addr, path, amts[i]);
+            // }
         } else if (flag == EXCHANGE_EBANK_EX) {
+            distributes = new uint256[](amts.length+1);
             for (uint i = 0; i < amts.length; i ++) {
                 distributes[i+1] = ebankSwap(addr, path, amts[i], to);
             }
@@ -251,7 +252,7 @@ library Exchanges {
     }
 
     /// @dev 计算 ctoken 的 exchange rate
-    function _calcExchangeRate(ICToken ctoken) private view returns (uint) {
+    function calcCTokenExchangeRate(ICToken ctoken) public view returns (uint) {
         uint rate = ctoken.exchangeRateStored();
         uint supplyRate = ctoken.supplyRatePerBlock();
         uint lastBlock = ctoken.accrualBlockNumber();
@@ -269,7 +270,7 @@ library Exchanges {
                 public
                 view
                 returns (uint256[] memory) {
-        uint256 rate = _calcExchangeRate(ICToken(ctoken));
+        uint256 rate = calcCTokenExchangeRate(ICToken(ctoken));
         uint256[] memory cAmts = new uint256[](parts);
 
         for (uint i = 0; i < parts; i ++) {
@@ -287,7 +288,7 @@ library Exchanges {
                 public
                 view
                 returns (uint256[] memory) {
-        uint256 rate = _calcExchangeRate(ICToken(ctoken));
+        uint256 rate = calcCTokenExchangeRate(ICToken(ctoken));
         uint256[] memory amts = new uint256[](parts);
 
         for (uint i = 0; i < parts; i ++) {
@@ -347,30 +348,117 @@ library Exchanges {
     /// todo 需要考虑 reserve 为 0 的情况
 
     /// @dev uniswap like exchange
-    function uniswapLikeSwap(
+    // function uniswapLikeSwap(
+    //                 address router,
+    //                 address[] memory path,
+    //                 uint256 amountIn
+    //             )
+    //             public
+    //             view
+    //             returns (uint) {
+    //     IFactory factory = IFactory(IRouter(router).factory());
+    //     uint[] memory amounts = new uint[](path.length);
+    //     amounts[0] = amountIn;
+    //     for (uint i = 0; i < path.length - 1; i ++) {
+    //         address pair = factory.getPair(path[i], path[i+1]);
+    //         if (pair == address(0)) {
+    //             return 0;
+    //         }
+    //         (uint ra, uint rb) = factory.getReserves(path[i], path[i+1]);
+    //         if (ra == 0 || rb == 0) {
+    //             return 0;
+    //         }
+    //         amounts[i+1] = factory.getAmountOut(amounts[i], ra, rb);
+    //     }
+    //     // uint[] memory amounts = IRouter(router).getAmountsOut(amountIn, path);
+    //     return amounts[amounts.length - 1];
+    // }
+
+    function calculateUniswapFormula(uint256 fromBalance, uint256 toBalance, uint256 amount) internal pure returns(uint256) {
+        if (amount == 0) {
+            return 0;
+        }
+        return amount.mul(toBalance).mul(997).div(
+            fromBalance.mul(1000).add(amount.mul(997))
+        );
+    }
+
+    function getReserves(
                     address router,
-                    address[] memory path,
-                    uint256 amountIn
+                    address[] memory path
                 )
                 public
                 view
-                returns (uint) {
+                returns (uint[] memory reserves) {
+
+        uint plen = path.length;
+        reserves = new uint[](plen);
         IFactory factory = IFactory(IRouter(router).factory());
-        uint[] memory amounts = new uint[](path.length);
-        amounts[0] = amountIn;
-        for (uint i = 0; i < path.length - 1; i ++) {
+        for (uint i = 0; i < plen - 1; i ++) {
+            // address t0 = path[i] == address(0) ? weth : path[i];
+            // address t1 = path[i+1] == address(0) ? weth : path[i+1];
             address pair = factory.getPair(path[i], path[i+1]);
             if (pair == address(0)) {
-                return 0;
+                return reserves;
             }
-            (uint ra, uint rb) = factory.getReserves(path[i], path[i+1]);
-            if (ra == 0 || rb == 0) {
-                return 0;
+            reserves[i] = IERC20(path[i]).balanceOf(pair);
+            reserves[i+1] = IERC20(path[i+1]).balanceOf(pair);
+            if (reserves[i] == 0 || reserves[i+1] == 0) {
+                return reserves;
             }
-            amounts[i+1] = factory.getAmountOut(amounts[i], ra, rb);
         }
-        // uint[] memory amounts = IRouter(router).getAmountsOut(amountIn, path);
-        return amounts[amounts.length - 1];
+    }
+
+    function uniswapLikeSwap(
+                    address router,
+                    address[] memory path,
+                    uint256[] memory amountIns
+                )
+                public
+                view
+                returns (uint[] memory amountOuts) {
+        uint plen = path.length;
+        uint[] memory reserves = new uint[](plen);
+        amountOuts = new uint[](amountIns.length+1);
+
+        IFactory factory = IFactory(IRouter(router).factory());
+        for (uint i = 0; i < plen - 1; i ++) {
+            // address t0 = path[i] == address(0) ? weth : path[i];
+            // address t1 = path[i+1] == address(0) ? weth : path[i+1];
+            address pair = factory.getPair(path[i], path[i+1]);
+            if (pair == address(0)) {
+                return amountOuts;
+            }
+            reserves[i] = IERC20(path[i]).balanceOf(pair);
+            reserves[i+1] = IERC20(path[i+1]).balanceOf(pair);
+            if (reserves[i] == 0 || reserves[i+1] == 0) {
+                return amountOuts;
+            }
+        }
+
+        uint[] memory tmp = new uint[](plen);
+        for (uint i = 0; i < amountIns.length; i ++) {
+            tmp[0] = amountIns[i];
+            for (uint j = 0; j < plen - 1; j ++) {
+                tmp[j + 1] = calculateUniswapFormula(reserves[j], reserves[j+1], tmp[j]);
+            }
+            amountOuts[i+1] = tmp[plen-1];
+        }
+
+        // amounts[0] = amountIn;
+        // for (uint i = 0; i < path.length - 1; i ++) {
+        //     address pair = factory.getPair(path[i], path[i+1]);
+        //     if (pair == address(0)) {
+        //         return 0;
+        //     }
+        //     (uint ra, uint rb) = factory.getReserves(path[i], path[i+1]);
+        //     if (ra == 0 || rb == 0) {
+        //         return 0;
+        //     }
+        //     amounts[i+1] = factory.getAmountOut(amounts[i], ra, rb);
+        // }
+        // // uint[] memory amounts = IRouter(router).getAmountsOut(amountIn, path);
+        // return amounts[amounts.length - 1];
     }
 
     /// @dev ebank exchange

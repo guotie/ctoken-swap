@@ -52,7 +52,7 @@ import "hardhat/console.sol";
 //
 
 contract StepSwapStorage {
-    mapping(uint => DataTypes.Exchange) public exchanges;  // 
+    mapping(uint => DataTypes.Exchange) public swaps;  // 
     uint public exchangeCount;  // exchange 数量
     IWETH public weth;
     ILHT public ceth;  // compound eth
@@ -71,9 +71,204 @@ contract StepSwap is Ownable, StepSwapStorage {
         ctokenFactory = ICTokenFactory(_factory);
     }
 
+    function isTokenToken(address token) public view returns (bool) {
+        address ctoken = ctokenFactory.getCTokenAddressPure(token);
+        // 有对应的 ctoken 时, 一定是 token
+        if (ctoken != address(0)) {
+            return true;
+        }
+        // 没有对应的 ctoken 时, 有可能 token 是 ctoken, 也有可能是 token 没有对应的 ctoken 地址
+        if (ctokenFactory.getTokenAddress(token) != address(0)) {
+            // 是 ctoken, 存在对应的 token 地址
+            return false;
+        }
+        return true;
+    }
+
+    function _getCTokenAddressPure(address token) internal view returns (address ctoken) {
+        if (token == address(0)) {
+            return address(ceth);
+        }
+        return ctokenFactory.getCTokenAddressPure(token);
+    }
+
+    /// @dev 根据入参交易对, midTokens, complex 计算 flag, routes, path列表, cpath列表
+    function getRoutesPaths(
+                    DataTypes.QuoteParams memory args
+                )
+                public
+                view
+                returns (
+                    // uint flag,
+                    uint routes,
+                    address[][] memory paths,
+                    address[][] memory cpaths,
+                    DataTypes.Exchange[] memory exchanges
+                    ) {
+        (routes, exchanges) = calcExchangeRoutes(args.midTokens.length, args.complex);
+
+        address ti = args.tokenIn;
+        address to = args.tokenOut;
+        address cti = args.tokenIn;
+        address cto = args.tokenOut;
+        if (args.tokenIn == address(0)) {
+            // flag = flag | SwapFlag.FLAG_TOKEN_IN_ETH;
+            cti = address(ceth);
+        } else if (isTokenToken(args.tokenIn)) {
+            // flag = flag | SwapFlag.FLAG_TOKEN_TOKEN;
+            cti = _getCTokenAddressPure(ti);
+        } else {
+            // flag = flag | SwapFlag.FLAG_TOKEN_CTOKEN;
+            ti = ctokenFactory.getTokenAddress(cti);
+        }
+
+        if (args.tokenOut == address(0)) {
+            // flag = flag | SwapFlag.FLAG_TOKEN_OUT_ETH;
+            cto = address(ceth);
+        } else if (isTokenToken(args.tokenOut)) {
+            // both token
+            require(isTokenToken(args.tokenIn) || args.tokenIn == address(0), "both token in/out should be token");
+            cto = _getCTokenAddressPure(to);
+        } else {
+            // both ctoken
+            require(isTokenToken(args.tokenIn) == false || args.tokenIn == address(0), "both token in/out should be etoken");
+            to = ctokenFactory.getTokenAddress(cto);
+        }
+
+        // flag = flag | ((args.mainRoutes & 0xff) << SwapFlag._SHIFT_MAIN_ROUTES);
+        // flag = flag | ((args.complex & 0x3) << SwapFlag._SHIFT_COMPLEX_LEVEL);
+        // flag = flag | (args.parts & 0xff);
+        // if (args.allowPartial) {
+        //     flag = flag | SwapFlag._MASK_PARTIAL_FILL;
+        // }
+        // if (args.allowBurnchi) {
+        //     flag = flag | SwapFlag._MASK_PARTIAL_FILL;
+        // }
+
+        address[] memory midCTokens = new address[](args.midTokens.length);
+        for (uint i = 0; i < args.midTokens.length; i ++) {
+            midCTokens[i] = _getCTokenAddressPure(args.midTokens[i]);
+        }
+        address[][] memory tmp = Exchanges.allPaths(ti, to, args.midTokens, args.complex);
+        paths = allSwapPaths(tmp);
+        tmp = Exchanges.allPaths(cti, cto, midCTokens, args.complex);
+        cpaths = allSwapPaths(tmp);
+    }
+
+    function allSwapPaths(
+                    address[][] memory ps
+                )
+                public
+                view
+                returns (address[][] memory paths) {
+        uint total = 0;
+        for (uint i = 0; i < exchangeCount; i ++) {
+            DataTypes.Exchange storage ex = swaps[i];
+
+            if (ex.contractAddr == address(0)) {
+                continue;
+            }
+            // DataTypes.Exchange memory ex = exchanges[i];
+            if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
+                total += ps.length;
+            } else {
+                // curve, etc
+                total ++;
+            }
+        }
+        paths = new address[][](total);
+        uint pIdx = 0;
+        for (uint i = 0; i < exchangeCount; i ++) {
+            DataTypes.Exchange storage ex = swaps[i];
+
+            if (ex.contractAddr == address(0)) {
+                continue;
+            }
+            if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
+                for (uint j = 0; j < ps.length; j ++) {
+                    paths[pIdx] = ps[j];
+                    pIdx ++;
+                }
+            } else {
+                // curve, etc
+                paths[pIdx] = new address[](1);
+                pIdx ++;
+            }
+        }
+    }
+
+    /// @dev 获取交易所的 reserve 数据及 exchangeRate
+    function getSwapReserveRates(
+                DataTypes.QuoteParams memory args
+            )
+            public
+            view
+            returns (DataTypes.SwapReserveRates memory params) {
+        require(exchangeCount > 0, "no exchanges");
+        // uint flag;
+        (
+            // flag,
+            params.routes,
+            params.paths,
+            params.cpaths,
+            params.exchanges
+        ) = getRoutesPaths(args);
+
+        console.log("routes: %d paths: %d exchanges: %d", params.routes, params.paths.length, params.exchanges.length);
+        if (isTokenToken(args.tokenIn) || isTokenToken(args.tokenOut)) {
+            address ctokenIn = _getCTokenAddressPure(args.tokenIn);
+            address ctokenOut = _getCTokenAddressPure(args.tokenOut);
+            params.isEToken  = false;
+            params.tokenIn   = args.tokenIn;
+            params.tokenOut  = args.tokenOut;
+            params.etokenIn  = ctokenIn;
+            params.etokenOut = ctokenOut;
+            params.rateIn    = Exchanges.calcCTokenExchangeRate(ICToken(ctokenIn));
+            params.rateOut   = Exchanges.calcCTokenExchangeRate(ICToken(ctokenOut));
+        } else {
+            params.isEToken  = true;
+            params.etokenIn  = args.tokenIn;
+            params.etokenOut = args.tokenOut;
+            params.tokenIn   = ctokenFactory.getTokenAddress(args.tokenIn);
+            params.tokenOut  = ctokenFactory.getTokenAddress(args.tokenOut);
+            params.rateIn    = Exchanges.calcCTokenExchangeRate(ICToken(args.tokenIn));
+            params.rateOut   = Exchanges.calcCTokenExchangeRate(ICToken(args.tokenOut));
+        }
+        // params.routes = routes;
+        // params.paths = paths;
+        // params.cpaths = cpaths;
+        // params.exchanges = exchanges;
+
+        params.reserves = new uint[][](params.routes);
+        for (uint i = 0; i < params.paths.length; i ++) {
+            DataTypes.Exchange memory ex = params.exchanges[i];
+            address[] memory path = params.paths[i];
+
+            // if (ex.contractAddr == address(0)) {
+            //     params.reserves[i] = new uint[](path.length);
+            //     continue;
+            // }
+
+            if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
+                if (Exchanges.isEBankExchange(ex.exFlag)) { // 必须先于 UniswapLike 的判断
+                    // todo set exchange fee
+                    params.fees[i] = 30;
+                    params.reserves[i] = Exchanges.getReserves(ex.contractAddr, params.cpaths[i]);
+                } else {
+                    // todo set exchange fee
+                    params.fees[i] = 30;
+                    params.reserves[i] = Exchanges.getReserves(ex.contractAddr, path);
+                }
+            } else {
+                // curve todo
+            }
+        }
+    }
+
+    /*
     /// @dev 根据入参计算在各个交易所分配的资金比例及交易路径(步骤)
     function getExpectedReturnWithGas(
-                DataTypes.QuoteParams calldata args
+                DataTypes.QuoteParams memory args
             )
             external
             view
@@ -86,14 +281,14 @@ contract StepSwap is Ownable, StepSwapStorage {
 
         // bool ctokenIn = flag.tokenInIsCToken();
         // bool ctokenOut = flag.tokenOutIsCToken();
-        uint distributeCounts = calcExchangeRoutes(args.midTokens.length, args.flag.getComplexLevel());
+        uint distributeCounts = args.routes; // calcExchangeRoutes(args.midTokens.length, args.flag.getComplexLevel());
         uint distributeIdx = 0;
-        uint tokenPriceGWei = args.tokenPriceGWei;
+        uint tokenPriceGWei = 0; // args.tokenPriceGWei;
         DataTypes.SwapDistributes memory swapDistributes = _makeSwapDistributes(args, distributeCounts);
         console.log("routes:", distributeCounts);
 
         for (uint i = 0; i < exchangeCount; i ++) {
-            DataTypes.Exchange memory ex = exchanges[i];
+            DataTypes.Exchange memory ex = swaps[i];
 
             if (ex.contractAddr == address(0)) {
                 continue;
@@ -117,36 +312,177 @@ contract StepSwap is Ownable, StepSwapStorage {
         params.block = block.number;
         params.amountIn = args.amountIn;
         params.tokenIn = args.tokenIn;
+        params.tokenOut = args.tokenOut;
         /// todo 根据 slip 计算出 minAmt
         _makeSwapSteps(args.amountIn, swapDistributes, params);
         return params;
     }
+    */
 
+    /// @dev 根据入参, 生成交易参数
+    function makeSwapRouteSteps(
+                    DataTypes.SwapReserveRates memory args
+                )
+                public
+                view
+                returns (DataTypes.SwapParams memory params) {
+        uint steps = args.swapRoutes;
+
+        if (args.isEToken) {
+            params.tokenIn = args.etokenIn;
+            params.tokenOut = args.etokenOut;
+            // etoken 且不完全由ebank 兑换时, step 增加两步: mint/redeem
+            if (args.allEbank == false) {
+                steps += 2;
+            }
+        } else {
+            params.tokenIn = args.tokenIn;
+            params.tokenOut = args.tokenOut;
+        }
+
+        uint stepIdx = 0;
+        params.steps = new DataTypes.StepExecuteParams[](steps);
+        if (args.isEToken && args.allEbank == false) {
+            // redeem to token
+            params.steps[stepIdx] = _makeCompoundRedeemStep(args.amountIn.sub(args.ebankAmt), args.etokenIn);
+            stepIdx ++;
+        }
+
+        for (uint i = 0; i < args.distributes.length; i ++) {
+            if (args.distributes[i] == 0) {
+                continue;
+            }
+
+            DataTypes.Exchange memory ex = args.exchanges[i];
+            if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
+                if (Exchanges.isEBankExchange(ex.exFlag)) {
+                    params.steps[stepIdx] = makeSwapStep(ex.contractAddr, args.cpaths[i], args.distributes[i]);
+                } else {
+                    params.steps[stepIdx] = makeSwapStep(ex.contractAddr, args.paths[i], args.distributes[i]);
+                }
+            } else {
+                // todo curve, etc
+                DataTypes.StepExecuteParams memory step;
+                step.flag = 0;
+                params.steps[stepIdx] = step;
+            }
+
+            stepIdx ++;
+        }
+
+        if (args.isEToken && args.allEbank == false) {
+            //
+            params.step[stepIdx] = _makeCompoundMintStep(0, args.etokenOut);
+        }
+        params.block = block.number;
+    }
+
+    function makeSwapStep(
+                    address router,
+                    address[] memory path,
+                    bool useRouter,
+                    uint256 amtIn
+                )
+                public
+                view
+                returns (DataTypes.StepExecuteParams memory step) {
+        if (useRouter) {
+            address tokenIn = path[0];
+            address tokenOut = path[path.length-1];
+
+            if (tokenIn == address(0)) {
+                step.flag = DataTypes.STEP_UNISWAP_ROUTER_ETH_TOKENS;
+            } else if (tokenOut == address(0)) {
+                step.flag = DataTypes.STEP_UNISWAP_ROUTER_TOKENS_ETH;
+            } else {
+                step.flag = DataTypes.STEP_UNISWAP_ROUTER_TOKENS_TOKENS;
+            }
+            DataTypes.UniswapRouterParam memory rp;
+            rp.contractAddr = router;
+            rp.amount = amtIn;
+            rp.path = path;
+
+            step.data = abi.encode(rp);
+        } else {
+            IFactory factory = IFactory(IRouter(router).factory());
+            DataTypes.UniswapPairParam memory rp;
+            rp.amount = amtIn;
+            
+            rp.pairs = new address[](paths.length-1);
+            for (uint i = 0; i < paths.length-2; i ++) {
+                rp.pairs[i] = factory.getPair(paths[i], paths[i+1]);
+            }
+
+            step.flag = DataTypes.STEP_UNISWAP_PAIR_SWAP;
+            step.data = abi.encode(rp);
+        }
+    }
+
+    function _makeUniswapLikePairStep(
+                uint amt,
+                uint idx,
+                DataTypes.SwapDistributes memory sd
+                // bool direct
+            )
+            private 
+            view
+            returns (DataTypes.StepExecuteParams memory step) {
+
+        IFactory factory = IFactory(IRouter(sd.exchanges[idx].contractAddr).factory());
+        DataTypes.UniswapPairParam memory rp;
+
+        rp.amount = amt;
+        // if (direct) {
+        //     rp.to = sd.to;
+        // } else {
+            // rp.to = address(this);
+        // }
+        // 构造 pair
+        address[] memory paths = sd.paths[sd.pathIdx[idx]];
+        rp.pairs = new address[](paths.length-1);
+        for (uint i = 0; i < paths.length-1; i ++) {
+            rp.pairs[i] = factory.getPair(paths[i], paths[i+1]);
+        }
+
+        step.flag = DataTypes.STEP_UNISWAP_PAIR_SWAP;
+        step.data = abi.encode(rp);
+    }
     /// @dev 根据参数执行兑换
     // 用户需要授权
-    function unoswap(DataTypes.SwapParams calldata args) public payable returns (DataTypes.StepExecuteParams[] memory) {
+    function unoswap(DataTypes.SwapParams memory args) public payable {
         if (args.flag.tokenInIsETH() == false) {
             // transfer
             TransferHelper.safeTransferFrom(args.tokenIn, msg.sender, address(this), args.amountIn);
         } else {
             require(msg.value >= args.amountIn, "not enough value");
         }
+        address tokenIn = args.tokenIn;
+        address tokenOut = args.tokenOut;
 
-        address tokenOut;
         for (uint i = 0; i < args.steps.length; i ++) {
             DataTypes.StepExecuteParams memory step = args.steps[i];
             uint flag = step.flag;
             // do swap
-            if (flag == DataTypes.STEP_UNISWAP_PAIR_SWAP) {
+            if (flag == DataTypes.STEP_COMPOUND_MINT_CTOKEN) {
+                // mint
+            } else if (flag == DataTypes.STEP_COMPOUND_MINT_CETH) {
+
+            } else if (flag == DataTypes.STEP_UNISWAP_PAIR_SWAP) {
 
             } else if (flag == DataTypes.STEP_UNISWAP_ROUTER_TOKENS_TOKENS) {
-
+                DataTypes.UniswapRouterParam memory param = abi.decode(step.data, (DataTypes.UniswapRouterParam));
+                console.log("uniswap router param: %s %d", param.contractAddr, param.amount);
+                // address lastOut = param.path[param.path.length - 1];
+                IERC20(tokenIn).approve(param.contractAddr, param.amount);
+                // solhint-disable-next-line
+                IRouter(param.contractAddr).swapExactTokensForTokens(param.amount, 0, param.path, address(this), block.timestamp+300);
             } else if (flag == DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS) {
 
             } else if (flag == DataTypes.STEP_EBANK_ROUTER_TOKENS_TOKENS) {
 
             }
         }
+
         /// 
         // transfer to user
         if (args.flag.tokenOutIsETH()) {
@@ -156,22 +492,46 @@ contract StepSwap is Ownable, StepSwapStorage {
         } else {
             uint balance = IERC20(tokenOut).balanceOf(address(this));
             require(balance >= args.minAmt, "less than minAmt");
+            console.log("balance:", balance);
             TransferHelper.safeTransfer(tokenOut, msg.sender, balance);
         }
     }
 
     /// @dev 在给定中间交易对数量和复杂度的情况下, 有多少种兑换路径
-    function calcExchangeRoutes(uint midTokens, uint complexLevel) public view returns (uint total) {
+    function calcExchangeRoutes(
+                    uint midTokens,
+                    uint complexLevel
+                )
+                public
+                view
+                returns (uint total, DataTypes.Exchange[] memory exchanges) {
         uint i;
 
+        // 计算一共有多少个 exchange routes
         for (i = 0; i < exchangeCount; i ++) {
-            DataTypes.Exchange storage ex = exchanges[i];
+            DataTypes.Exchange storage ex = swaps[i];
 
             if (ex.contractAddr == address(0)) {
                 continue;
             }
 
             total += Exchanges.getExchangeRoutes(ex.exFlag, midTokens, complexLevel);
+        }
+        exchanges = new DataTypes.Exchange[](total);
+        uint exIdx = 0;
+        for (i = 0; i < exchangeCount; i ++) {
+            DataTypes.Exchange storage ex = swaps[i];
+
+            if (ex.contractAddr == address(0)) {
+                continue;
+            }
+
+            uint count = Exchanges.getExchangeRoutes(ex.exFlag, midTokens, complexLevel);
+            for (uint j = 0; j < count; j ++) {
+                exchanges[exIdx].exFlag = ex.exFlag;
+                exchanges[exIdx].contractAddr = ex.contractAddr;
+                exIdx ++;
+            }
         }
     }
 
@@ -220,9 +580,9 @@ contract StepSwap is Ownable, StepSwapStorage {
 
             // 是否是 ebankex 及 tokenIn, tokenOut 是否是 ctoken
             if (sd.isCtoken == false) {
-                console.log("ex: %s  i: %d", ex.contractAddr, i);
+                // console.log("ex: %s  i: %d", ex.contractAddr, i);
                 address[] memory path = sd.paths[i];
-                console.log("path:", path[0], path[1]);
+                // console.log("path:", path.length, path[0], path[1]);
                 amts = Exchanges.calcDistributes(ex, path, sd.amounts, sd.to);
                 // if (sd.ctokenOut == true) {
                 //     // 转换为 ctoken
@@ -302,9 +662,10 @@ contract StepSwap is Ownable, StepSwapStorage {
         return sd.paths.length;
     }
 
+    /*
     /// @dev _makeSwapDistributes 构造参数
     function _makeSwapDistributes(
-                DataTypes.QuoteParams calldata args,
+                DataTypes.QuoteParams memory args,
                 uint distributeCounts
             )
             internal
@@ -337,7 +698,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             // }
         } else {
             tokenIn = args.tokenIn;
-            ctokenIn = ctokenFactory.getCTokenAddressPure(tokenIn);
+            ctokenIn = _getCTokenAddressPure(tokenIn);
             swapDistributes.amounts = Exchanges.linearInterpolation(args.amountIn, parts);
             swapDistributes.cAmounts = Exchanges.convertCompoundCtokenMinted(ctokenIn, swapDistributes.amounts, parts);
             // new uint[](parts);
@@ -352,7 +713,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             ctokenOut = args.tokenOut;
         } else {
             tokenOut = args.tokenOut;
-            ctokenOut = ctokenFactory.getCTokenAddressPure(tokenOut);
+            ctokenOut = _getCTokenAddressPure(tokenOut);
         }
 
         swapDistributes.gases          = new uint[]  (distributeCounts); // prettier-ignore
@@ -361,19 +722,20 @@ contract StepSwap is Ownable, StepSwapStorage {
         swapDistributes.netDistributes = new int[][](distributeCounts);  // prettier-ignore
         swapDistributes.exchanges      = new DataTypes.Exchange[](distributeCounts);
         
-        uint mids = args.midTokens.length;
-        address[] memory midTokens = new address[](mids);
-        address[] memory midCTokens = new address[](mids);
-        for (uint i = 0; i < mids; i ++) {
-            midTokens[i] = args.midTokens[i];
-            midCTokens[i] = ctokenFactory.getCTokenAddressPure(args.midTokens[i]);
-        }
-        swapDistributes.midTokens = midTokens;
-        swapDistributes.midCTokens = midCTokens;
+        // uint mids = args.midTokens.length;
+        // address[] memory midTokens = new address[](mids);
+        // address[] memory midCTokens = new address[](mids);
+        // for (uint i = 0; i < mids; i ++) {
+        //     midTokens[i] = args.midTokens[i];
+        //     midCTokens[i] = _getCTokenAddressPure(args.midTokens[i]);
+        // }
+        // swapDistributes.midTokens = midTokens;
+        // swapDistributes.midCTokens = midCTokens;
 
-        swapDistributes.paths = Exchanges.allPaths(tokenIn, tokenOut, midTokens, args.flag.getComplexLevel());
-        swapDistributes.cpaths = Exchanges.allPaths(ctokenIn, ctokenOut, midCTokens, args.flag.getComplexLevel());
+        swapDistributes.paths = args.paths; // Exchanges.allPaths(tokenIn, tokenOut, midTokens, args.flag.getComplexLevel());
+        swapDistributes.cpaths = args.cpaths; // Exchanges.allPaths(ctokenIn, ctokenOut, midCTokens, args.flag.getComplexLevel());
     }
+    */
 
     /// @dev 构建兑换步骤
     function _makeSwapSteps(
@@ -384,6 +746,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             private
             view {
         (, uint[] memory dists) = PathFinder.findBestDistribution(sd.parts, sd.netDistributes);
+        
         // todo 计算 amountOut
 
         uint steps = 0;
@@ -440,7 +803,6 @@ contract StepSwap is Ownable, StepSwapStorage {
         params.steps = stepArgs;
     }
 
-
     function _fillStepArgs(
                 uint amountIn,
                 uint routeIdx,
@@ -494,7 +856,7 @@ contract StepSwap is Ownable, StepSwapStorage {
 
     function _getEBankContract() private view returns (address ebank) {
         for (uint i = 0; i < exchangeCount; i ++) {
-            DataTypes.Exchange memory ex = exchanges[i];
+            DataTypes.Exchange memory ex = swaps[i];
             if (ex.exFlag == Exchanges.EXCHANGE_EBANK_EX && ex.contractAddr != address(0)) {
                 ebank = ex.contractAddr;
                 break;
@@ -682,7 +1044,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         //     ctoken = ceth;
         // } else {
         //     // step.flag = DataTypes.STEP_COMPOUND_REDEEM_TOKEN;
-        //     ctoken = ctokenFactory.getCTokenAddressPure(tokenOut);
+        //     ctoken = _getCTokenAddressPure(tokenOut);
         // }
         // eth 和 token 都是调用同一个方法 redeem, 且参数相同, 因此，使用同一个 flag
         step.flag = DataTypes.STEP_COMPOUND_REDEEM_TOKEN;
@@ -849,16 +1211,16 @@ contract StepSwap is Ownable, StepSwapStorage {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     
 
-    function addExchange(uint flag, address addr) external onlyOwner {
-        DataTypes.Exchange storage ex = exchanges[exchangeCount];
+    function addSwap(uint flag, address addr) external onlyOwner {
+        DataTypes.Exchange storage ex = swaps[exchangeCount];
         ex.exFlag = flag;
         ex.contractAddr = addr;
 
         exchangeCount ++;
     }
 
-    function removeExchange(uint i) external onlyOwner {
-        DataTypes.Exchange storage ex = exchanges[i];
+    function removeSwap(uint i) external onlyOwner {
+        DataTypes.Exchange storage ex = swaps[i];
 
         ex.contractAddr = address(0);
     }
@@ -901,7 +1263,7 @@ library TransferHelper {
 
     function safeTransferETH(address to, uint value) internal {
         // solhint-disable-next-line avoid-low-level-calls
-        (bool success,) = to.call.value(value)(new bytes(0));
+        (bool success,) = to.call{value: value}(new bytes(0));
         require(success, 'TransferHelper: ETH_TRANSFER_FAILED');
     }
 }
