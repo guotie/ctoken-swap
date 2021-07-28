@@ -508,7 +508,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             // approve
             _approve(IERC20(tokenIn), router);
             if (flag == DataTypes.STEP_UNISWAP_ROUTER_TOKENS_TOKENS) {
-                console.log("uniswap token->token:", amt, IERC20(tokenIn).balanceOf(address(this)));
+                console.log("uniswap token->token:", path.length, amt, IERC20(tokenIn).balanceOf(address(this)));
                 IRouter(router).swapExactTokensForTokens(amt, 0, path, address(this), deadline);
             } else if (flag == DataTypes.STEP_UNISWAP_ROUTER_TOKENS_ETH) {
                 IRouter(router).swapExactTokensForETH(amt, 0, path, address(this), deadline);
@@ -606,6 +606,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             }
         } else {
             // 没有 redeem/mint操作, 不需要考虑 amount 转换的问题
+            console.log("steps:", args.steps.length);
             for (uint i = 0; i < args.steps.length; i ++) {
                 uint flag = args.steps[i].flag;
                 console.log("swap %d %d", i, flag);
