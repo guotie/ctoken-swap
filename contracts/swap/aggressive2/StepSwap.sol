@@ -278,7 +278,7 @@ contract StepSwap is Ownable, StepSwapStorage {
     }
 
     /// @dev 根据入参, 生成交易参数
-    function makeSwapRouteSteps(
+    function buildSwapRouteSteps(
                     DataTypes.SwapReserveRates memory args
                 )
                 public
@@ -303,12 +303,12 @@ contract StepSwap is Ownable, StepSwapStorage {
         params.steps = new DataTypes.StepExecuteParams[](steps);
         if (args.isEToken && args.allEbank == false) {
             // redeem to token
-            params.steps[stepIdx] = _makeCompoundRedeemStep(args.amountIn.sub(args.ebankAmt), args.etokenIn);
+            params.steps[stepIdx] = _buildCompoundRedeemStep(args.amountIn.sub(args.ebankAmt), args.etokenIn);
             stepIdx ++;
         }
 
         if (args.ebankAmt > 0) {
-            // make ebank swap
+            // build ebank swap
             address ebankRouter = _getEBankContract();
             address[] memory cpath;
             uint i = 0;
@@ -324,7 +324,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                 }
             }
             require(i != args.distributes.length, "no ebank");
-            params.steps[stepIdx] = makeEbankSwapStep(
+            params.steps[stepIdx] = buildEbankSwapStep(
                                                 ebankRouter,
                                                 cpath,
                                                 args.ebankAmt,
@@ -343,7 +343,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             }
 
             if (Exchanges.isUniswapLikeExchange(ex.exFlag)) {
-                params.steps[stepIdx] = makeUniSwapStep(
+                params.steps[stepIdx] = buildUniSwapStep(
                                             ex.contractAddr,
                                             args.paths[i],
                                             args.distributes[i],
@@ -361,13 +361,13 @@ contract StepSwap is Ownable, StepSwapStorage {
 
         // if (args.isEToken && args.allEbank == false) {
         //     //
-        //     params.step[stepIdx] = _makeCompoundMintStep(0, args.etokenOut);
+        //     params.step[stepIdx] = _buildCompoundMintStep(0, args.etokenOut);
         // }
         params.block = block.number;
     }
 
     /// 构建 ebank swap 参数
-    function makeEbankSwapStep(
+    function buildEbankSwapStep(
                     address router,
                     address[] memory cpath,
                     uint256 amtIn,
@@ -401,7 +401,7 @@ contract StepSwap is Ownable, StepSwapStorage {
     }
 
     /// 构建 uniswap swap 参数
-    function makeUniSwapStep(
+    function buildUniSwapStep(
                     address router,
                     address[] memory path,
                     uint256 amtIn,
@@ -684,7 +684,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         return ebank;
     }
 
-    function _makeCompoundMintStep(
+    function _buildCompoundMintStep(
                 uint amt,
                 address ctoken
             )
@@ -712,7 +712,7 @@ contract StepSwap is Ownable, StepSwapStorage {
 
     /// @dev 构建 redeem 步骤的合约地址及参数
     /// @param amt redeem amount, if 0, redeem all(balanceOf(address(this)))
-    function _makeCompoundRedeemStep(
+    function _buildCompoundRedeemStep(
                 uint amt,
                 address ctoken
             )
@@ -725,16 +725,12 @@ contract StepSwap is Ownable, StepSwapStorage {
         DataTypes.CompoundRedeemParam memory rp;
         rp.amount = amt;
         rp.ctoken = ctoken;
-        // if (direct) {
-        //     rp.to = sd.to;
-        // } else {
-            // rp.to = address(this);
-        // }
+
         step.data = abi.encode(rp);
     }
 
 
-    function _makeEBankRouteStep(
+    function _buildEBankRouteStep(
                 uint flag,
                 uint amt,
                 address ebank,
