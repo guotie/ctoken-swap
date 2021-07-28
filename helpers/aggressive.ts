@@ -28,8 +28,8 @@ interface Exchange {
     contractAddr: string
 }
 
-// calcExchangeListSwap 入参: 多个交易所的
-interface ExchangeListSwapParam {
+// calcExchangeListSwap 入参: 多个交易所的  SwapReserveRates
+interface SwapReserveRates {
     // uint256 routes;           // distributeCounts
     // uint256 rateIn;
     // uint256 rateOut;
@@ -38,14 +38,25 @@ interface ExchangeListSwapParam {
     // address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
     // address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
     // uint256[][] reserves;  // [routes][path]
-    routes:    BigNumber
-    rateIn:    BigNumber
-    rateOut:   BigNumber
-    fees:      BigNumber[]
-    exchanges: Exchange[]
-    paths:     string[][]
-    cpaths:    string[][]
-    reserves:  BigNumber[][]
+    isEToken:     boolean
+    allowBurnchi: boolean
+    allEbank:     boolean
+    ebankAmt:     BigNumber
+    amountIn:     BigNumber
+    swapRoutes:   number
+    tokenIn:      string
+    tokenOut:     string
+    etokenIn:     string
+    etokenOut:    string
+    routes:       BigNumber
+    rateIn:       BigNumber
+    rateOut:      BigNumber
+    fees:         BigNumber[]
+    exchanges:    Exchange[]
+    paths:        string[][]
+    cpaths:       string[][]
+    reserves:     BigNumber[][]
+    distributes:  BigNumber[]
 }
 
 // 根据 x*y=K 计算 uniswap 的 amountOut
@@ -123,7 +134,7 @@ function isEBankExchange(flag: BigNumber): boolean {
 }
 
 // 计算所有交易所在不同的 path 下，不同的 amount 对应的交易量
-function calcExchangeListSwap(parts: number, amountIn: BigNumberish, params: ExchangeListSwapParam): BigNumber[][] {
+function calcExchangeListSwap(parts: number, amountIn: BigNumberish, params: SwapReserveRates): BigNumber[][] {
     let len = params.exchanges.length
     let amountOuts: BigNumber[][] = new Array(len);
     let amountIns = linearInterpolation(amountIn, parts)
@@ -238,43 +249,43 @@ async function buildAggressiveSwapTx(
                 ) {
 
     let routePath = await stepSwapC.getSwapReserveRates({
-        to: to,
-        tokenIn: tokenIn,
-        tokenOut: tokenOut,
-        amountIn: amountIn,
-        midTokens: midTokens,
-        mainRoutes: mainRoutes,
-        complex: complex,
-        parts: parts,
-        allowPartial: true,
-        allowBurnchi: true,
-    })
+                                to: to,
+                                tokenIn: tokenIn,
+                                tokenOut: tokenOut,
+                                amountIn: amountIn,
+                                midTokens: midTokens,
+                                mainRoutes: mainRoutes,
+                                complex: complex,
+                                parts: parts,
+                                allowPartial: true,
+                                allowBurnchi: true,
+                            })
     
+    console.log('route path:', routePath)
     let amounts = calcExchangeListSwap(parts, amountIn, routePath)
     // console.log('amouts:', amounts)
     let distributes = findBestDistribution(parts, amounts)
 
     // 根据 amountIn 和 分配比例, 计算每个兑换路径的 amount
-    routePath.swapRoutes = distributes.swapRoutes
-    routePath.distributes = new Array(distributes.distribution.length);
     let idx = 0
         , total = zero
         , ebankAmt = zero
         , allEbank = false
+        , distribution: BigNumber[] = new Array(distributes.distribution.length);
 
     /// amount 的分配
     /// 1. 如果是 ctoken, uniswap 需要把 ctoken redeem 为 token, uniswap 对应的 distribution 是 etoken 数量, 在合约中转换为对应的 token 数量比例;
     ///    ebank 对应的 distribution 是 etoken 数量
     /// 2. 如果是 token, uniswap 对应的是 token 数量, ebank 对应的也是 token 数量;
-    for (let i = 0; i < routePath.distributes.length; i ++) {
+    for (let i = 0; i < distributes.distribution.length; i ++) {
         if (distributes.distribution[i] === 0) {
-            routePath.distributes[i] = zero
+            distribution[i] = zero
             continue
         }
 
         let isEbank = false
-        if (isEBankExchange(routePath.exchange[i].exFlag)) {
-            if (routePath.distributes[i] == parts) {
+        if (isEBankExchange(routePath.exchanges[i].exFlag)) {
+            if (distributes.distribution[i] == parts) {
                 allEbank = true
             }
             isEbank = true
@@ -287,16 +298,38 @@ async function buildAggressiveSwapTx(
             amt = amountIn.mul(distributes.distribution[i]).div(parts)
             total = total.add(amt)
         }
-        routePath.distributes[i] = amt
+        distribution[i] = amt
         if (isEbank) {
             ebankAmt = amt
         }
         idx ++;
     }
-    routePath.allEbank = allEbank
-    routePath.ebankAmt = ebankAmt // 单位为 tokenIn , 可能是 token 也可能是 etoken 的数量
+    // todo minAmt
+    let args: SwapReserveRates = {
+        isEToken:     routePath.isEToken,
+        allowBurnchi: routePath.allowBurnchi,
+        allEbank:     allEbank,
+        ebankAmt:     ebankAmt, // 单位为 tokenIn , 可能是 token 也可能是 etoken 的数量
+        amountIn:     amountIn,
+        swapRoutes:   distributes.swapRoutes,
+        tokenIn:      routePath.tokenIn,
+        tokenOut:     routePath.tokenOut,
+        etokenIn:     routePath.etokenIn,
+        etokenOut:    routePath.etokenOut,
+        routes:       routePath.routes,
+        rateIn:       routePath.rateIn,
+        rateOut:      routePath.rateOut,
+        fees:         routePath.fees,
+        exchanges:    routePath.exchanges,
+        paths:        routePath.paths,
+        cpaths:       routePath.cpaths,
+        reserves:     routePath.reserves,
+        distributes:  distribution,
+    }
+    // routePath.allEbank = allEbank
+    // routePath.ebankAmt = ebankAmt 
 
-    return stepSwapC.makeSwapRouteSteps(routePath)
+    return stepSwapC.buildSwapRouteSteps(args)
 }
 
 export {

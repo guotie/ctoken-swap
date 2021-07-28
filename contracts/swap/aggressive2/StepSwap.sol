@@ -286,6 +286,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                 returns (DataTypes.SwapParams memory params) {
         uint steps = args.swapRoutes;
 
+        params.amountIn = args.amountIn;
         if (args.isEToken) {
             params.tokenIn = args.etokenIn;
             params.tokenOut = args.etokenOut;
@@ -445,7 +446,7 @@ contract StepSwap is Ownable, StepSwapStorage {
 
     // 如果已经有 approve, 返回; 如果没有 approve, 执行 approve
     function _approve(IERC20 tokenIn, address spender) private {
-        if (tokenIn.allowance(msg.sender, spender) < _HALF_MAX_UINT) {
+        if (tokenIn.allowance(address(this), spender) < _HALF_MAX_UINT) {
             tokenIn.approve(spender, uint(-1));
         }
     }
@@ -505,8 +506,9 @@ contract StepSwap is Ownable, StepSwapStorage {
                 amt = IERC20(tokenIn).balanceOf(address(this));
             }
             // approve
-            _approve(IERC20(tokenIn), address(this));
+            _approve(IERC20(tokenIn), router);
             if (flag == DataTypes.STEP_UNISWAP_ROUTER_TOKENS_TOKENS) {
+                console.log("uniswap token->token:", amt, IERC20(tokenIn).balanceOf(address(this)));
                 IRouter(router).swapExactTokensForTokens(amt, 0, path, address(this), deadline);
             } else if (flag == DataTypes.STEP_UNISWAP_ROUTER_TOKENS_ETH) {
                 IRouter(router).swapExactTokensForETH(amt, 0, path, address(this), deadline);
@@ -526,15 +528,18 @@ contract StepSwap is Ownable, StepSwapStorage {
     /// @dev 根据参数执行兑换
     // 用户需要授权
     function unoswap(DataTypes.SwapParams memory args) public payable {
-        if (args.tokenIn == address(0)) {
-            // transfer
-            TransferHelper.safeTransferFrom(args.tokenIn, msg.sender, address(this), args.amountIn);
-        } else {
-            require(msg.value >= args.amountIn, "not enough value");
-        }
         address tokenIn = args.tokenIn;
-        address tokenOut = args.tokenOut;
 
+        if (tokenIn == address(0)) {
+            require(msg.value >= args.amountIn, "not enough value");
+        } else {
+            // transfer
+            TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), args.amountIn);
+        }
+
+        console.log("transfer to stepswap success, steps: %d amountIn: %d", args.steps.length, args.amountIn);
+
+        address tokenOut = args.tokenOut;
         // solhint-disable-next-line
         uint deadline = block.timestamp + 600;
         if (args.isEToken) {
@@ -603,6 +608,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             // 没有 redeem/mint操作, 不需要考虑 amount 转换的问题
             for (uint i = 0; i < args.steps.length; i ++) {
                 uint flag = args.steps[i].flag;
+                console.log("swap %d %d", i, flag);
                 DataTypes.StepExecuteParams memory step = args.steps[i];
                 // if (flag == DataTypes.STEP_UNISWAP_PAIR_SWAP) {
                 //     DataTypes.UniswapPairParam memory param = abi.decode(step.data, (DataTypes.UniswapPairParam));

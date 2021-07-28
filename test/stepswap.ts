@@ -10,7 +10,7 @@ import { DeployContracts, deployAll, deployTokens, Tokens, zeroAddress, deploySt
 import { logHr } from '../helpers/logHr'
 import createCToken from './shared/ctoken'
 import { setNetwork, getContractByAddressABI, getContractByAddressName, getTokenContract, getCTokenContract } from '../helpers/contractHelper'
-import { findBestDistribution, calcExchangeListSwap } from '../helpers/aggressive';
+import { findBestDistribution, calcExchangeListSwap, buildAggressiveSwapTx } from '../helpers/aggressive';
 
 const hre = require('hardhat')
 const ethers = hre.ethers
@@ -354,10 +354,26 @@ describe("聚合交易测试", function() {
         let amtIn = BigNumber.from('5000000000000000000')
             , complex = 2
             , tokenIn = sea
+            , tokenInC = getTokenContract(tokenIn, namedSigners[0])
             , tokenOut = doge
             , midTokens = [usdt, ht]
             , parts = 100
 
+        let tx = await buildAggressiveSwapTx(
+                        stepSwapC,
+                        deployer,
+                        tokenIn, 
+                        tokenOut,
+                        midTokens,
+                        amtIn,
+                        100,
+                        complex,
+                        parts
+                    )
+        console.log('tx:', 'tx')
+        await tokenInC.approve(stepSwapC.address, amtIn)
+        await stepSwapC.unoswap(tx)
+        /*
         let routePath = await stepSwapC.getSwapReserveRates({
                             to: deployer,
                             tokenIn: tokenIn,
@@ -385,7 +401,7 @@ describe("聚合交易测试", function() {
         let distributes = findBestDistribution(parts, amounts)
         console.log('distributes swapRoutes: %s returnAmount: %s',
                     distributes.swapRoutes.toString(), distributes.returnAmount.toString())
-
+        */
     })
 
     // it('ht-token-middle-0', async () => {
