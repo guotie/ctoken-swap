@@ -215,6 +215,16 @@ function findBestDistribution(s: number, amounts: BigNumber[][]) {
     }
 }
 
+const e18 = BigNumber.from(1e18)
+
+function camtToAmt(camt: BigNumber, rate: BigNumber): BigNumber {
+    return camt.mul(rate).div(e18)
+}
+
+function amtToCamt(amt: BigNumber, rate: BigNumber): BigNumber {
+    return amt.mul(e18).div(rate)
+}
+
 // 根据参数构建聚合交易参数
 async function buildAggressiveSwapTx(
                     stepSwapC: Contract,
@@ -253,6 +263,10 @@ async function buildAggressiveSwapTx(
         , ebankAmt = zero
         , allEbank = false
 
+    /// amount 的分配
+    /// 1. 如果是 ctoken, uniswap 需要把 ctoken redeem 为 token, uniswap 对应的 distribution 是 etoken 数量, 在合约中转换为对应的 token 数量比例;
+    ///    ebank 对应的 distribution 是 etoken 数量
+    /// 2. 如果是 token, uniswap 对应的是 token 数量, ebank 对应的也是 token 数量;
     for (let i = 0; i < routePath.distributes.length; i ++) {
         if (distributes.distribution[i] === 0) {
             routePath.distributes[i] = zero

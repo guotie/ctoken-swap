@@ -16,7 +16,7 @@ pragma solidity ^0.6.12;
 
 interface ILHT {
 
-    function mint() external returns (uint);
+    function mint() external payable returns (uint);
     function redeem(uint redeemTokens) external returns (uint);
 
     function transfer(address dst, uint amount) external returns (bool);

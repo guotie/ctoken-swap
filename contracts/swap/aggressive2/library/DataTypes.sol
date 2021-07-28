@@ -27,10 +27,10 @@ library DataTypes {
     uint256 public constant STEP_UNISWAP_ROUTER_TOKENS_TOKENS   = 0x0000000101; // prettier-ignore
     uint256 public constant STEP_UNISWAP_ROUTER_ETH_TOKENS      = 0x0000000102; // prettier-ignore
     uint256 public constant STEP_UNISWAP_ROUTER_TOKENS_ETH      = 0x0000000103; // prettier-ignore
-    uint256 public constant STEP_EBANK_ROUTER_CTOKENS_CTOKENS   = 0x0000000104;  // prettier-ignore
-    uint256 public constant STEP_EBANK_ROUTER_TOKENS_TOKENS     = 0x0000000105;  // prettier-ignore
-    uint256 public constant STEP_EBANK_ROUTER_ETH_TOKENS        = 0x0000000106;  // prettier-ignore
-    uint256 public constant STEP_EBANK_ROUTER_TOKENS_ETH        = 0x0000000107;  // prettier-ignore
+    uint256 public constant STEP_EBANK_ROUTER_CTOKENS_CTOKENS   = 0x0000000104;  // prettier-ignore same to STEP_UNISWAP_ROUTER_TOKENS_TOKENS
+    uint256 public constant STEP_EBANK_ROUTER_TOKENS_TOKENS     = 0x0000000105;  // prettier-ignore underlying
+    uint256 public constant STEP_EBANK_ROUTER_ETH_TOKENS        = 0x0000000106;  // prettier-ignore underlying
+    uint256 public constant STEP_EBANK_ROUTER_TOKENS_ETH        = 0x0000000107;  // prettier-ignore underlying
 
     // todo slip, 16 bit, 分母: 10000
     struct SwapFlagMap {
@@ -138,6 +138,7 @@ library DataTypes {
         // address[] midTokens;  // should always be token
         // SwapFlagMap flag;
         // SwapFlagMap flag;
+        bool isEToken;
         address tokenIn;
         address tokenOut;
         uint256 amountIn;
