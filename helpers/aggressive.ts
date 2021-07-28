@@ -1,7 +1,6 @@
-// 聚合交易
-
 import { BigNumber, BigNumberish, Contract } from "ethers";
 
+// 聚合交易
 
 // 1. 根据 tokenIn tokenOut midTokens 获取参数 path列表 cpath 列表
 // 2. 获取各个交易所的 reserve 列表 exchangeRate 等关键数据
@@ -215,15 +214,15 @@ function findBestDistribution(s: number, amounts: BigNumber[][]) {
     }
 }
 
-const e18 = BigNumber.from(1e18)
+// const e18 = BigNumber.from('1000000000000000000')
 
-function camtToAmt(camt: BigNumber, rate: BigNumber): BigNumber {
-    return camt.mul(rate).div(e18)
-}
+// function camtToAmt(camt: BigNumber, rate: BigNumber): BigNumber {
+//     return camt.mul(rate).div(e18)
+// }
 
-function amtToCamt(amt: BigNumber, rate: BigNumber): BigNumber {
-    return amt.mul(e18).div(rate)
-}
+// function amtToCamt(amt: BigNumber, rate: BigNumber): BigNumber {
+//     return amt.mul(e18).div(rate)
+// }
 
 // 根据参数构建聚合交易参数
 async function buildAggressiveSwapTx(

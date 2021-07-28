@@ -243,11 +243,14 @@ contract StepSwap is Ownable, StepSwapStorage {
             params.rateIn    = Exchanges.calcCTokenExchangeRate(ICToken(args.tokenIn));
             params.rateOut   = Exchanges.calcCTokenExchangeRate(ICToken(args.tokenOut));
         }
+
+        // console.log("exchange rate done");
         // params.routes = routes;
         // params.paths = paths;
         // params.cpaths = cpaths;
         // params.exchanges = exchanges;
 
+        params.fees = new uint[](params.routes);
         params.reserves = new uint[][](params.routes);
         for (uint i = 0; i < params.paths.length; i ++) {
             DataTypes.Exchange memory ex = params.exchanges[i];
@@ -440,7 +443,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                 step.flag = DataTypes.STEP_EBANK_ROUTER_TOKENS_TOKENS;
             }
         } else {
-            step.flag = DataTypes.STEP_UNISWAP_ROUTER_TOKENS_TOKENS;
+            step.flag = DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS;
         }
 
         DataTypes.UniswapRouterParam memory rp;
