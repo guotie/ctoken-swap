@@ -98,7 +98,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         if (token == address(ceth)) {
             return address(0);
         }
-        return ctokenFactory.getTokenAddress(token);
+        return ctokenFactory.getTokenAddress(ctoken);
     }
 
     /// @dev 根据入参交易对, midTokens, complex 计算 flag, routes, path列表, cpath列表
@@ -374,7 +374,7 @@ contract StepSwap is Ownable, StepSwapStorage {
                     bool isToken                // 是否是 token in token out
                 )
                 public
-                view
+                pure
                 returns (DataTypes.StepExecuteParams memory step) {
         if (isToken) {
             // underlying swap
@@ -408,9 +408,10 @@ contract StepSwap is Ownable, StepSwapStorage {
                     bool useRouter
                 )
                 public
-                view
+                pure
                 returns (DataTypes.StepExecuteParams memory step) {
-        if (useRouter) {
+            require(useRouter, "must be router");
+        // if (useRouter) {
             address tokenIn = path[0];
             address tokenOut = path[path.length-1];
 
@@ -427,19 +428,19 @@ contract StepSwap is Ownable, StepSwapStorage {
             rp.path = path;
 
             step.data = abi.encode(rp);
-        } else {
-            IFactory factory = IFactory(IRouter(router).factory());
-            DataTypes.UniswapPairParam memory rp;
-            rp.amount = amtIn;
+        // } else {
+            // IFactory factory = IFactory(IRouter(router).factory());
+            // DataTypes.UniswapPairParam memory rp;
+            // rp.amount = amtIn;
             
-            rp.pairs = new address[](path.length-1);
-            for (uint i = 0; i < path.length-2; i ++) {
-                rp.pairs[i] = factory.getPair(path[i], path[i+1]);
-            }
+            // rp.pairs = new address[](path.length-1);
+            // for (uint i = 0; i < path.length-2; i ++) {
+            //     rp.pairs[i] = factory.getPair(path[i], path[i+1]);
+            // }
 
-            step.flag = DataTypes.STEP_UNISWAP_PAIR_SWAP;
-            step.data = abi.encode(rp);
-        }
+            // step.flag = DataTypes.STEP_UNISWAP_PAIR_SWAP;
+            // step.data = abi.encode(rp);
+        // }
     }
 
     // 如果已经有 approve, 返回; 如果没有 approve, 执行 approve
@@ -449,13 +450,41 @@ contract StepSwap is Ownable, StepSwapStorage {
         }
     }
 
-    function _doPairStep(address tokenIn, uint amt, address[] memory pairs) private {
+    /*
+    function _doPairStep(address tokenIn, address tokenOut, uint amt, uint[] memory pairs) private {
         if (tokenIn == address(0)) {
-            // todo
-        } else {
-            // todo
+            //
+            weth.deposit{value: amt}();
+            tokenIn = address(weth);
+        }
+        
+        TransferHelper.safeTransfer(tokenIn, pairs[i], amt);
+        uint amount = amt;
+
+        for (uint i = 0; i < pairs.length; i ++) {
+            address to;
+            bool reversed = (pairs[i] & DataTypes.REVERSE_SWAP_MASK) > 0;
+            address pair = address(pairs[i] & ADDRESS_MASK);
+
+            if (i == pairs.length - 1) {
+                to = address(this);
+            } else {
+                to = address(pairs[i+1] & ADDRESS_MASK);
+            }
+
+            if (reversed) {
+                IPair(pair).swap(0, amount, to, new bytes(0));
+            } else {
+                IPair(pair).swap(amount, 0, to, new bytes(0));
+            }
+        }
+
+        if (tokenOut == address(0)) {
+            //
+            weth.withdraw(IERC20(weth).balanceOf(address(this)));
         }
     }
+    */
 
     function _doRouterSetp(uint flag, address tokenIn, address router, uint amt, address[] memory path, uint deadline) private {
         // approve, swap
@@ -544,19 +573,19 @@ contract StepSwap is Ownable, StepSwapStorage {
                 // 根据不同情况, 计算不同的交易数量
                 uint amount = 0;
                 DataTypes.StepExecuteParams memory step = args.steps[stepIdx];
-                if (step.flag == DataTypes.STEP_UNISWAP_PAIR_SWAP) {
-                    DataTypes.UniswapPairParam memory param = abi.decode(step.data, (DataTypes.UniswapPairParam));
-                    if (stepIdx != endIdx - 1) {
-                        amount = param.amount.mul(total).div(originAmt);
-                    }
-                    _doPairStep(ctokenIn, amount, param.pairs);
-                } else {
+                // if (step.flag == DataTypes.STEP_UNISWAP_PAIR_SWAP) {
+                //     DataTypes.UniswapPairParam memory param = abi.decode(step.data, (DataTypes.UniswapPairParam));
+                //     if (stepIdx != endIdx - 1) {
+                //         amount = param.amount.mul(total).div(originAmt);
+                //     }
+                //     _doPairStep(ctokenIn, amount, param.pairs);
+                // } else {
                     DataTypes.UniswapRouterParam memory param = abi.decode(step.data, (DataTypes.UniswapRouterParam));
                     if (stepIdx != endIdx - 1) {
                         amount = param.amount.mul(total).div(originAmt);
                     }
                     _doRouterSetp(step.flag, ctokenIn, param.contractAddr, amount, param.path, deadline);
-                }
+                // }
             }
 
             if (redeemMint) {
@@ -575,13 +604,13 @@ contract StepSwap is Ownable, StepSwapStorage {
             for (uint i = 0; i < args.steps.length; i ++) {
                 uint flag = args.steps[i].flag;
                 DataTypes.StepExecuteParams memory step = args.steps[i];
-                if (flag == DataTypes.STEP_UNISWAP_PAIR_SWAP) {
-                    DataTypes.UniswapPairParam memory param = abi.decode(step.data, (DataTypes.UniswapPairParam));
-                    _doPairStep(tokenIn, param.amount, param.pairs);
-                } else {
+                // if (flag == DataTypes.STEP_UNISWAP_PAIR_SWAP) {
+                //     DataTypes.UniswapPairParam memory param = abi.decode(step.data, (DataTypes.UniswapPairParam));
+                //     _doPairStep(tokenIn, param.amount, param.pairs);
+                // } else {
                     DataTypes.UniswapRouterParam memory param = abi.decode(step.data, (DataTypes.UniswapRouterParam));
                     _doRouterSetp(flag, tokenIn, param.contractAddr, param.amount, param.path, deadline);
-                }
+                // }
             }
         }
 
@@ -702,11 +731,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         DataTypes.CompoundRedeemParam memory rp;
         rp.amount = amt;
         rp.ctoken = ctoken;
-        // if (direct) {
-        //     rp.to = sd.to;
-        // } else {
-            // rp.to = address(this);
-        // }
+
         step.data = abi.encode(rp);
     }
 

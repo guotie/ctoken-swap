@@ -23,7 +23,7 @@ library DataTypes {
     uint256 public constant STEP_AAVE_WITHDRAW_TOKEN   = 0x0000000009; // prettier-ignore
     uint256 public constant STEP_AAVE_WITHDRAW_ETH     = 0x000000000a; // prettier-ignore
 
-    uint256 public constant STEP_UNISWAP_PAIR_SWAP              = 0x0000000100; // prettier-ignore
+    // uint256 public constant STEP_UNISWAP_PAIR_SWAP              = 0x0000000100; // prettier-ignore
     uint256 public constant STEP_UNISWAP_ROUTER_TOKENS_TOKENS   = 0x0000000101; // prettier-ignore
     uint256 public constant STEP_UNISWAP_ROUTER_ETH_TOKENS      = 0x0000000102; // prettier-ignore
     uint256 public constant STEP_UNISWAP_ROUTER_TOKENS_ETH      = 0x0000000103; // prettier-ignore
@@ -31,6 +31,9 @@ library DataTypes {
     uint256 public constant STEP_EBANK_ROUTER_TOKENS_TOKENS     = 0x0000000105;  // prettier-ignore underlying
     uint256 public constant STEP_EBANK_ROUTER_ETH_TOKENS        = 0x0000000106;  // prettier-ignore underlying
     uint256 public constant STEP_EBANK_ROUTER_TOKENS_ETH        = 0x0000000107;  // prettier-ignore underlying
+
+    uint256 public constant REVERSE_SWAP_MASK = 0x8000000000000000000000000000000000000000000000000000000000000000;
+    uint256 public constant ADDRESS_MASK      = 0x000000000000000000000000ffffffffffffffffffffffffffffffffffffffff; // prettier-ignore
 
     // todo slip, 16 bit, 分母: 10000
     struct SwapFlagMap {
