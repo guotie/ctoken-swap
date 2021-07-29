@@ -119,7 +119,11 @@ export async function deployStepSwap(
   // let exLibC = new ethers.Contract(e.address, e.abi, signer)
   let stepSwapC = new ethers.Contract(result.address, result.abi, signer)
   console.log('deploy StepSwap:', stepSwapC.address)
-  return stepSwapC
+  return {
+      abi: result.abi,
+      stepSwapC: stepSwapC,
+      address: result.address,
+    }
 }
 
 // 部署 OrderBook

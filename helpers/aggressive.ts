@@ -261,7 +261,7 @@ async function buildAggressiveSwapTx(
                                 allowBurnchi: true,
                             })
     
-    console.log('route path:', routePath)
+    // console.log('route path:', routePath)
     let amounts = calcExchangeListSwap(parts, amountIn, routePath)
     // console.log('amouts:', amounts)
     let distributes = findBestDistribution(parts, amounts)

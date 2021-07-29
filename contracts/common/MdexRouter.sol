@@ -195,6 +195,7 @@ contract MdexRouter is IMdexRouter, Ownable {
     //     assert(msg.sender == WHT);
     //     // only accept HT via fallback from the WHT contract
     // }
+    function () external payable {}
 
     function pairFor(address tokenA, address tokenB) public view returns (address pair){
         pair = IMdexFactory(factory).pairFor(tokenA, tokenB);
@@ -315,9 +316,13 @@ contract MdexRouter is IMdexRouter, Ownable {
             address(this),
             deadline
         );
+        // console.log("token: %d eth: %d %d", amountToken, amountETH, IERC20(WHT).balanceOf(address(this)));
         TransferHelper.safeTransfer(token, to, amountToken);
+        // console.log("transfer token ok");
         IWHT(WHT).withdraw(amountETH);
+        // console.log("withdraw eth ok");
         TransferHelper.safeTransferETH(to, amountETH);
+        // console.log("transfer eth ok");
     }
 
     function removeLiquidityWithPermit(

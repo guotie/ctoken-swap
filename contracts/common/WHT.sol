@@ -19,6 +19,8 @@
 
 pragma solidity >=0.4.22 <0.6;
 
+import "hardhat/console.sol";
+
 contract WHT {
     string public name     = "Wrapped HT";
     string public symbol   = "WHT";
@@ -39,10 +41,13 @@ contract WHT {
         balanceOf[msg.sender] += msg.value;
         emit Deposit(msg.sender, msg.value);
     }
+
     function withdraw(uint wad) public {
-        require(balanceOf[msg.sender] >= wad);
+        require(balanceOf[msg.sender] >= wad, "not enough");
         balanceOf[msg.sender] -= wad;
+        // console.log("withdraw wht", balanceOf[msg.sender], wad, address(this).balance);
         msg.sender.transfer(wad);
+        // console.log("transfer eth ok");
         emit Withdrawal(msg.sender, wad);
     }
 

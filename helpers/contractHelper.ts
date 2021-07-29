@@ -87,7 +87,8 @@ function addressOf(name: 'USDT'
 }
 
 function getProvider() {
-    return new providers.JsonRpcProvider(endpoints[NETWORK])
+    return hre.ethers.provider
+    // return new providers.JsonRpcProvider(endpoints[NETWORK])
 }
 
 // 根据环境变量生成 Signer, 私钥在 .env 文件中

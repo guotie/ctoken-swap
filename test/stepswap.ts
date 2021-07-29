@@ -9,7 +9,7 @@ import { assert } from 'console';
 import { DeployContracts, deployAll, deployTokens, Tokens, zeroAddress, deployStepSwap } from '../deployments/deploys'
 import { logHr } from '../helpers/logHr'
 import createCToken from './shared/ctoken'
-import { setNetwork, getContractByAddressABI, getContractByAddressName, getTokenContract, getCTokenContract } from '../helpers/contractHelper'
+import { setNetwork, getContractByAddressABI, getContractByAddressName, getTokenContract, getCTokenContract, getProvider } from '../helpers/contractHelper'
 import { findBestDistribution, calcExchangeListSwap, buildAggressiveSwapTx } from '../helpers/aggressive';
 
 const hre = require('hardhat')
@@ -18,6 +18,7 @@ const network = hre.network
 const ht = zeroAddress
 
 setNetwork(network.name)
+console.log('provider:', ethers.provider)
 
 const e18 = BigNumber.from('100000000000000000')
 
@@ -62,6 +63,8 @@ describe("聚合交易测试", function() {
         , s3: Swap = {fa: '', fc: undefined, ra: '', rc: undefined}
     
     let stepSwapC: Contract
+        , stepSwapAddr: string
+        , stepSwapAbi: any
         // , exLibC: Contract
   
     // e18 是 18位数
@@ -182,10 +185,18 @@ describe("聚合交易测试", function() {
         await deployFactoryRouter('0x30', _wht, s3)
 
         let signer = namedSigners[0]
-        stepSwapC = await deployStepSwap(_wht, _ceth, _ctokenFactory, signer, true, false)
+            , result = await deployStepSwap(_wht, _ceth, _ctokenFactory, signer, true, false)
+        stepSwapC = result.stepSwapC
+        stepSwapAbi = result.abi
+        stepSwapAddr = result.address
+
         await stepSwapC.addSwap(1, s1.ra)
         await stepSwapC.addSwap(1, s2.ra)
         await stepSwapC.addSwap(1, s3.ra)
+    }
+
+    const getStepSwapContract = (signer: SignerWithAddress) => {
+        return new ethers.Contract(stepSwapAddr, stepSwapAbi, signer)
     }
 
     const deadlineTs = (second: number) => {
@@ -333,11 +344,14 @@ describe("聚合交易测试", function() {
         let pairc = getTokenContract(pair, namedSigners[0])
         let amt = await pairc.balanceOf(owner)
         console.log('pair:', pair, amt.toString())
+        await pairc.approve(rc.address, amt)
         if (token0 === zeroAddress || token1 === zeroAddress) {
             if (underlying) {
                 await rc.removeLiquidityETHUnderlying(token0 === zeroAddress ? token1 : token0, amt, 0, 0, owner, deadlineTs(600))
             } else {
+                console.log('removeLiquidityETH .... ')
                 await rc.removeLiquidityETH(token0 === zeroAddress ? token1 : token0, amt, 0, 0, owner, deadlineTs(600))
+                console.log('removeLiquidityETH ')
             }
         } else {
             if (underlying) {
@@ -455,13 +469,21 @@ describe("聚合交易测试", function() {
         return midTokens
     }
 
+    const _getBalance = async (token: string, owner: string) => {
+        if (token === zeroAddress) {
+            return getProvider().getBalance(owner)
+        }
+        let tokenc = getTokenContract(token, namedSigners[0])
+        return tokenc.balanceOf(owner)
+    }
+
     const makeTestCase = async (
                                 tokenIn:  string,
                                 tokenOut: string,
                                 amountIn: BigNumber,
                                 _midTokens: string[],
                                 liquidities: LiquidityParam[],
-                                signer: SignerWithAddress,
+                                taker: SignerWithAddress,
                                 isEToken = false,
                                 complex = 2,
                                 parts = 50,
@@ -500,13 +522,23 @@ describe("聚合交易测试", function() {
         )
         
         console.log('tx:', 'tx')
+        let b0b = await _getBalance(tokenIn, buyer.address)
+            , b1b = await _getBalance(tokenOut, buyer.address)
+        let ssc: Contract = getStepSwapContract(taker)
         if (tokenIn === zeroAddress) {
-            await stepSwapC.unoswap(tx, {value: amountIn})
+            await ssc.unoswap(tx, {value: amountIn})
         } else {
-            let tokenInC = getTokenContract(tokenIn, signer)
+            let tokenInC = getTokenContract(tokenIn, taker)
             await tokenInC.approve(stepSwapC.address, amountIn)
-            await stepSwapC.unoswap(tx)
+            await ssc.unoswap(tx)
         }
+        let b0a = await _getBalance(tokenIn, buyer.address)
+            , b1a = await _getBalance(tokenOut, buyer.address)
+        
+        console.log('taker balance: tokenIn:  %s -> %s, -%s',
+                    b0b.toString(), b0a.toString(), b0b.sub(b0a).toString())
+        console.log('taker balance: tokenOut: %s -> %s, +%s',
+                    b1b.toString(), b1a.toString(), b1a.sub(b1b).toString())
 
         console.log('remove liquidity ....')
         // clean liquidity
@@ -524,6 +556,7 @@ describe("聚合交易测试", function() {
                             pair.token1,
                             liquidity.owner.address,
                         )
+                console.log('remove liquidity ok')
             }
         }
     }
@@ -560,19 +593,20 @@ describe("聚合交易测试", function() {
     // ], signer)
     // })
 
+    
     it('ht-token-1', async () => {
-        let signer = namedSigners[0]
+        let maker = namedSigners[0]
         await makeTestCase(ht, doge, BigNumber.from('5000000000000000000'), [usdt], [{
             rc: s1.rc!,
             fc: s1.fc!,
             underlying: false,
-            owner: signer,
+            owner: maker,
             pairs: [
                 {
                     token0: ht,
                     token1: doge,
                     amountA: '1000000000000000000000',
-                    amountB: '20000000',
+                    amountB: '20000000000000000000',
                 },
                 // {
                 //     token0: ,
@@ -587,218 +621,8 @@ describe("聚合交易测试", function() {
                 //     amountB: ,
                 // },
             ]
-        }], signer)
-        /*
-        // await addTestLiquidityByFactory(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '1100000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, usdtc, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, ht, '1000000000000000000000', '11000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, ht, dogec, '10000000000000', '2000000000000000000000', deployer)
-
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, usdtc, '2000000000000000000000', '2200000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, usdtc, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, ht, '2000000000000000000000', '22000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, ht, dogec, '20000000000000', '4000000000000000000000', deployer)
-
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, usdtc, '4000000000000000000000', '4400000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, usdtc, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, ht, '4000000000000000000000', '44000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, ht, dogec, '40000000000000', '8000000000000000000000', deployer)
-
-        let amtIn = BigNumber.from('5000000000000000000')
-            , complex = 2
-            , tokenIn = sea
-            , tokenInC = getTokenContract(tokenIn, namedSigners[0])
-            , tokenOut = doge
-            , midTokens = [usdt, ht]
-            , parts = 100
-
-        let tx = await buildAggressiveSwapTx(
-                        stepSwapC,
-                        deployer,
-                        tokenIn, 
-                        tokenOut,
-                        midTokens,
-                        amtIn,
-                        100,
-                        complex,
-                        parts
-                    )
-        console.log('tx:', 'tx')
-        await tokenInC.approve(stepSwapC.address, amtIn)
-        await stepSwapC.unoswap(tx)
-        */
-        /*
-        let routePath = await stepSwapC.getSwapReserveRates({
-                            to: deployer,
-                            tokenIn: tokenIn,
-                            tokenOut: tokenOut,
-                            amountIn: amtIn,
-                            midTokens: midTokens,
-                            mainRoutes: 100,
-                            complex: complex,
-                            parts: parts,
-                            allowPartial: true,
-                            allowBurnchi: true,
-                        })
-            , flag =  routePath.flag // buildFlag(50, FLAG_TOKEN_IN_TOKEN, FLAG_TOKEN_OUT_TOKEN, complex)
-            , routes = routePath.routes
-            , paths = routePath.paths
-            , cpaths = routePath.cpaths
-
-        // console.log('route, path, reserves:', routePath)
-        for (let i = 0; i < routePath.reserves.length; i ++) {
-            // console.log('reserve %d: %s', i, routePath.reserves[i].toString())
-        }
-
-        let amounts = calcExchangeListSwap(parts, amtIn, routePath)
-        // console.log('amouts:', amounts)
-        let distributes = findBestDistribution(parts, amounts)
-        console.log('distributes swapRoutes: %s returnAmount: %s',
-                    distributes.swapRoutes.toString(), distributes.returnAmount.toString())
-        */
+        }], buyer)
     })
+    
 
-    // it('ht-token-middle-0', async () => {
-    //     // await addTestLiquidityByFactory(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
-    //     await addTestLiquidity(s1.rc!, s1.fc!, seac, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-    //     await addTestLiquidity(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '1000000000000000000000', deployer)
-    //     await addTestLiquidity(s1.rc!, s1.fc!, usdtc, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-
-    //     await addTestLiquidity(s2.rc!, s2.fc!, seac, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-    //     await addTestLiquidity(s2.rc!, s2.fc!, seac, usdtc, '2000000000000000000000', '2000000000000000000000', deployer)
-    //     await addTestLiquidity(s2.rc!, s2.fc!, usdtc, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-
-    //     await addTestLiquidity(s3.rc!, s3.fc!, seac, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-    //     await addTestLiquidity(s3.rc!, s3.fc!, seac, usdtc, '4000000000000000000000', '4000000000000000000000', deployer)
-    //     await addTestLiquidity(s3.rc!, s3.fc!, usdtc, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-
-    //     let amtIn = BigNumber.from('5000000000000000000')
-    //     let parts = BigNumber.from(50).or(FLAG_TOKEN_IN_ETH).or(FLAG_TOKEN_OUT_TOKEN)
-    //     let res = await stepSwapC.getExpectedReturnWithGas({
-    //         to: deployer,
-    //         tokenIn: sea,
-    //         tokenOut: doge,
-    //         amountIn: amtIn,
-    //         tokenPriceGWei: 0,
-    //         fromAddress: deployer,
-    //         dstReceiver: deployer,
-    //         midTokens: [usdt],
-    //         flag: { data: parts },
-    //     })
-
-    //     printParam(res)
-
-    //     logHr('unoswap')
-    //     await seac.approve(stepSwapC.address, amtIn)
-    //     await stepSwapC.unoswap(res)
-    // })
-
-    /*
-    it('ht-token-middle-1', async () => {
-        // await addTestLiquidityByFactory(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '1000000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, usdtc, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, usdtc, '2000000000000000000000', '2000000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, usdtc, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, usdtc, '4000000000000000000000', '4000000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, usdtc, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-
-        let amtIn = BigNumber.from('5000000000000000000')
-        let parts = BigNumber.from(50).or(FLAG_TOKEN_IN_ETH).or(FLAG_TOKEN_OUT_TOKEN)
-        let res = await stepSwapC.getExpectedReturnWithGas({
-            to: deployer,
-            tokenIn: sea,
-            tokenOut: doge,
-            amountIn: amtIn,
-            tokenPriceGWei: 0,
-            fromAddress: deployer,
-            dstReceiver: deployer,
-            midTokens: [usdt],
-            flag: { data: parts },
-        })
-
-        printParam(res)
-
-        logHr('unoswap')
-        await seac.approve(stepSwapC.address, amtIn)
-        await stepSwapC.unoswap(res)
-    })
-    it('token-ht-middle-0', async () => {
-        // await addTestLiquidityByFactory(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '1000000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, usdtc, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, usdtc, '2000000000000000000000', '2000000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, usdtc, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, usdtc, '4000000000000000000000', '4000000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, usdtc, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-
-        let amtIn = BigNumber.from('5000000000000000000')
-        let parts = BigNumber.from(50).or(FLAG_TOKEN_IN_ETH).or(FLAG_TOKEN_OUT_TOKEN)
-        let res = await stepSwapC.getExpectedReturnWithGas({
-            to: deployer,
-            tokenIn: sea,
-            tokenOut: doge,
-            amountIn: amtIn,
-            tokenPriceGWei: 0,
-            fromAddress: deployer,
-            dstReceiver: deployer,
-            midTokens: [usdt],
-            flag: { data: parts },
-        })
-
-        printParam(res)
-
-        logHr('unoswap')
-        await seac.approve(stepSwapC.address, amtIn)
-        await stepSwapC.unoswap(res)
-    })
-    it('token-ht-middle-1', async () => {
-        // await addTestLiquidityByFactory(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '1000000000000000000000', deployer)
-        await addTestLiquidity(s1.rc!, s1.fc!, usdtc, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
-
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, seac, usdtc, '2000000000000000000000', '2000000000000000000000', deployer)
-        await addTestLiquidity(s2.rc!, s2.fc!, usdtc, dogec, '2000000000000000000000', '4000000000000000000000', deployer)
-
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, seac, usdtc, '4000000000000000000000', '4000000000000000000000', deployer)
-        await addTestLiquidity(s3.rc!, s3.fc!, usdtc, dogec, '4000000000000000000000', '8000000000000000000000', deployer)
-
-        let amtIn = BigNumber.from('5000000000000000000')
-        let parts = BigNumber.from(50).or(FLAG_TOKEN_IN_ETH).or(FLAG_TOKEN_OUT_TOKEN)
-        let res = await stepSwapC.getExpectedReturnWithGas({
-            to: deployer,
-            tokenIn: sea,
-            tokenOut: doge,
-            amountIn: amtIn,
-            tokenPriceGWei: 0,
-            fromAddress: deployer,
-            dstReceiver: deployer,
-            midTokens: [usdt],
-            flag: { data: parts },
-        })
-
-        printParam(res)
-
-        logHr('unoswap')
-        await seac.approve(stepSwapC.address, amtIn)
-        await stepSwapC.unoswap(res)
-    })
-    */
 })

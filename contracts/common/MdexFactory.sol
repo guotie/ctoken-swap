@@ -4,6 +4,8 @@
 
 pragma solidity =0.5.16;
 
+import "hardhat/console.sol";
+
 interface IMdexFactory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 
@@ -220,6 +222,7 @@ contract MdexERC20 is IMdexERC20 {
     }
 
     function _burn(address from, uint value) internal {
+        console.log("total: %d balance: %d value: %d", totalSupply, balanceOf[from], value);
         balanceOf[from] = balanceOf[from].sub(value);
         totalSupply = totalSupply.sub(value);
         emit Transfer(from, address(0), value);
@@ -410,7 +413,9 @@ contract MdexPair is IMdexPair, MdexERC20 {
         uint balance1 = IERC20(_token1).balanceOf(address(this));
         uint liquidity = balanceOf[address(this)];
 
+        // console.log("mint fee ....");
         bool feeOn = _mintFee(_reserve0, _reserve1);
+        // console.log("mint fee ok");
         uint _totalSupply = totalSupply;
         // gas savings, must be defined here since totalSupply can update in _mintFee
         amount0 = liquidity.mul(balance0) / _totalSupply;
@@ -419,15 +424,21 @@ contract MdexPair is IMdexPair, MdexERC20 {
         // using balances ensures pro-rata distribution
         require(amount0 > 0 && amount1 > 0, 'MdexSwap: INSUFFICIENT_LIQUIDITY_BURNED');
         _burn(address(this), liquidity);
+        console.log("burn ok:", amount0, amount1);
         _safeTransfer(_token0, to, amount0);
+        // console.log("transfer token0 ok");
         _safeTransfer(_token1, to, amount1);
+        // console.log("transfer token1 ok");
         balance0 = IERC20(_token0).balanceOf(address(this));
         balance1 = IERC20(_token1).balanceOf(address(this));
+        console.log("after burn, balance:", balance0, balance1);
 
         _update(balance0, balance1, _reserve0, _reserve1);
         if (feeOn) kLast = uint(reserve0).mul(reserve1);
+        // console.log("_updated", feeOn);
         // reserve0 and reserve1 are up-to-date
         emit Burn(msg.sender, amount0, amount1, to);
+        // console.log("emited burn");
     }
 
     // this low-level function should be called from a contract which performs important safety checks
