@@ -73,6 +73,10 @@ contract StepSwap is Ownable, StepSwapStorage {
         ctokenFactory = ICTokenFactory(_factory);
     }
 
+    receive() external payable {
+
+    }
+
     function isTokenToken(address token) public view returns (bool) {
         address ctoken = ctokenFactory.getCTokenAddressPure(token);
         // 有对应的 ctoken 时, 一定是 token

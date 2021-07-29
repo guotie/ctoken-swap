@@ -18,7 +18,7 @@ const network = hre.network
 const ht = zeroAddress
 
 setNetwork(network.name)
-console.log('provider:', ethers.provider)
+// console.log('provider:', ethers.provider)
 
 const e18 = BigNumber.from('100000000000000000')
 
@@ -202,91 +202,6 @@ describe("聚合交易测试", function() {
     const deadlineTs = (second: number) => {
         return (new Date()).getTime() + second * 1000
     }
-
-    // const addTestLiquidityByFactory = async (
-    //                 rc: Contract,
-    //                 fc: Contract,
-    //                 token0: Contract,
-    //                 token1: Contract,
-    //                 amt0: BigNumberish,
-    //                 amt1: BigNumberish,
-    //                 to: string
-    //             ) => {
-    //     await fc.createPair(token0.address, token1.address)
-    //     let pair = await fc.getPair(token0.address, token1.address)
-    //     console.log('pair of factory %s: %s', fc.address, pair)
-        
-    //     await token0.transfer(pair, BigNumber.from(amt0))
-    //     await token1.transfer(pair, BigNumber.from(amt1))
-
-    //     let pairc = await getContractByAddressName(pair, 'MdexPair', namedSigners[0])
-    //     await pairc.mint(to)
-    //     let ts = await pairc.balanceOf(to)
-    //     console.log('add Liquidity: ', ts.toString())
-    //     // await token0.approve(rc.address, amt0)
-    //     // await token1.approve(rc.address, amt1)
-    //     // console.log('approve success')
-    //     // await rc.addLiquidity(token0.address, token1.address, amt0, amt1, 0, 0, to, deadlineTs(600))
-    //     // console.log('addTestLiquidity: token0=%s token1=%s amt0=%s amt1=%s', token0.address, token1.address, amt0.toString(), amt1.toString())
-    // }
-    // const addTestLiquidity = async (
-    //             rc: Contract,
-    //             fc: Contract,
-    //             token0: Contract | string,
-    //             token1: Contract | string,
-    //             amt0: BigNumberish,
-    //             amt1: BigNumberish,
-    //             to: string,
-    //             signer?: SignerWithAddress
-    //         ) => {
-    //     let ta0, ta1
-    //     if (typeof token0 === 'string' || typeof token1 === 'string') {
-    //         // let tk0, tk1
-    //         ta0 = token0
-    //         ta1 = token1
-    //         if (typeof token0 === 'string') {
-    //             if (token0 === zeroAddress) {
-    //                 ta0 = wht
-    //                 await rc.addLiquidityETH(ta1, amt1, 0, 0, to, deadlineTs(600), {value: amt0})
-    //             } else {
-    //                 let tk0C = getTokenContract(token0, signer!)
-    //                 await tk0C.approve(rc.address, amt0)
-    //             }
-    //         } else {
-    //             if (token1 === zeroAddress) {
-    //                 ta1 = wht
-    //                 await rc.addLiquidityETH(ta0, amt0, 0, 0, to, deadlineTs(600), {value: amt1})
-    //             } else {
-    //                 let tk1C = getTokenContract(token1 as string, signer!)
-    //                 await tk1C.approve(rc.address, amt0)
-    //             }
-    //         }
-    //         // if (typeof token0 === 'string') {
-    //         //     assert(typeof token1 !== 'string')
-    //         //     ta0 = wht
-    //         //     ta1 = (token1 as Contract).address
-    //         //     await (token1 as Contract).approve(rc.address, amt1)
-    //         //     await rc.addLiquidityETH(ta1, amt1, 0, 0, to, deadlineTs(600), {value: amt0})
-    //         // } else {
-    //         //     ta0 =token0.address
-    //         //     ta1 = wht
-    //         //     await (token0 as Contract).approve(rc.address, amt0)
-    //         //     await rc.addLiquidityETH(ta0, amt0, 0, 0, to, deadlineTs(600), {value: amt1})
-    //         // }
-    //     } else {
-    //         ta0 = token0.address
-    //         ta1 = token1.address
-    //         await token0.approve(rc.address, amt0)
-    //         await token1.approve(rc.address, amt1)
-    //         // console.log('approve success')
-    //         await rc.addLiquidity(token0.address, ta1, BigNumber.from(amt0), BigNumber.from(amt1), 0, 0, to, deadlineTs(600))
-    //     }
-    //     let pair = await fc.getPair(ta0, ta1)
-    //     // console.log('addTestLiquidity: pair of factory %s: %s', fc.address, pair)
-    //     console.log('addTestLiquidity(%s): token0=%s token1=%s pair=%s amt0=%s amt1=%s',
-    //             fc.address, ta0, ta1, pair, amt0.toString(), amt1.toString())
-    // }
-
 
     // 参数必须为 etoken 地址
     const _getTokenAddress = async (etoken: string) => {
@@ -477,6 +392,13 @@ describe("聚合交易测试", function() {
         return tokenc.balanceOf(owner)
     }
 
+    // transfer from maker to taker
+    // token is NOT ht
+    const transferToTaker = async (token: string, taker: string, amt: BigNumberish) => {
+        let tokenc = getTokenContract(token, namedSigners[0])
+        await tokenc.transfer(taker, amt)
+    }
+
     const makeTestCase = async (
                                 tokenIn:  string,
                                 tokenOut: string,
@@ -489,6 +411,10 @@ describe("聚合交易测试", function() {
                                 parts = 50,
                             ) => {
         let midTokens: string[] = await sanitizeMidTokens(isEToken, tokenIn, tokenOut, _midTokens)
+
+        if (tokenIn !== zeroAddress) {
+            await transferToTaker(tokenIn, taker.address, amountIn)
+        }
 
         for (let i = 0; i < liquidities.length; i ++) {
             let liquidity = liquidities[i]
@@ -624,5 +550,34 @@ describe("聚合交易测试", function() {
         }], buyer)
     })
     
-
+    it('token-ht-1', async () => {
+        let maker = namedSigners[0]
+        await makeTestCase(doge, ht, BigNumber.from('5000000000000000000'), [usdt], [{
+            rc: s1.rc!,
+            fc: s1.fc!,
+            underlying: false,
+            owner: maker,
+            pairs: [
+                {
+                    token0: doge,
+                    token1: ht,
+                    amountA: '1000000000000000000000',
+                    amountB: '20000000000000000000',
+                },
+                // {
+                //     token0: ,
+                //     token1: ,
+                //     amountA: ,
+                //     amountB: ,
+                // },
+                // {
+                //     token0: ,
+                //     token1: ,
+                //     amountA: ,
+                //     amountB: ,
+                // },
+            ]
+        }], buyer)
+    })
+    
 })
