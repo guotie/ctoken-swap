@@ -102,6 +102,7 @@ contract StepSwap is Ownable, StepSwapStorage {
     }
 
     /// @dev 根据入参交易对, midTokens, complex 计算 flag, routes, path列表, cpath列表
+    // 参数 midTokens 中不能包含 tokenIn/tokenOut 相同的 token
     function getRoutesPaths(
                     DataTypes.QuoteParams memory args
                 )
@@ -154,6 +155,13 @@ contract StepSwap is Ownable, StepSwapStorage {
         //     flag = flag | SwapFlag._MASK_PARTIAL_FILL;
         // }
 
+        if (ti == address(0)) {
+            ti = address(weth);
+        }
+        if (to == address(0)) {
+            to = address(weth);
+        }
+        // 排除 midToken 中与 tokenIn/tokenOut 相同的 token
         address[] memory midCTokens = new address[](args.midTokens.length);
         for (uint i = 0; i < args.midTokens.length; i ++) {
             midCTokens[i] = _getCTokenAddressPure(args.midTokens[i]);
@@ -367,6 +375,13 @@ contract StepSwap is Ownable, StepSwapStorage {
         params.block = block.number;
     }
 
+    function _isETH(address token) private view returns (bool) {
+        if (token == address(weth) || token == address(0)) {
+            return true;
+        }
+        return false;
+    }
+
     /// 构建 ebank swap 参数
     function buildEbankSwapStep(
                     address router,
@@ -375,16 +390,16 @@ contract StepSwap is Ownable, StepSwapStorage {
                     bool isToken                // 是否是 token in token out
                 )
                 public
-                pure
+                view
                 returns (DataTypes.StepExecuteParams memory step) {
         if (isToken) {
             // underlying swap
             address tokenIn = cpath[0];
             address tokenOut = cpath[cpath.length-1];
 
-            if (tokenIn == address(0)) {
+            if (_isETH(tokenIn)) {
                 step.flag = DataTypes.STEP_EBANK_ROUTER_ETH_TOKENS;
-            } else if (tokenOut == address(0)) {
+            } else if (_isETH(tokenOut)) {
                 step.flag = DataTypes.STEP_EBANK_ROUTER_TOKENS_ETH;
             } else {
                 step.flag = DataTypes.STEP_EBANK_ROUTER_TOKENS_TOKENS;
@@ -409,16 +424,16 @@ contract StepSwap is Ownable, StepSwapStorage {
                     bool useRouter
                 )
                 public
-                pure
+                view
                 returns (DataTypes.StepExecuteParams memory step) {
             require(useRouter, "must be router");
         // if (useRouter) {
             address tokenIn = path[0];
             address tokenOut = path[path.length-1];
 
-            if (tokenIn == address(0)) {
+            if (_isETH(tokenIn)) {
                 step.flag = DataTypes.STEP_UNISWAP_ROUTER_ETH_TOKENS;
-            } else if (tokenOut == address(0)) {
+            } else if (_isETH(tokenOut)) {
                 step.flag = DataTypes.STEP_UNISWAP_ROUTER_TOKENS_ETH;
             } else {
                 step.flag = DataTypes.STEP_UNISWAP_ROUTER_TOKENS_TOKENS;

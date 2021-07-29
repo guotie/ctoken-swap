@@ -192,79 +192,159 @@ describe("聚合交易测试", function() {
         return (new Date()).getTime() + second * 1000
     }
 
-    const addTestLiquidityByFactory = async (
-                    rc: Contract,
-                    fc: Contract,
-                    token0: Contract,
-                    token1: Contract,
-                    amt0: BigNumberish,
-                    amt1: BigNumberish,
-                    to: string
-                ) => {
-        await fc.createPair(token0.address, token1.address)
-        let pair = await fc.getPair(token0.address, token1.address)
-        console.log('pair of factory %s: %s', fc.address, pair)
+    // const addTestLiquidityByFactory = async (
+    //                 rc: Contract,
+    //                 fc: Contract,
+    //                 token0: Contract,
+    //                 token1: Contract,
+    //                 amt0: BigNumberish,
+    //                 amt1: BigNumberish,
+    //                 to: string
+    //             ) => {
+    //     await fc.createPair(token0.address, token1.address)
+    //     let pair = await fc.getPair(token0.address, token1.address)
+    //     console.log('pair of factory %s: %s', fc.address, pair)
         
-        await token0.transfer(pair, BigNumber.from(amt0))
-        await token1.transfer(pair, BigNumber.from(amt1))
+    //     await token0.transfer(pair, BigNumber.from(amt0))
+    //     await token1.transfer(pair, BigNumber.from(amt1))
 
-        let pairc = await getContractByAddressName(pair, 'MdexPair', namedSigners[0])
-        await pairc.mint(to)
-        let ts = await pairc.balanceOf(to)
-        console.log('add Liquidity: ', ts.toString())
-        // await token0.approve(rc.address, amt0)
-        // await token1.approve(rc.address, amt1)
-        // console.log('approve success')
-        // await rc.addLiquidity(token0.address, token1.address, amt0, amt1, 0, 0, to, deadlineTs(600))
-        // console.log('addTestLiquidity: token0=%s token1=%s amt0=%s amt1=%s', token0.address, token1.address, amt0.toString(), amt1.toString())
+    //     let pairc = await getContractByAddressName(pair, 'MdexPair', namedSigners[0])
+    //     await pairc.mint(to)
+    //     let ts = await pairc.balanceOf(to)
+    //     console.log('add Liquidity: ', ts.toString())
+    //     // await token0.approve(rc.address, amt0)
+    //     // await token1.approve(rc.address, amt1)
+    //     // console.log('approve success')
+    //     // await rc.addLiquidity(token0.address, token1.address, amt0, amt1, 0, 0, to, deadlineTs(600))
+    //     // console.log('addTestLiquidity: token0=%s token1=%s amt0=%s amt1=%s', token0.address, token1.address, amt0.toString(), amt1.toString())
+    // }
+    // const addTestLiquidity = async (
+    //             rc: Contract,
+    //             fc: Contract,
+    //             token0: Contract | string,
+    //             token1: Contract | string,
+    //             amt0: BigNumberish,
+    //             amt1: BigNumberish,
+    //             to: string,
+    //             signer?: SignerWithAddress
+    //         ) => {
+    //     let ta0, ta1
+    //     if (typeof token0 === 'string' || typeof token1 === 'string') {
+    //         // let tk0, tk1
+    //         ta0 = token0
+    //         ta1 = token1
+    //         if (typeof token0 === 'string') {
+    //             if (token0 === zeroAddress) {
+    //                 ta0 = wht
+    //                 await rc.addLiquidityETH(ta1, amt1, 0, 0, to, deadlineTs(600), {value: amt0})
+    //             } else {
+    //                 let tk0C = getTokenContract(token0, signer!)
+    //                 await tk0C.approve(rc.address, amt0)
+    //             }
+    //         } else {
+    //             if (token1 === zeroAddress) {
+    //                 ta1 = wht
+    //                 await rc.addLiquidityETH(ta0, amt0, 0, 0, to, deadlineTs(600), {value: amt1})
+    //             } else {
+    //                 let tk1C = getTokenContract(token1 as string, signer!)
+    //                 await tk1C.approve(rc.address, amt0)
+    //             }
+    //         }
+    //         // if (typeof token0 === 'string') {
+    //         //     assert(typeof token1 !== 'string')
+    //         //     ta0 = wht
+    //         //     ta1 = (token1 as Contract).address
+    //         //     await (token1 as Contract).approve(rc.address, amt1)
+    //         //     await rc.addLiquidityETH(ta1, amt1, 0, 0, to, deadlineTs(600), {value: amt0})
+    //         // } else {
+    //         //     ta0 =token0.address
+    //         //     ta1 = wht
+    //         //     await (token0 as Contract).approve(rc.address, amt0)
+    //         //     await rc.addLiquidityETH(ta0, amt0, 0, 0, to, deadlineTs(600), {value: amt1})
+    //         // }
+    //     } else {
+    //         ta0 = token0.address
+    //         ta1 = token1.address
+    //         await token0.approve(rc.address, amt0)
+    //         await token1.approve(rc.address, amt1)
+    //         // console.log('approve success')
+    //         await rc.addLiquidity(token0.address, ta1, BigNumber.from(amt0), BigNumber.from(amt1), 0, 0, to, deadlineTs(600))
+    //     }
+    //     let pair = await fc.getPair(ta0, ta1)
+    //     // console.log('addTestLiquidity: pair of factory %s: %s', fc.address, pair)
+    //     console.log('addTestLiquidity(%s): token0=%s token1=%s pair=%s amt0=%s amt1=%s',
+    //             fc.address, ta0, ta1, pair, amt0.toString(), amt1.toString())
+    // }
+
+
+    // 参数必须为 etoken 地址
+    const _getTokenAddress = async (etoken: string) => {
+        return delegatorFactory.getTokenAddress(etoken)
     }
 
-    const addTestLiquidity = async (
+    const addTokenLiquidity = async (
                 rc: Contract,
-                fc: Contract,
-                token0: Contract | string,
-                token1: Contract | string,
+                underlying: boolean,
+                token0: string,
+                token1: string,
                 amt0: BigNumberish,
                 amt1: BigNumberish,
-                to: string
+                to: string,
+                signer: SignerWithAddress
             ) => {
-        let ta0, ta1
-        if (typeof token0 === 'string' || typeof token1 === 'string') {
-            if (typeof token0 === 'string') {
-                assert(typeof token1 !== 'string')
-                ta0 = wht
-                ta1 = (token1 as Contract).address
-                await (token1 as Contract).approve(rc.address, amt1)
-                await rc.addLiquidityETH(ta1, amt1, 0, 0, to, deadlineTs(600), {value: amt0})
+        if (token0 === zeroAddress || token1 == zeroAddress) {
+            // token -> eth or eth -> token
+            if (token0 === zeroAddress) {
+                let token1c = getTokenContract(token1, signer)
+                await token1c.approve(rc.address, amt1)
+                if (underlying) {
+                    await rc.addLiquidityETHUnderlying(token1, amt1, 0, 0, to, deadlineTs(600), {value: amt0})
+                } else {
+                    await rc.addLiquidityETH(token1, amt1, 0, 0, to, deadlineTs(600), {value: amt0})
+                }
             } else {
-                ta0 =token0.address
-                ta1 = wht
-                await (token0 as Contract).approve(rc.address, amt0)
-                await rc.addLiquidityETH(ta0, amt0, 0, 0, to, deadlineTs(600), {value: amt1})
+                let token0c = getTokenContract(token0, signer)
+                await token0c.approve(rc.address, amt0)
+                if (underlying) {
+                    await rc.addLiquidityETHUnderlying(token0, amt0, 0, 0, to, deadlineTs(600), {value: amt1})
+                } else {
+                    await rc.addLiquidityETH(token0, amt0, 0, 0, to, deadlineTs(600), {value: amt1})
+                }
             }
-        } else {
-            ta0 = token0.address
-            ta1 = token1.address
-            await token0.approve(rc.address, amt0)
-            await token1.approve(rc.address, amt1)
-            // console.log('approve success')
-            await rc.addLiquidity(token0.address, ta1, BigNumber.from(amt0), BigNumber.from(amt1), 0, 0, to, deadlineTs(600))
+            return
         }
-        let pair = await fc.getPair(ta0, ta1)
-        // console.log('addTestLiquidity: pair of factory %s: %s', fc.address, pair)
-        console.log('addTestLiquidity(%s): token0=%s token1=%s pair=%s amt0=%s amt1=%s',
-                fc.address, ta0, ta1, pair, amt0.toString(), amt1.toString())
+
+        // token <-> token
+        let token0c = getTokenContract(token0, signer)
+            , token1c = getTokenContract(token1, signer)
+        await token0c.approve(rc.address, amt0)
+        await token1c.approve(rc.address, amt1)
+        if (underlying) {
+            await rc.addLiquidityUnderlying(token0, token1, amt0, amt1, 0, 0, to, deadlineTs(600))
+        } else {
+            await rc.addLiquidity(token0, token1, amt0, amt1, 0, 0, to, deadlineTs(600))
+        }
     }
 
     // 移除所有流动性
-    const removeAllLiquidity = async (rc: Contract, fc: Contract, token0: string, token1: string, owner: string) => {
-        let pair = await fc.pairFor(token0, token1)
-            , pairc = getTokenContract(pair)
-            , amt = await pairc.balanceOf(owner)
+    const removeAllLiquidity = async (rc: Contract, fc: Contract, underlying: boolean, token0: string, token1: string, owner: string) => {
+        let pair = await fc.pairFor(token0 === zeroAddress ? wht : token0, token1 === zeroAddress ? wht : token1)
+        // console.log('pair:', pair)
+        let pairc = getTokenContract(pair, namedSigners[0])
+        let amt = await pairc.balanceOf(owner)
+        console.log('pair:', pair, amt.toString())
         if (token0 === zeroAddress || token1 === zeroAddress) {
-            rc.removeLiquidityETH(token0 === zeroAddress ? token1 : token0, amt, 0, 0, owner, deadlineTs(600))
+            if (underlying) {
+                await rc.removeLiquidityETHUnderlying(token0 === zeroAddress ? token1 : token0, amt, 0, 0, owner, deadlineTs(600))
+            } else {
+                await rc.removeLiquidityETH(token0 === zeroAddress ? token1 : token0, amt, 0, 0, owner, deadlineTs(600))
+            }
         } else {
-            rc.removeLiquidity(token0, token1, amt, 0, 0, owner, deadlineTs(600))
+            if (underlying) {
+                await rc.removeLiquidityUnderlying(token0, token1, amt, 0, 0, owner, deadlineTs(600))
+            } else {
+                await rc.removeLiquidity(token0, token1, amt, 0, 0, owner, deadlineTs(600))
+            }
         }
     }
     
@@ -331,7 +411,184 @@ describe("聚合交易测试", function() {
     })
     */
 
-    it('middle-token-1', async () => {
+    interface PairReserve {
+        token0: string
+        token1: string
+        amountA: BigNumberish
+        amountB: BigNumberish
+    }
+
+    interface LiquidityParam {
+        rc: Contract
+        fc?: Contract
+        underlying: boolean
+        owner: SignerWithAddress
+        pairs: PairReserve[]
+    }
+
+    const sanitizeMidTokens = async (
+                                    isEToken: boolean,
+                                    tokenIn:  string,
+                                    tokenOut: string,
+                                    mids: string[]
+                                ): Promise<string[]> => {
+        let midTokens: string[] = []
+            , ti = tokenIn
+            , to = tokenOut
+        if (isEToken) {
+            ti = await _getTokenAddress(tokenIn)
+            to = await _getTokenAddress(tokenOut)
+        }
+        if (ti === zeroAddress) {
+            ti = wht
+        }
+        if (to === zeroAddress) {
+            to = wht
+        }
+
+        for (let t of mids) {
+            // 
+            if (t !== ti && t !== to) {
+                midTokens.push(t)
+            }
+        }
+        return midTokens
+    }
+
+    const makeTestCase = async (
+                                tokenIn:  string,
+                                tokenOut: string,
+                                amountIn: BigNumber,
+                                _midTokens: string[],
+                                liquidities: LiquidityParam[],
+                                signer: SignerWithAddress,
+                                isEToken = false,
+                                complex = 2,
+                                parts = 50,
+                            ) => {
+        let midTokens: string[] = await sanitizeMidTokens(isEToken, tokenIn, tokenOut, _midTokens)
+
+        for (let i = 0; i < liquidities.length; i ++) {
+            let liquidity = liquidities[i]
+
+            for (let j = 0; j < liquidity.pairs.length; j ++) {
+                let pair = liquidity.pairs[j]
+
+                await addTokenLiquidity(
+                            liquidity.rc,
+                            liquidity.underlying,
+                            pair.token0,
+                            pair.token1,
+                            pair.amountA,
+                            pair.amountB,
+                            liquidity.owner.address,
+                            liquidity.owner
+                        )
+            }
+        }
+        
+        let tx = await buildAggressiveSwapTx(
+            stepSwapC,
+            deployer,
+            tokenIn, 
+            tokenOut,
+            midTokens,
+            amountIn,
+            100,
+            complex,
+            parts
+        )
+        
+        console.log('tx:', 'tx')
+        if (tokenIn === zeroAddress) {
+            await stepSwapC.unoswap(tx, {value: amountIn})
+        } else {
+            let tokenInC = getTokenContract(tokenIn, signer)
+            await tokenInC.approve(stepSwapC.address, amountIn)
+            await stepSwapC.unoswap(tx)
+        }
+
+        console.log('remove liquidity ....')
+        // clean liquidity
+        for (let i = 0; i < liquidities.length; i ++) {
+            let liquidity = liquidities[i]
+
+            for (let j = 0; j < liquidity.pairs.length; j ++) {
+                let pair = liquidity.pairs[j]
+
+                await removeAllLiquidity(
+                            liquidity.rc,
+                            liquidity.fc!,
+                            liquidity.underlying,
+                            pair.token0,
+                            pair.token1,
+                            liquidity.owner.address,
+                        )
+            }
+        }
+    }
+
+    // it('basic-token-token', async () => {
+    //     let signer = namedSigners[0]
+    //     await makeTestCase(sea, doge, BigNumber.from('5000000000000000000'), [usdt], [{
+    //         rc: s1.rc!,
+    //         fc: s1.fc!,
+    //         underlying: false,
+    //         owner: signer,
+    //         pairs: [
+    //             {
+    //                 token0: sea,
+    //                 token1: doge,
+    //                 amountA: '1000000000000000000000',
+    //                 amountB: '20000000',
+    //             },
+    //         ]
+    //     }, {
+    //         rc: s2.rc!,
+    //         fc: s2.fc!,
+    //         underlying: false,
+    //         owner: signer,
+    //         pairs: [
+    //             {
+    //                 token0: sea,
+    //                 token1: doge,
+    //                 amountA: '2000000000000000000000',
+    //                 amountB: '40000000',
+    //             },
+    //         ]
+    //     },
+    // ], signer)
+    // })
+
+    it('ht-token-1', async () => {
+        let signer = namedSigners[0]
+        await makeTestCase(ht, doge, BigNumber.from('5000000000000000000'), [usdt], [{
+            rc: s1.rc!,
+            fc: s1.fc!,
+            underlying: false,
+            owner: signer,
+            pairs: [
+                {
+                    token0: ht,
+                    token1: doge,
+                    amountA: '1000000000000000000000',
+                    amountB: '20000000',
+                },
+                // {
+                //     token0: ,
+                //     token1: ,
+                //     amountA: ,
+                //     amountB: ,
+                // },
+                // {
+                //     token0: ,
+                //     token1: ,
+                //     amountA: ,
+                //     amountB: ,
+                // },
+            ]
+        }], signer)
+        /*
         // await addTestLiquidityByFactory(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '20000000', deployer)
         await addTestLiquidity(s1.rc!, s1.fc!, seac, dogec, '1000000000000000000000', '2000000000000000000000', deployer)
         await addTestLiquidity(s1.rc!, s1.fc!, seac, usdtc, '1000000000000000000000', '1100000000000000000000', deployer)
@@ -373,6 +630,7 @@ describe("聚合交易测试", function() {
         console.log('tx:', 'tx')
         await tokenInC.approve(stepSwapC.address, amtIn)
         await stepSwapC.unoswap(tx)
+        */
         /*
         let routePath = await stepSwapC.getSwapReserveRates({
                             to: deployer,
