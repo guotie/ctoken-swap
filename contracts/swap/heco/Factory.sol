@@ -26,7 +26,7 @@ import "../interface/ICToken.sol";
 
 import "./Pair.sol";
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 contract DeBankFactory is IDeBankFactory, Ownable {
     using SafeMath for uint256;
@@ -82,7 +82,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         require(token0 != address(0), 'SwapFactory: ZERO_ADDRESS');
         require(getPair[token0][token1] == address(0), 'SwapFactory: PAIR_EXISTS');
-        
+
         // guotie
         // token0 token1 不能是 cToken
         // (address ctoken0, address ctoken1) = _checkOrCreateCToken(token0, token1);
@@ -209,6 +209,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     // fetches and sorts the reserves for a pair
     function getReserves(address tokenA, address tokenB) public view returns (uint reserveA, uint reserveB) {
         (address token0,) = sortTokens(tokenA, tokenB);
+        require(tokenA == token0 || tokenB == token0, "param should be token not etoken");
         (uint reserve0, uint reserve1,) = IDeBankPair(pairFor(tokenA, tokenB)).getReserves();
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
     }
@@ -219,6 +220,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     function getReservesFeeRate(address tokenA, address tokenB, address to) public view 
             returns (uint reserveA, uint reserveB, uint feeRate, bool outAnchorToken) {
         (address token0,) = sortTokens(tokenA, tokenB);
+        require(tokenA == token0 || tokenB == token0, "param should be token not etoken");
         address pair = pairFor(tokenA, tokenB);
         (uint reserve0, uint reserve1,) = IDeBankPair(pair).getReserves();
         feeRate = feeRateOf[to];
@@ -232,8 +234,10 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
         outAnchorToken = tokenA == token0 ? tokenB == anchorToken : tokenA == anchorToken;
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
-        // console.log("tokenA: %s tokenB: %s anchorToken: %s", tokenA, tokenB, anchorToken);
-        // console.log("reserveA: %d reserveB: %d feeRate: %d", reserveA, reserveB, feeRate);
+        console.log("token0: %s", token0);
+        console.log("tokenA: %s tokenB: %s anchorToken: %s", tokenA, tokenB, anchorToken);
+        console.log("reserveA: %d reserveB: %d feeRate: %d", reserveA, reserveB, feeRate);
+        console.log("reserve0: %d reserve1: %d feeRate: %d", reserve0, reserve1);
     }
 
     // given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
@@ -356,6 +360,9 @@ contract DeBankFactory is IDeBankFactory, Ownable {
             } else {
                 amounts[i + 1] = getAmountOutFeeRate(amounts[i], reserveIn, reserveOut, feeRate);
             }
+            console.log("getAmountsOut: rIn=%d rOut=%d feeRate=%d", 
+                            reserveIn, reserveOut, feeRate);
+            console.log("getAmountsOut: in=%d out=%d", amounts[i], amounts[i+1]);
         }
     }
 

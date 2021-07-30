@@ -14,7 +14,7 @@ const hre = require('hardhat')
 const ethers = hre.ethers
 const network = hre.network
 
-const e18 = BigNumber.from('100000000000000000')
+const e18 = BigNumber.from('1000000000000000000')
 
 // 测试 swap pair
 describe("ctoken swap 测试", function() {

@@ -24,7 +24,7 @@ import "../interface/LErc20DelegatorInterface.sol";
 import "../interface/ICToken.sol";
 
 // import "../../compound/LHT.sol";
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 interface ILHT {
     function mint() external payable;
@@ -425,6 +425,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // 赎回 ctoken
     function _redeemCToken(address ctoken, address token, uint camt) private returns (uint) {
         uint b0 = IERC20(token).balanceOf(address(this));
+        console.log("ctoken balance:", ctoken, IERC20(ctoken).balanceOf(address(this)));
         uint err = ICToken(ctoken).redeem(camt);
         require(err == 0, "redeem failed");
         uint b1 = IERC20(token).balanceOf(address(this));
@@ -443,8 +444,8 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     }
 
     function _redeemCTokenTransfer(address ctoken, address token, address to, uint camt) private returns (uint)  {
+        console.log("_redeemCTokenTransfer: redeem amt: %d", camt);
         uint amt = _redeemCToken(ctoken, token, camt);
-        // console.log("redeem amt: %d", camt, amt);
         if (amt > 0) {
             TransferHelper.safeTransfer(token, to, amt);
         }
@@ -797,6 +798,8 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         vars.rate1 = _cTokenExchangeRate(cpath[0]);
         uint camtIn = _amount2CAmount(amountIn, vars.rate0);
         uint[] memory camounts = IDeBankFactory(factory).getAmountsOut(camtIn, path, to);
+        console.log("_swapExactTokensForTokensUnderlying: in/out: %d %d", camounts[0], camounts[camounts.length-1]);
+        
         // console.log(camounts[0], camounts[1]);
         vars.amountOut = _camount2Amount(camounts[camounts.length - 1], vars.rate1);
         require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');

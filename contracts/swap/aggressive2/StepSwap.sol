@@ -263,7 +263,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         // params.exchanges = exchanges;
 
         params.fees = new uint[](params.routes);
-        params.reserves = new uint[][](params.routes);
+        params.reserves = new uint[][][](params.routes);
         for (uint i = 0; i < params.paths.length; i ++) {
             DataTypes.Exchange memory ex = params.exchanges[i];
             address[] memory path = params.paths[i];
@@ -279,12 +279,13 @@ contract StepSwap is Ownable, StepSwapStorage {
                     params.fees[i] = 30;
                     params.reserves[i] = Exchanges.getReserves(ex.contractAddr, params.cpaths[i]);
                 } else {
-                    // todo set exchange fee
+                    // set exchange fee
                     params.fees[i] = 30;
                     params.reserves[i] = Exchanges.getReserves(ex.contractAddr, path);
                 }
             } else {
                 // curve todo
+                params.fees[i] = 4;
             }
         }
     }
@@ -323,6 +324,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         if (args.ebankAmt > 0) {
             // build ebank swap
             address ebankRouter = _getEBankContract();
+            address[] memory path;
             address[] memory cpath;
             uint i = 0;
             for (; i < args.distributes.length; i ++) {
@@ -332,17 +334,21 @@ contract StepSwap is Ownable, StepSwapStorage {
 
                 DataTypes.Exchange memory ex = args.exchanges[i];
                 if (Exchanges.isEBankExchange(ex.exFlag)) {
+                    path = args.paths[i];
                     cpath = args.cpaths[i];
                     break;
                 }
             }
+            console.log("build ebank step: amt=%d", args.ebankAmt);
             require(i != args.distributes.length, "no ebank");
             params.steps[stepIdx] = buildEbankSwapStep(
                                                 ebankRouter,
+                                                path,
                                                 cpath,
                                                 args.ebankAmt,
                                                 args.isEToken
                                             );
+            stepIdx ++;
         }
 
         for (uint i = 0; i < args.distributes.length; i ++) {
@@ -386,36 +392,46 @@ contract StepSwap is Ownable, StepSwapStorage {
         return false;
     }
 
+    function _isCETH(address token) private view returns (bool) {
+        if (token == address(ceth) || token == address(0)) {
+            return true;
+        }
+        return false;
+    }
+
     /// 构建 ebank swap 参数
     function buildEbankSwapStep(
                     address router,
+                    address[] memory path,
                     address[] memory cpath,
                     uint256 amtIn,
-                    bool isToken                // 是否是 token in token out
+                    bool isEToken                // 是否是 token in token out
                 )
                 public
                 view
                 returns (DataTypes.StepExecuteParams memory step) {
-        if (isToken) {
+        DataTypes.UniswapRouterParam memory rp;
+        if (!isEToken) {
             // underlying swap
             address tokenIn = cpath[0];
             address tokenOut = cpath[cpath.length-1];
 
-            if (_isETH(tokenIn)) {
+            if (_isCETH(tokenIn)) {
                 step.flag = DataTypes.STEP_EBANK_ROUTER_ETH_TOKENS;
-            } else if (_isETH(tokenOut)) {
+            } else if (_isCETH(tokenOut)) {
                 step.flag = DataTypes.STEP_EBANK_ROUTER_TOKENS_ETH;
             } else {
                 step.flag = DataTypes.STEP_EBANK_ROUTER_TOKENS_TOKENS;
             }
+            // underlying 时, path 必须是 token
+            rp.path = path;
         } else {
             step.flag = DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS;
+            rp.path = cpath;
         }
 
-        DataTypes.UniswapRouterParam memory rp;
         rp.contractAddr = router;
         rp.amount = amtIn;
-        rp.path = cpath;
 
         step.data = abi.encode(rp);
     }
@@ -510,6 +526,7 @@ contract StepSwap is Ownable, StepSwapStorage {
         // approve, swap
             // DataTypes.UniswapRouterParam memory param = abi.decode(step.data, (DataTypes.UniswapRouterParam));
             // address router = param.contractAddr;
+        console.log("_doRouterSetp flag:", flag);
         if (flag == DataTypes.STEP_UNISWAP_ROUTER_ETH_TOKENS || flag == DataTypes.STEP_EBANK_ROUTER_ETH_TOKENS) {
             // eth
             if (amt == 0) {
@@ -532,8 +549,10 @@ contract StepSwap is Ownable, StepSwapStorage {
             } else if (flag == DataTypes.STEP_UNISWAP_ROUTER_TOKENS_ETH) {
                 IRouter(router).swapExactTokensForETH(amt, 0, path, address(this), deadline);
             } else if (flag == DataTypes.STEP_EBANK_ROUTER_CTOKENS_CTOKENS) {
+                console.log("ebank ctoken->ctoken:", path.length, amt, IERC20(tokenIn).balanceOf(address(this)));
                 IDeBankRouter(router).swapExactTokensForTokens(amt, 0, path, address(this), deadline);
             } else if (flag == DataTypes.STEP_EBANK_ROUTER_TOKENS_TOKENS) {
+                console.log("ebank token->token:", path.length, amt, IERC20(tokenIn).balanceOf(address(this)));
                 IDeBankRouter(router).swapExactTokensForTokensUnderlying(amt, 0, path, address(this), deadline);
             } else {
                 // STEP_EBANK_ROUTER_TOKENS_ETH
@@ -645,11 +664,12 @@ contract StepSwap is Ownable, StepSwapStorage {
         if (args.tokenOut == address(0)) {
             uint balance = address(this).balance;
             require(balance >= args.minAmt, "less than minAmt");
+            console.log("eth balance:", balance);
             TransferHelper.safeTransferETH(msg.sender, balance);
         } else {
             uint balance = IERC20(tokenOut).balanceOf(address(this));
             require(balance >= args.minAmt, "less than minAmt");
-            console.log("balance:", balance);
+            console.log("token balance:", balance);
             TransferHelper.safeTransfer(tokenOut, msg.sender, balance);
         }
     }

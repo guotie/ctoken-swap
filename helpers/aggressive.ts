@@ -55,18 +55,19 @@ interface SwapReserveRates {
     exchanges:    Exchange[]
     paths:        string[][]
     cpaths:       string[][]
-    reserves:     BigNumber[][]
+    reserves:     BigNumber[][][]
     distributes:  BigNumber[]
 }
 
 // 根据 x*y=K 计算 uniswap 的 amountOut
-function calculateUniswapFormula(fromBalance: BigNumber, toBalance: BigNumber, amountIn: BigNumber): BigNumber {
+function calculateUniswapFormula(fromBalance: BigNumber, toBalance: BigNumber, amountIn: BigNumber, fee=30): BigNumber {
     if (amountIn.eq(0)) {
         return zero;
     }
 
-    return amountIn.mul(toBalance).mul(997).div(
-            fromBalance.mul(1000).add(amountIn.mul(997))
+    let nom = 10000-fee
+    return amountIn.mul(toBalance).mul(nom).div(
+            fromBalance.mul(10000).add(amountIn.mul(nom))
         );
 }
 
@@ -74,30 +75,79 @@ function calculateUniswapFormula(fromBalance: BigNumber, toBalance: BigNumber, a
 // path: 兑换路径, eg: ['usdt address', 'wht address', 'wbtc address']
 // amountIns: amountIn 被平均分为 parts 份
 // reserves: path 数组相邻两个 token  构成的交易对的 reserve
-function uniswapLikeSwap(path: string[], amountIns: BigNumber[], reserves: BigNumber[]): BigNumber[] {
+function uniswapLikeSwap(
+                path: string[],
+                amountIns: BigNumber[],
+                reserves: BigNumber[][],
+                isEToken: boolean,
+                rateIn: BigNumber,
+                rateOut: BigNumber
+            ): BigNumber[] {
     let tmp = new Array(path.length)
         , amountOuts: BigNumber[] = new Array(amountIns.length+1)
 
+    console.log('uniswap reserve: %s %s', reserves[0][0].toString(), reserves[0][1].toString())
     amountOuts[0] = zero
     for (let i = 0; i < amountIns.length; i ++) {
         tmp[0] = amountIns[i];
         for (let j = 0; j < path.length - 1; j ++) {
-            tmp[j + 1] = calculateUniswapFormula(reserves[j], reserves[j+1], tmp[j]);
+            tmp[j + 1] = calculateUniswapFormula(reserves[j][0], reserves[j][1], tmp[j]);
         }
-        amountOuts[i+1] = tmp[path.length-1];
+        if (isEToken) {
+            let amt: BigNumber = tmp[path.length-1]
+            amountOuts[i+1] = amt.mul(rateIn).div(rateOut)
+        } else {
+            amountOuts[i+1] = tmp[path.length-1];
+        }
     }
 
     return amountOuts
 }
 
+const e18 = BigNumber.from('1000000000000000000')
+
 // 计算 ebank swap token 的兑换
-// 需要考虑第一个 token 和最后一个 token 的 exchange rate
-function ebankSwapTokens() {
+function ebankSwapTokens(
+                fee: BigNumber,
+                cpath: string[],
+                amountIns: BigNumber[],
+                reserves: BigNumber[][],
+                isEToken: boolean,
+                rateIn: BigNumber,
+                rateOut: BigNumber
+            ): BigNumber[] {
+    let tmp = new Array(cpath.length)
+        , amountOuts: BigNumber[] = new Array(amountIns.length+1)
+        , amt: BigNumber = zero
 
-}
+    amountOuts[0] = zero
+    for (let i = 0; i < amountIns.length; i ++) {
+        if (isEToken) {
+            tmp[0] = amountIns[i];
+        } else {
+            // mint 为 etoken 后的数量
+            tmp[0] = amountIns[i].mul(e18).div(rateIn)
+        }
 
-function ebankSwapCTokens() {
+        for (let j = 0; j < cpath.length - 1; j ++) {
+            tmp[j + 1] = calculateUniswapFormula(reserves[j][0], reserves[j][1], tmp[j], fee.toNumber());
+        }
 
+        if (isEToken) {
+            amt = tmp[cpath.length-1]
+            amountOuts[i+1] = amt;
+        } else {
+            amt = tmp[cpath.length-1]
+            amountOuts[i+1] = amt.mul(rateOut).div(e18)
+        }
+    }
+
+    console.log('ebank swap reserve: %s %s rateIn=%s rateOut=%s fee=%d',
+            reserves[0].toString(), reserves[1].toString(), rateIn, rateOut, fee.toString())
+    console.log('amountIn(etoken)=%s amt(etoken)=%s  amountOut=%s',
+            tmp[0].toString(), amt.toString(), amountOuts[amountIns.length])
+
+    return amountOuts
 }
 
 function linearInterpolation(
@@ -138,22 +188,28 @@ function calcExchangeListSwap(parts: number, amountIn: BigNumberish, params: Swa
     let len = params.exchanges.length
     let amountOuts: BigNumber[][] = new Array(len);
     let amountIns = linearInterpolation(amountIn, parts)
+    let isEToken = params.isEToken
+        , rateIn = params.rateIn
+        , rateOut = params.rateOut
 
+    console.log('isEToken:', isEToken)
     for (let i = 0; i < len; i ++) {
         let ex = params.exchanges[i]
             , path = params.paths[i]
             , cpath = params.cpaths[i]
             , reserves = params.reserves[i]
+            , fee = params.fees[i]
 
-        for (let j = 0; j < parts; j ++) {
+        // for (let j = 0; j < parts; j ++) {
             if (isEBankExchange(ex.exFlag)) {
-
+                amountOuts[i] = ebankSwapTokens(fee, cpath, amountIns, reserves, isEToken, rateIn, rateOut)
             } else if (isUniswapLikeExchange(ex.exFlag)) {
-                amountOuts[i] = uniswapLikeSwap(path, amountIns, reserves)
+                amountOuts[i] = uniswapLikeSwap(path, amountIns, reserves, isEToken, rateIn, rateOut)
             } else {
 
             }
-        }
+            console.log('exchange %d: all parts amountOut: %s', i, amountOuts[i][parts])
+        // }
     }
 
     return amountOuts
@@ -215,7 +271,7 @@ function findBestDistribution(s: number, amounts: BigNumber[][]) {
         if (distribution[i] > 0) {
             swapRoutes ++;
         }
-        // console.log("distribution[%d]: %d %d", i, distribution[i], amounts[i][s].toString());
+        console.log("distribution[%d]: %d %d", i, distribution[i], amounts[i][s].toString());
     }
 
     return {
@@ -260,10 +316,9 @@ async function buildAggressiveSwapTx(
                                 allowPartial: true,
                                 allowBurnchi: true,
                             })
-    
     // console.log('route path:', routePath)
-    let amounts = calcExchangeListSwap(parts, amountIn, routePath)
     // console.log('amouts:', amounts)
+    let amounts = calcExchangeListSwap(parts, amountIn, routePath)
     let distributes = findBestDistribution(parts, amounts)
 
     // 根据 amountIn 和 分配比例, 计算每个兑换路径的 amount
@@ -273,6 +328,7 @@ async function buildAggressiveSwapTx(
         , allEbank = false
         , distribution: BigNumber[] = new Array(distributes.distribution.length);
 
+    console.log('swap routes: %d', distributes.distribution.length)
     /// amount 的分配
     /// 1. 如果是 ctoken, uniswap 需要把 ctoken redeem 为 token, uniswap 对应的 distribution 是 etoken 数量, 在合约中转换为对应的 token 数量比例;
     ///    ebank 对应的 distribution 是 etoken 数量
@@ -303,7 +359,9 @@ async function buildAggressiveSwapTx(
             ebankAmt = amt
         }
         idx ++;
+        console.log('    route %d/%d: %d %d', i, idx, distributes.distribution[i], amt.toString())
     }
+
     // todo minAmt
     let args: SwapReserveRates = {
         isEToken:     routePath.isEToken,

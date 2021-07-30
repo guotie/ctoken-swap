@@ -100,7 +100,7 @@ library DataTypes {
         Exchange[]  exchanges;
         address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
         address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
-        uint256[][] reserves;     // [routes][path]
+        uint256[][][] reserves;     // [routes][path]
         uint256[] distributes;    // 各个 swap 路径分配的兑换数量, 对于 ebank 是 etoken 的数量， 其他 swap 是 token 数量
     }
 

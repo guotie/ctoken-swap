@@ -145,7 +145,8 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         comptroller.transferVerify(address(this), src, dst, tokens);
 
-        console.log("transfer ctoken success: %d", tokens);
+        console.log("transfer ctoken: from=%s to=%s %d", src, dst, tokens);
+        console.log("transfer ctoken %s success: %d", address(this), tokens);
         return uint(Error.NO_ERROR);
     }
 

@@ -389,23 +389,36 @@ library Exchanges {
                 )
                 public
                 view
-                returns (uint[] memory reserves) {
+                returns (uint[][] memory reserves) {
 
         uint plen = path.length;
-        reserves = new uint[](plen);
+        reserves = new uint[][](plen);
         IFactory factory = IFactory(IRouter(router).factory());
         for (uint i = 0; i < plen - 1; i ++) {
             // address t0 = path[i] == address(0) ? weth : path[i];
             // address t1 = path[i+1] == address(0) ? weth : path[i+1];
             address pair = factory.getPair(path[i], path[i+1]);
+            uint[] memory res = new uint[](2);
             if (pair == address(0)) {
-                return reserves;
+                reserves[i] = res;
+                // return reserves;
+                continue;
             }
-            reserves[i] = IERC20(path[i]).balanceOf(pair);
-            reserves[i+1] = IERC20(path[i+1]).balanceOf(pair);
-            if (reserves[i] == 0 || reserves[i+1] == 0) {
-                return reserves;
-            }
+            // (uint r0, uint r1, ) = IPair(pair).getReserves();
+            // if (r0 == 0 || r1 == 0) {
+            //     return reserves;
+            // }
+            // reserves[i] = IERC20(path[i]).balanceOf(pair);
+            // reserves[i+1] = IERC20(path[i+1]).balanceOf(pair);
+            // if (reserves[i] == 0 || reserves[i+1] == 0) {
+            //     return reserves;
+            // }
+            res[0] = IERC20(path[i]).balanceOf(pair);
+            res[1] = IERC20(path[i+1]).balanceOf(pair);
+            reserves[i] = res;
+            // if (reserves[i] == 0 || reserves[i+1] == 0) {
+            //     return reserves;
+            // }
         }
     }
 
