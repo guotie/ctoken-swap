@@ -79,7 +79,16 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     // tokenA tokenB 都不能是 cToken
     function createPair(address tokenA, address tokenB, address ctoken0, address ctoken1) external returns (address pair) {
         require(tokenA != tokenB, 'SwapFactory: IDENTICAL_ADDRESSES');
-        (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        // (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        address token0 = tokenA;
+        address token1 = tokenB;
+        if (tokenA > tokenB) {
+            token0 = tokenB;
+            token1 = tokenA;
+            address tmp = ctoken1;
+            ctoken1 = ctoken0;
+            ctoken0 = tmp;
+        }
         require(token0 != address(0), 'SwapFactory: ZERO_ADDRESS');
         require(getPair[token0][token1] == address(0), 'SwapFactory: PAIR_EXISTS');
 

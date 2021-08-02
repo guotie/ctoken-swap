@@ -265,8 +265,11 @@ describe("聚合交易测试", function() {
             , pair = await fc.pairFor(token0 === zeroAddress ? wht : token0, token1 === zeroAddress ? wht : token1)
             , pairc = await getContractByAddressName(pair, 'MdexPair', signer)
             , reserve = await pairc.getReserves()
+            , tokens0 = await pairc.token0()
+            , tokens1 = await pairc.token1()
     
         console.log('add liquidity: %s(%s) %s(%s)', token0, ctoken0, token1, ctoken1)
+        console.log('pair token0/token1: %s %s', tokens0, tokens1)
         console.log('reserves:', reserve[0].toString(), reserve[1].toString())
     }
 
@@ -592,7 +595,6 @@ describe("聚合交易测试", function() {
         }], buyer)
     })
     
-    /*
     it('token-ht-1', async () => {
         logHr('token->ht')
         let maker = namedSigners[0]
@@ -624,8 +626,20 @@ describe("聚合交易测试", function() {
                     amountB: '4000',
                 },
             ]
-        },
+        }, {
+            rc: ebankRouter,
+            fc: ebankFactory,
+            underlying: true,
+            owner: maker,
+            pairs: [{
+                token0: doge,
+                token1: ht,
+                amountA: '20000',
+                amountB: '4000',
+            }
+            ]
+        }
         ], buyer)
     })
-     */
+     
 })

@@ -300,7 +300,7 @@ describe("ctoken router 测试", function() {
     const pair = await getPairContract(token0, token1)
     const b0 = await pair.balanceOf(deployer)
     console.log('before mint, LP %s balance: %s', pair.address, b0.toString())
-    if (token1 !== wht.address) {
+    if (token1 !== wht.address && token0 !== zeroAddress) {
       let gas = await router.estimateGas.addLiquidityUnderlying(token0, token1, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(6))
       console.log('addLiquidityUnderlying estimate gas:', gas.toString())
       const tx = await router.addLiquidityUnderlying(token0, token1, amt0Desired, amt1Desired, amt0Min, amt1Min, deployer, deadlineTs(6))

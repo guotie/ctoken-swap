@@ -198,7 +198,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         address ctokenB;
     }
 
-    // tokenA tokenB 都是 cToken
+    // tokenA tokenB 都必须是 cToken
     function _addLiquidity(
         address ctokenA,
         address ctokenB,
@@ -386,6 +386,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
         amountToken = _camount2Amount(amountCToken, vars.rateA);
         amountETH = _camount2Amount(amountCETH, vars.rateB);
+        console.log("amountToken: %d amountETH: %d", amountToken, amountETH);
         _mintTransferCToken(token, ctoken, pair, amountToken);
         // TransferHelper.safeTransferFrom(token, msg.sender, pair, amountToken);
         // _safeTransferCtoken(token, msg.sender, pair, amountToken);
@@ -799,7 +800,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         uint camtIn = _amount2CAmount(amountIn, vars.rate0);
         uint[] memory camounts = IDeBankFactory(factory).getAmountsOut(camtIn, path, to);
         console.log("_swapExactTokensForTokensUnderlying: in/out: %d %d", camounts[0], camounts[camounts.length-1]);
-        
+
         // console.log(camounts[0], camounts[1]);
         vars.amountOut = _camount2Amount(camounts[camounts.length - 1], vars.rate1);
         require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
