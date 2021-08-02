@@ -224,10 +224,12 @@ contract SwapMining is Ownable {
     }
 
     // swapMining only router
-    function swap(address account, address input, address output, uint256 amount) public onlyRouter returns (bool) {
+    function swap(address account, address input, address output, uint256 fee) public onlyRouter returns (bool) {
         require(account != address(0), "SwapMining: taker swap account is the zero address");
-        require(input != address(0), "SwapMining: taker swap input is the zero address");
-        require(output != address(0), "SwapMining: taker swap output is the zero address");
+        input;
+        output;
+        // require(input != address(0), "SwapMining: taker swap input is the zero address");
+        // require(output != address(0), "SwapMining: taker swap output is the zero address");
 
         if (poolLength() <= 0) {
             return false;

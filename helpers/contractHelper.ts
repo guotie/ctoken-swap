@@ -1,4 +1,4 @@
-import { Contract, Signer, Wallet, providers } from 'ethers'
+import { BigNumber, Contract, Signer, Wallet, providers } from 'ethers'
 import {  Provider } from '@ethersproject/abstract-provider'
 import 'dotenv/config';
 
@@ -13,12 +13,16 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hecotest': {
         'USDT': '0x04F535663110A392A6504839BEeD34E019FdB4E0',
         'SEA': '0xEe798D153F3de181dE16DedA318266EE8Ad56dEA',
-        'WETH': '',
+        'DOGE': '0xA323120A386558ac95203019881C739D3c0A1346',
+        'SHIB': '0xf2b80eff2A06f46cA839CA77cCaf32aa820e78D1',
+        'WETH': '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
         'CETH': '',
-        'comptroller': '',
-        'ctokenFactory': '0xC65d5ea738F466FEb518b6079732C7b03eE04CF0',
+        'Comptroller': '',
+        'CtokenFactory': '0xC65d5ea738F466FEb518b6079732C7b03eE04CF0',
         'Factory': '',
         'Router': '',
+        'SwapPool': '',
+        'SwapMining': '',
         'OrderBook': '0x6545A6C3B6f28121CC7c65882b49023eE27Eaef0',
     },
     'hardhat' : {
@@ -26,8 +30,8 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'SEA': '',
         'WETH': '',
         'CETH': '',
-        'comptroller': '',
-        'ctokenFactory': '',
+        'Comptroller': '',
+        'CtokenFactory': '',
         'Factory': '',
         'Router': '',
         'OrderBook': '',
@@ -52,24 +56,25 @@ const endpoints: { [index: string]: string } = {
     'hecotest': 'https://http-testnet.hecochain.com'
 }
 
-let NETWORK: string = 'hecotest'
+const e18 = BigNumber.from('1000000000000000000')
 
-type NetworkType = 'hardhat' | 'hecotest'
-type ContractName = 'USDT' 
+let NETWORK: string = hre.network.name
+
+type TokenContractName = 'USDT' 
                     | 'SEA'
+                    | 'DOGE'
+                    | 'SHIB'
                     | 'WETH'
                     | 'CETH'
-                    | 'comptroller'
-                    | 'ctokenFactory'
+                    | 'Comptroller'
+                    | 'CtokenFactory'
                     | 'Factory'
                     | 'Router'
+                    | 'SwapMining'
+                    | 'SwapPool'
                     | 'OrderBook'
 
-function setNetwork(n: NetworkType) {
-    NETWORK = n
-}
-
-function setContractAddress(name: ContractName, addr: string) {
+function setContractAddress(name: TokenContractName, addr: string) {
     contractAddress[NETWORK][name] = addr
 }
 
@@ -152,8 +157,9 @@ async function getContractByAddressName(addr: string, name: string, signerOrProv
 }
 
 export {
+    e18,
     NETWORK,
-    setNetwork,
+    TokenContractName,
     setContractAddress,
     addressOf,
     // contractAddress,

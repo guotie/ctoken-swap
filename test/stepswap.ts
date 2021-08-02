@@ -46,12 +46,14 @@ describe("聚合交易测试", function() {
     let usdt: string
         , sea: string
         , doge: string
+        , shib: string
         , cusdt: string
         , csea: string
         , cdoge: string
         , usdtc: Contract
         , seac: Contract
         , dogec: Contract
+        , shibc: Contract
 
     let wht: string
         , whtC: Contract
@@ -70,19 +72,6 @@ describe("聚合交易测试", function() {
     // e18 是 18位数
     const e18 = BigNumber.from('1000000000000000000')
     const deploy = hre.deployments.deploy
-    // uint256 public constant FLAG_TOKEN_IN_ETH          = 0x000000000100; // prettier-ignore
-    // uint256 public constant FLAG_TOKEN_IN_TOKEN        = 0x000000000200; // prettier-ignore
-    // uint256 public constant FLAG_TOKEN_IN_CTOKEN       = 0x000000000400; // prettier-ignore
-    // uint256 public constant FLAG_TOKEN_OUT_ETH         = 0x000000000800; // prettier-ignore
-    // uint256 public constant FLAG_TOKEN_OUT_TOKEN       = 0x000000001000; // prettier-ignore
-    // uint256 public constant FLAG_TOKEN_OUT_CTOKEN      = 0x000000002000; // prettier-ignore
-    const FLAG_TOKEN_IN_ETH      = BigNumber.from('0x000000000100')
-    const FLAG_TOKEN_IN_TOKEN    = BigNumber.from('0x000000000200')
-    const FLAG_TOKEN_IN_CTOKEN   = BigNumber.from('0x000000000400')
-    const FLAG_TOKEN_OUT_ETH     = BigNumber.from('0x000000000800')
-    const FLAG_TOKEN_OUT_TOKEN   = BigNumber.from('0x000000001000')
-    const FLAG_TOKEN_OUT_CTOKEN  = BigNumber.from('0x000000002000')
-    const _SHIFT_COMPLEX_LEVEL  = 80
 
     before(async () => {
         namedSigners = await ethers.getSigners()
@@ -143,7 +132,6 @@ describe("聚合交易测试", function() {
         await createPair(doge, sea)
 
         await deployTestFixture(wht, ceth, ctokenFactory)
-
       })
 
     // normal mdex factory
@@ -184,8 +172,7 @@ describe("聚合交易测试", function() {
         await deployFactoryRouter('0x20', _wht, s2)
         await deployFactoryRouter('0x30', _wht, s3)
 
-        let signer = namedSigners[0]
-            , result = await deployStepSwap(_wht, _ceth, _ctokenFactory, signer, true, false)
+        let result = await deployStepSwap(_wht, _ceth, _ctokenFactory, true, false)
         stepSwapC = result.stepSwapC
         stepSwapAbi = result.abi
         stepSwapAddr = result.address

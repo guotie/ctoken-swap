@@ -26,7 +26,7 @@ import "../interface/ICToken.sol";
 
 import "./Pair.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract DeBankFactory is IDeBankFactory, Ownable {
     using SafeMath for uint256;
@@ -243,10 +243,10 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
         outAnchorToken = tokenA == token0 ? tokenB == anchorToken : tokenA == anchorToken;
         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
-        console.log("token0: %s", token0);
-        console.log("tokenA: %s tokenB: %s anchorToken: %s", tokenA, tokenB, anchorToken);
-        console.log("reserveA: %d reserveB: %d feeRate: %d", reserveA, reserveB, feeRate);
-        console.log("reserve0: %d reserve1: %d feeRate: %d", reserve0, reserve1);
+        // console.log("token0: %s", token0);
+        // console.log("tokenA: %s tokenB: %s anchorToken: %s", tokenA, tokenB, anchorToken);
+        // console.log("reserveA: %d reserveB: %d feeRate: %d", reserveA, reserveB, feeRate);
+        // console.log("reserve0: %d reserve1: %d feeRate: %d", reserve0, reserve1);
     }
 
     // given some amount of an asset and pair reserves, returns an equivalent amount of the other asset
@@ -369,9 +369,9 @@ contract DeBankFactory is IDeBankFactory, Ownable {
             } else {
                 amounts[i + 1] = getAmountOutFeeRate(amounts[i], reserveIn, reserveOut, feeRate);
             }
-            console.log("getAmountsOut: rIn=%d rOut=%d feeRate=%d", 
-                            reserveIn, reserveOut, feeRate);
-            console.log("getAmountsOut: in=%d out=%d", amounts[i], amounts[i+1]);
+            // console.log("getAmountsOut: rIn=%d rOut=%d feeRate=%d", 
+            //                 reserveIn, reserveOut, feeRate);
+            // console.log("getAmountsOut: in=%d out=%d", amounts[i], amounts[i+1]);
         }
     }
 

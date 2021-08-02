@@ -97,7 +97,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
                 // 中间有若干个块没有交易的情况 将 本交易对之前的块手续费算在 上一个的所有交易对手续费之和 里
                 // 距离上一次交易的块越远, 收益越低
                 // uint multor = 1 + (block.number - currentBlock) / 100;
-                blockFee = fee + blockFee.mul(currentBlock).div(block.number); // / multor;
+                blockFee = fee + blockFee; //.mul(currentBlock).div(block.number); // / multor;
                 currentBlock = block.number;
                 return;
             }

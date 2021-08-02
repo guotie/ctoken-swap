@@ -24,14 +24,14 @@ import "../interface/LErc20DelegatorInterface.sol";
 import "../interface/ICToken.sol";
 
 // import "../../compound/LHT.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface ILHT {
     function mint() external payable;
 }
 
 interface ISwapMining {
-    function swap(address account, address input, address output, uint256 amount) external returns (bool);
+    function swap(address account, address input, address output, uint256 fee) external returns (bool);
 }
 
 interface IRewardToken {
@@ -117,6 +117,11 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         quoteTokens.push(token);
     }
 
+    // set reward token address
+    function setRewardToken(address _reword) external onlyOwner {
+        rewardToken = _reword;
+    }
+
     // function phase(uint256 blockNumber) public view returns (uint256) {
     //     if (halvingPeriod == 0) {
     //         return 0;
@@ -129,7 +134,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
     // 计算块奖励
     function reward(uint256 blockNumber) public view returns (uint256) {
-        if (rewardToken == address(0)) {
+        if (rewardToken == address(0) || feeAlloc == 0) {
             return 0;
         }
         return IRewardToken(rewardToken).reward(blockNumber);
@@ -140,6 +145,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // uint256 _phase = phase(blockNumber);
         // return lpPerBlock.div(2 ** _phase);
     }
+
 
     // todo to be removed
     // function getBlockRewards(uint256 _lastRewardBlock) public view returns (uint256) {
@@ -386,7 +392,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
         amountToken = _camount2Amount(amountCToken, vars.rateA);
         amountETH = _camount2Amount(amountCETH, vars.rateB);
-        console.log("amountToken: %d amountETH: %d", amountToken, amountETH);
+        // console.log("amountToken: %d amountETH: %d", amountToken, amountETH);
         _mintTransferCToken(token, ctoken, pair, amountToken);
         // TransferHelper.safeTransferFrom(token, msg.sender, pair, amountToken);
         // _safeTransferCtoken(token, msg.sender, pair, amountToken);
@@ -426,7 +432,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // 赎回 ctoken
     function _redeemCToken(address ctoken, address token, uint camt) private returns (uint) {
         uint b0 = IERC20(token).balanceOf(address(this));
-        console.log("ctoken balance:", ctoken, IERC20(ctoken).balanceOf(address(this)));
+        // console.log("ctoken balance:", ctoken, IERC20(ctoken).balanceOf(address(this)));
         uint err = ICToken(ctoken).redeem(camt);
         require(err == 0, "redeem failed");
         uint b1 = IERC20(token).balanceOf(address(this));
@@ -445,7 +451,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     }
 
     function _redeemCTokenTransfer(address ctoken, address token, address to, uint camt) private returns (uint)  {
-        console.log("_redeemCTokenTransfer: redeem amt: %d", camt);
+        // console.log("_redeemCTokenTransfer: redeem amt: %d", camt);
         uint amt = _redeemCToken(ctoken, token, camt);
         if (amt > 0) {
             TransferHelper.safeTransfer(token, to, amt);
@@ -701,10 +707,6 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             //     // 分配LP手续费奖励
             // }
 
-            if (swapMining != address(0)) {
-                // 交易挖矿
-                ISwapMining(swapMining).swap(msg.sender, input, output, amountOut);
-            }
             
             (uint amount0Out, uint amount1Out) = input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
             address to = i < path.length - 2 ? pairFor(output, path[i + 2]) : _to;
@@ -713,6 +715,11 @@ contract DeBankRouter is IDeBankRouter, Ownable {
                 uint fee = _swapToCAnchorToken(input, pair, anchorToken);
                 if (fee > 0) {
                     _updatePairFee(fee);
+                }
+
+                if (swapMining != address(0)) {
+                    // 交易挖矿
+                    ISwapMining(swapMining).swap(msg.sender, input, output, fee);
                 }
 
                 IDeBankPair(pairFor(input, output)).swapNoFee(
@@ -799,7 +806,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         vars.rate1 = _cTokenExchangeRate(cpath[0]);
         uint camtIn = _amount2CAmount(amountIn, vars.rate0);
         uint[] memory camounts = IDeBankFactory(factory).getAmountsOut(camtIn, path, to);
-        console.log("_swapExactTokensForTokensUnderlying: in/out: %d %d", camounts[0], camounts[camounts.length-1]);
+        // console.log("_swapExactTokensForTokensUnderlying: in/out: %d %d", camounts[0], camounts[camounts.length-1]);
 
         // console.log(camounts[0], camounts[1]);
         vars.amountOut = _camount2Amount(camounts[camounts.length - 1], vars.rate1);

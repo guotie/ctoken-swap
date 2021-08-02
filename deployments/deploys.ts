@@ -81,11 +81,14 @@ export async function deployStepSwap(
                         wethAddr: string,
                         ceth: string,
                         _ctokenFactory: string,
-                        signer: SignerWithAddress,
+                        // signer: SignerWithAddress,
                         log: boolean,
                         verify: boolean
                       ) {
-  let deployer = signer.address
+  
+  let namedSigners = await ethers.getSigners()
+    , deployer = namedSigners[0].address
+
   let e = await _deploy('Exchanges', {
               from: deployer,
               args: [],
@@ -126,16 +129,49 @@ export async function deployStepSwap(
     }
 }
 
+export async function deployFactory(usdt: string) {
+  let namedSigners = await ethers.getSigners()
+      , deployer = namedSigners[0].address
+
+  await _deploy('DeBankFactory', {
+    from: deployer,
+    // 10% 60% 稳定币 usdt 地址
+    args: [ usdt],
+    // args: [namedSigners[0].address, lercFactoryDeployed.address, anchorToken],
+    log: true,
+  }, true);
+}
+
+export async function deployRouter(
+                factory: string,
+                wht: string,
+                lht: string,
+                ctokenFactory: string
+              ) {
+  let namedSigners = await ethers.getSigners()
+      , deployer = namedSigners[0].address
+
+    const router = await _deploy('DeBankRouter', {
+    from: deployer,
+    // factory wht lht startBlock
+    args: [factory, wht, lht, ctokenFactory],
+    // libraries: { 'ExchangeRate': exchangeRateLib.address },
+    log: true
+  }, true)
+}
+
 // 部署 OrderBook
 export async function deployOrderBook(
                         ctokenFactory: string,
                         _ceth: string,
                         _weth: string,
                         _margin: string,
-                        deployer: any,
                         log: any,
                         verify: any
                       ) {
+  let namedSigners = await ethers.getSigners()
+      , deployer = namedSigners[0].address
+
   let l = await _deploy('OBPriceLogic', {
                       from: deployer,
                       args: [],
@@ -503,6 +539,23 @@ export async function deployCTokens(factoryAddr: string, addresses: string[], de
 
   for (let addr of addresses) {
     await ctokenFactory.getCTokenAddress(addr)
+  }
+}
+
+export async function deployToken(name: string, supply: BigNumber, decimals = 18) {
+  const signer = await ethers.getSigners()
+  const deployer = signer[0].address
+  const factory = await ethers.getContractFactory('Token')
+
+  let deployed = await factory.deploy(name, name, supply, deployer, decimals)
+  let c = new ethers.Contract(deployed.address, deployed.abi, signer[0])
+  return {
+    name: name,
+    symbol: name,
+    decimals: decimals,
+    totalSupply: supply,
+    address: deployed.address,
+    contract: c,
   }
 }
 

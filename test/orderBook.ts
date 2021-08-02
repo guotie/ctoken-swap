@@ -99,7 +99,7 @@ describe("orderbook 测试", function() {
           deployContracts.cWHT.address,
           deployContracts.WHT.address,
           ht,
-          deployer, true, true)
+          true, true)
     orderBook = rr.address
     orderBookC = await getContractBy(obArt.abi, orderBook)
 
