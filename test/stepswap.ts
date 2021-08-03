@@ -9,7 +9,7 @@ import { assert } from 'console';
 import { DeployContracts, deployAll, deployTokens, Tokens, zeroAddress, deployStepSwap } from '../deployments/deploys'
 import { logHr } from '../helpers/logHr'
 import createCToken from './shared/ctoken'
-import { setNetwork, getTokenContract, getCTokenContract, getProvider, getContractByAddressName } from '../helpers/contractHelper'
+import { getTokenContract, getCTokenContract, getProvider, getContractByAddressName } from '../helpers/contractHelper'
 import { buildAggressiveSwapTx } from '../helpers/aggressive';
 
 const hre = require('hardhat')
@@ -17,7 +17,6 @@ const ethers = hre.ethers
 const network = hre.network
 const ht = zeroAddress
 
-setNetwork(network.name)
 // console.log('provider:', ethers.provider)
 
 const e18 = BigNumber.from('1000000000000000000')
@@ -101,9 +100,11 @@ describe("聚合交易测试", function() {
         usdt = tokens.addresses.get('USDT')!
         sea = tokens.addresses.get('SEA')!
         doge = tokens.addresses.get('DOGE')!
+        shib = tokens.addresses.get('SHIB')!
         usdtc = getTokenContract(usdt, signer)
         seac = getTokenContract(sea, signer)
         dogec = getTokenContract(doge, signer)
+        shibc = getTokenContract(shib, signer)
     
         console.info('USDT:', usdt, 'SEA:', sea)
         expect(usdt).to.not.be.empty
@@ -518,39 +519,80 @@ describe("聚合交易测试", function() {
         }
     }
 
-    // it('basic-token-token', async () => {
-    //     let signer = namedSigners[0]
-    //     await makeTestCase(sea, doge, BigNumber.from('5000000000000000000'), [usdt], [{
-    //         rc: s1.rc!,
-    //         fc: s1.fc!,
-    //         underlying: false,
-    //         owner: signer,
-    //         pairs: [
-    //             {
-    //                 token0: sea,
-    //                 token1: doge,
-    //                 amountA: '1000000000000000000000',
-    //                 amountB: '20000000',
-    //             },
-    //         ]
-    //     }, {
-    //         rc: s2.rc!,
-    //         fc: s2.fc!,
-    //         underlying: false,
-    //         owner: signer,
-    //         pairs: [
-    //             {
-    //                 token0: sea,
-    //                 token1: doge,
-    //                 amountA: '2000000000000000000000',
-    //                 amountB: '40000000',
-    //             },
-    //         ]
-    //     },
-    // ], signer)
-    // })
+    it('basic-token-token', async () => {
+        let signer = namedSigners[0]
+        await makeTestCase(sea, shib, BigNumber.from('50'), [usdt], [{
+            rc: s1.rc!,
+            fc: s1.fc!,
+            underlying: false,
+            owner: signer,
+            pairs: [
+                {
+                    token0: sea,
+                    token1: shib,
+                    amountA: '100000',
+                    amountB: '400000',
+                }, {
+                    token0: sea,
+                    token1: usdt,
+                    amountA: '100000',
+                    amountB: '200000',
+                }, {
+                    token0: usdt,
+                    token1: shib,
+                    amountA: '100000',
+                    amountB: '200000',
+                },
+            ]
+        }, {
+            rc: s2.rc!,
+            fc: s2.fc!,
+            underlying: false,
+            owner: signer,
+            pairs: [
+                {
+                    token0: sea,
+                    token1: shib,
+                    amountA: '20000',
+                    amountB: '80000',
+                },{
+                    token0: sea,
+                    token1: usdt,
+                    amountA: '20000',
+                    amountB: '40000',
+                },{
+                    token0: usdt,
+                    token1: shib,
+                    amountA: '20000',
+                    amountB: '40000',
+                },
+            ]
+        }, {
+            rc: ebankRouter,
+            fc: ebankFactory,
+            underlying: true,
+            owner: signer,
+            pairs: [{
+                token0: sea,
+                token1: shib,
+                amountA: '20000',
+                amountB: '80000',
+            }, {
+                token0: sea,
+                token1: usdt,
+                amountA: '20000',
+                amountB: '40000',
+            }, {
+                token0: usdt,
+                token1: shib,
+                amountA: '20000',
+                amountB: '40000',
+            }
+            ]
+        }
+    ], buyer)
+    })
 
-    
     it('ht-token-1', async () => {
         logHr('ht->token')
         let maker = namedSigners[0]

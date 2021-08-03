@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../interface/IMdx.sol";
+import "../interface/IEbe.sol";
 
 interface IMasterChefHeco {
     function pending(uint256 pid, address user) external view returns (uint256);
@@ -37,15 +37,15 @@ contract HecoPool is Ownable {
         IERC20 lpToken;           // Address of LP token contract.
         uint256 allocPoint;       // How many allocation points assigned to this pool. MDXs to distribute per block.
         uint256 lastRewardBlock;  // Last block number that MDXs distribution occurs.
-        uint256 accMdxPerShare; // Accumulated MDXs per share, times 1e12.
+        uint256 accEbePerShare; // Accumulated MDXs per share, times 1e12.
         uint256 accMultLpPerShare; //Accumulated multLp per share
         uint256 totalAmount;    // Total amount of current pool deposit.
     }
 
     // The MDX Token!
-    IMdx public mdx;
+    IEbe public ebe;
     // MDX tokens created per block.
-    uint256 public mdxPerBlock;
+    uint256 public ebePerBlock;
     // Info of each pool.
     PoolInfo[] public poolInfo;
     // Info of each user that stakes LP tokens.
@@ -72,12 +72,12 @@ contract HecoPool is Ownable {
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
 
     constructor(
-        IMdx _mdx,
-        uint256 _mdxPerBlock,
+        IEbe _ebe,
+        uint256 _ebePerBlock,
         uint256 _startBlock
     ) public {
-        mdx = _mdx;
-        mdxPerBlock = _mdxPerBlock;
+        ebe = _ebe;
+        ebePerBlock = _ebePerBlock;
         startBlock = _startBlock;
     }
 
@@ -85,10 +85,10 @@ contract HecoPool is Ownable {
         halvingPeriod = _block;
     }
 
-    // Set the number of mdx produced by each block
-    function setMdxPerBlock(uint256 _newPerBlock) public onlyOwner {
+    // Set the number of ebe produced by each block
+    function setEbePerBlock(uint256 _newPerBlock) public onlyOwner {
         massUpdatePools();
-        mdxPerBlock = _newPerBlock;
+        ebePerBlock = _newPerBlock;
     }
 
     function poolLength() public view returns (uint256) {
@@ -152,7 +152,7 @@ contract HecoPool is Ownable {
         lpToken : _lpToken,
         allocPoint : _allocPoint,
         lastRewardBlock : lastRewardBlock,
-        accMdxPerShare : 0,
+        accEbePerShare : 0,
         accMultLpPerShare : 0,
         totalAmount : 0
         }));
@@ -186,10 +186,10 @@ contract HecoPool is Ownable {
 
     function reward(uint256 blockNumber) public view returns (uint256) {
         uint256 _phase = phase(blockNumber);
-        return mdxPerBlock.div(2 ** _phase);
+        return ebePerBlock.div(2 ** _phase);
     }
 
-    function getMdxBlockReward(uint256 _lastRewardBlock) public view returns (uint256) {
+    function getEbeBlockReward(uint256 _lastRewardBlock) public view returns (uint256) {
         uint256 blockReward = 0;
         uint256 n = phase(_lastRewardBlock);
         uint256 m = phase(block.number);
@@ -231,14 +231,14 @@ contract HecoPool is Ownable {
                 return;
             }
         }
-        uint256 blockReward = getMdxBlockReward(pool.lastRewardBlock);
+        uint256 blockReward = getEbeBlockReward(pool.lastRewardBlock);
         if (blockReward <= 0) {
             return;
         }
-        uint256 mdxReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
-        bool minRet = mdx.mint(address(this), mdxReward);
+        uint256 ebeReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
+        bool minRet = ebe.mint(address(this), ebeReward);
         if (minRet) {
-            pool.accMdxPerShare = pool.accMdxPerShare.add(mdxReward.mul(1e12).div(lpSupply));
+            pool.accEbePerShare = pool.accEbePerShare.add(ebeReward.mul(1e12).div(lpSupply));
         }
         pool.lastRewardBlock = block.number;
     }
@@ -247,50 +247,50 @@ contract HecoPool is Ownable {
     function pending(uint256 _pid, address _user) external view returns (uint256, uint256){
         PoolInfo storage pool = poolInfo[_pid];
         if (isMultLP(address(pool.lpToken))) {
-            (uint256 mdxAmount, uint256 tokenAmount) = pendingMdxAndToken(_pid, _user);
-            return (mdxAmount, tokenAmount);
+            (uint256 ebeAmount, uint256 tokenAmount) = pendingEbeAndToken(_pid, _user);
+            return (ebeAmount, tokenAmount);
         } else {
-            uint256 mdxAmount = pendingMdx(_pid, _user);
-            return (mdxAmount, 0);
+            uint256 ebeAmount = pendingEbe(_pid, _user);
+            return (ebeAmount, 0);
         }
     }
 
-    function pendingMdxAndToken(uint256 _pid, address _user) private view returns (uint256, uint256){
+    function pendingEbeAndToken(uint256 _pid, address _user) private view returns (uint256, uint256){
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        uint256 accMdxPerShare = pool.accMdxPerShare;
+        uint256 accEbePerShare = pool.accEbePerShare;
         uint256 accMultLpPerShare = pool.accMultLpPerShare;
         if (user.amount > 0) {
             uint256 TokenPending = IMasterChefHeco(multLpChef).pending(poolCorrespond[_pid], address(this));
             accMultLpPerShare = accMultLpPerShare.add(TokenPending.mul(1e12).div(pool.totalAmount));
             uint256 userPending = user.amount.mul(accMultLpPerShare).div(1e12).sub(user.multLpRewardDebt);
             if (block.number > pool.lastRewardBlock) {
-                uint256 blockReward = getMdxBlockReward(pool.lastRewardBlock);
-                uint256 mdxReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
-                accMdxPerShare = accMdxPerShare.add(mdxReward.mul(1e12).div(pool.totalAmount));
-                return (user.amount.mul(accMdxPerShare).div(1e12).sub(user.rewardDebt), userPending);
+                uint256 blockReward = getEbeBlockReward(pool.lastRewardBlock);
+                uint256 ebeReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
+                accEbePerShare = accEbePerShare.add(ebeReward.mul(1e12).div(pool.totalAmount));
+                return (user.amount.mul(accEbePerShare).div(1e12).sub(user.rewardDebt), userPending);
             }
             if (block.number == pool.lastRewardBlock) {
-                return (user.amount.mul(accMdxPerShare).div(1e12).sub(user.rewardDebt), userPending);
+                return (user.amount.mul(accEbePerShare).div(1e12).sub(user.rewardDebt), userPending);
             }
         }
         return (0, 0);
     }
 
-    function pendingMdx(uint256 _pid, address _user) private view returns (uint256){
+    function pendingEbe(uint256 _pid, address _user) private view returns (uint256){
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        uint256 accMdxPerShare = pool.accMdxPerShare;
+        uint256 accEbePerShare = pool.accEbePerShare;
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
         if (user.amount > 0) {
             if (block.number > pool.lastRewardBlock) {
-                uint256 blockReward = getMdxBlockReward(pool.lastRewardBlock);
-                uint256 mdxReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
-                accMdxPerShare = accMdxPerShare.add(mdxReward.mul(1e12).div(lpSupply));
-                return user.amount.mul(accMdxPerShare).div(1e12).sub(user.rewardDebt);
+                uint256 blockReward = getEbeBlockReward(pool.lastRewardBlock);
+                uint256 ebeReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
+                accEbePerShare = accEbePerShare.add(ebeReward.mul(1e12).div(lpSupply));
+                return user.amount.mul(accEbePerShare).div(1e12).sub(user.rewardDebt);
             }
             if (block.number == pool.lastRewardBlock) {
-                return user.amount.mul(accMdxPerShare).div(1e12).sub(user.rewardDebt);
+                return user.amount.mul(accEbePerShare).div(1e12).sub(user.rewardDebt);
             }
         }
         return 0;
@@ -300,20 +300,20 @@ contract HecoPool is Ownable {
     function deposit(uint256 _pid, uint256 _amount) public notPause {
         PoolInfo storage pool = poolInfo[_pid];
         if (isMultLP(address(pool.lpToken))) {
-            depositMdxAndToken(_pid, _amount, msg.sender);
+            depositEbeAndToken(_pid, _amount, msg.sender);
         } else {
-            depositMdx(_pid, _amount, msg.sender);
+            depositEbe(_pid, _amount, msg.sender);
         }
     }
 
-    function depositMdxAndToken(uint256 _pid, uint256 _amount, address _user) private {
+    function depositEbeAndToken(uint256 _pid, uint256 _amount, address _user) private {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         updatePool(_pid);
         if (user.amount > 0) {
-            uint256 pendingAmount = user.amount.mul(pool.accMdxPerShare).div(1e12).sub(user.rewardDebt);
+            uint256 pendingAmount = user.amount.mul(pool.accEbePerShare).div(1e12).sub(user.rewardDebt);
             if (pendingAmount > 0) {
-                safeMdxTransfer(_user, pendingAmount);
+                safeEbeTransfer(_user, pendingAmount);
             }
             uint256 beforeToken = IERC20(multLpToken).balanceOf(address(this));
             IMasterChefHeco(multLpChef).deposit(poolCorrespond[_pid], 0);
@@ -339,19 +339,19 @@ contract HecoPool is Ownable {
                 pool.totalAmount = pool.totalAmount.add(_amount);
             }
         }
-        user.rewardDebt = user.amount.mul(pool.accMdxPerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accEbePerShare).div(1e12);
         user.multLpRewardDebt = user.amount.mul(pool.accMultLpPerShare).div(1e12);
         emit Deposit(_user, _pid, _amount);
     }
 
-    function depositMdx(uint256 _pid, uint256 _amount, address _user) private {
+    function depositEbe(uint256 _pid, uint256 _amount, address _user) private {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         updatePool(_pid);
         if (user.amount > 0) {
-            uint256 pendingAmount = user.amount.mul(pool.accMdxPerShare).div(1e12).sub(user.rewardDebt);
+            uint256 pendingAmount = user.amount.mul(pool.accEbePerShare).div(1e12).sub(user.rewardDebt);
             if (pendingAmount > 0) {
-                safeMdxTransfer(_user, pendingAmount);
+                safeEbeTransfer(_user, pendingAmount);
             }
         }
         if (_amount > 0) {
@@ -359,7 +359,7 @@ contract HecoPool is Ownable {
             user.amount = user.amount.add(_amount);
             pool.totalAmount = pool.totalAmount.add(_amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accMdxPerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accEbePerShare).div(1e12);
         emit Deposit(_user, _pid, _amount);
     }
 
@@ -367,20 +367,20 @@ contract HecoPool is Ownable {
     function withdraw(uint256 _pid, uint256 _amount) public notPause {
         PoolInfo storage pool = poolInfo[_pid];
         if (isMultLP(address(pool.lpToken))) {
-            withdrawMdxAndToken(_pid, _amount, msg.sender);
+            withdrawEbeAndToken(_pid, _amount, msg.sender);
         } else {
-            withdrawMdx(_pid, _amount, msg.sender);
+            withdrawEbe(_pid, _amount, msg.sender);
         }
     }
 
-    function withdrawMdxAndToken(uint256 _pid, uint256 _amount, address _user) private {
+    function withdrawEbeAndToken(uint256 _pid, uint256 _amount, address _user) private {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        require(user.amount >= _amount, "withdrawMdxAndToken: not good");
+        require(user.amount >= _amount, "withdrawEbeAndToken: not good");
         updatePool(_pid);
-        uint256 pendingAmount = user.amount.mul(pool.accMdxPerShare).div(1e12).sub(user.rewardDebt);
+        uint256 pendingAmount = user.amount.mul(pool.accEbePerShare).div(1e12).sub(user.rewardDebt);
         if (pendingAmount > 0) {
-            safeMdxTransfer(_user, pendingAmount);
+            safeEbeTransfer(_user, pendingAmount);
         }
         if (_amount > 0) {
             uint256 beforeToken = IERC20(multLpToken).balanceOf(address(this));
@@ -395,26 +395,26 @@ contract HecoPool is Ownable {
             pool.totalAmount = pool.totalAmount.sub(_amount);
             pool.lpToken.safeTransfer(_user, _amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accMdxPerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accEbePerShare).div(1e12);
         user.multLpRewardDebt = user.amount.mul(pool.accMultLpPerShare).div(1e12);
         emit Withdraw(_user, _pid, _amount);
     }
 
-    function withdrawMdx(uint256 _pid, uint256 _amount, address _user) private {
+    function withdrawEbe(uint256 _pid, uint256 _amount, address _user) private {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        require(user.amount >= _amount, "withdrawMdx: not good");
+        require(user.amount >= _amount, "withdrawEbe: not good");
         updatePool(_pid);
-        uint256 pendingAmount = user.amount.mul(pool.accMdxPerShare).div(1e12).sub(user.rewardDebt);
+        uint256 pendingAmount = user.amount.mul(pool.accEbePerShare).div(1e12).sub(user.rewardDebt);
         if (pendingAmount > 0) {
-            safeMdxTransfer(_user, pendingAmount);
+            safeEbeTransfer(_user, pendingAmount);
         }
         if (_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.totalAmount = pool.totalAmount.sub(_amount);
             pool.lpToken.safeTransfer(_user, _amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accMdxPerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accEbePerShare).div(1e12);
         emit Withdraw(_user, _pid, _amount);
     }
 
@@ -422,13 +422,13 @@ contract HecoPool is Ownable {
     function emergencyWithdraw(uint256 _pid) public notPause {
         PoolInfo storage pool = poolInfo[_pid];
         if (isMultLP(address(pool.lpToken))) {
-            emergencyWithdrawMdxAndToken(_pid, msg.sender);
+            emergencyWithdrawEbeAndToken(_pid, msg.sender);
         } else {
-            emergencyWithdrawMdx(_pid, msg.sender);
+            emergencyWithdrawEbe(_pid, msg.sender);
         }
     }
 
-    function emergencyWithdrawMdxAndToken(uint256 _pid, address _user) private {
+    function emergencyWithdrawEbeAndToken(uint256 _pid, address _user) private {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 amount = user.amount;
@@ -443,7 +443,7 @@ contract HecoPool is Ownable {
         emit EmergencyWithdraw(_user, _pid, amount);
     }
 
-    function emergencyWithdrawMdx(uint256 _pid, address _user) private {
+    function emergencyWithdrawEbe(uint256 _pid, address _user) private {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 amount = user.amount;
@@ -455,12 +455,12 @@ contract HecoPool is Ownable {
     }
 
     // Safe MDX transfer function, just in case if rounding error causes pool to not have enough MDXs.
-    function safeMdxTransfer(address _to, uint256 _amount) internal {
-        uint256 mdxBal = mdx.balanceOf(address(this));
-        if (_amount > mdxBal) {
-            mdx.transfer(_to, mdxBal);
+    function safeEbeTransfer(address _to, uint256 _amount) internal {
+        uint256 ebeBal = ebe.balanceOf(address(this));
+        if (_amount > ebeBal) {
+            ebe.transfer(_to, ebeBal);
         } else {
-            mdx.transfer(_to, _amount);
+            ebe.transfer(_to, _amount);
         }
     }
 

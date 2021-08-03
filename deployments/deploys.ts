@@ -120,7 +120,7 @@ export async function deployStepSwap(
     }, verify)
 
   // let exLibC = new ethers.Contract(e.address, e.abi, signer)
-  let stepSwapC = new ethers.Contract(result.address, result.abi, signer)
+  let stepSwapC = new ethers.Contract(result.address, result.abi, namedSigners[0])
   console.log('deploy StepSwap:', stepSwapC.address)
   return {
       abi: result.abi,

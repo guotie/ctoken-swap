@@ -9,7 +9,7 @@ import "../library/SafeMath.sol";
 import "../interface/IDeBankFactory.sol";
 import "../interface/IDeBankPair.sol";
 
-import "../interface/IMdx.sol";
+import "../interface/IEbe.sol";
 
 interface IOracle {
     function update(address tokenA, address tokenB) external;
@@ -23,7 +23,7 @@ contract SwapMining is Ownable {
     EnumerableSet.AddressSet private _whitelist;
 
     // MDX tokens created per block
-    uint256 public mdxPerBlock;
+    uint256 public ebePerBlock;
     // The block number when MDX mining starts.
     uint256 public startBlock;
     // How many blocks are halved
@@ -35,28 +35,28 @@ contract SwapMining is Ownable {
     address public router;
     // factory address
     IDeBankFactory public factory;
-    // mdx token address
-    IMdx public mdx;
+    // ebe token address
+    IEbe public ebe;
     // Calculate price based on HUSD
     address public targetToken;
     // pair corresponding pid
     mapping(address => uint256) public pairOfPid;
 
     constructor(
-        IMdx _mdx,
+        IEbe _ebe,
         IDeBankFactory _factory,
         IOracle _oracle,
         address _router,
         address _targetToken,
-        uint256 _mdxPerBlock,
+        uint256 _ebePerBlock,
         uint256 _startBlock
     ) public {
-        mdx = _mdx;
+        ebe = _ebe;
         factory = _factory;
         oracle = _oracle;
         router = _router;
         targetToken = _targetToken;
-        mdxPerBlock = _mdxPerBlock;
+        ebePerBlock = _ebePerBlock;
         startBlock = _startBlock;
     }
 
@@ -70,7 +70,7 @@ contract SwapMining is Ownable {
         uint256 quantity;       // Current amount of LPs
         uint256 totalQuantity;  // All quantity
         uint256 allocPoint;     // How many allocation points assigned to this pool
-        uint256 allocMdxAmount; // How many MDXs
+        uint256 allocEbeAmount; // How many MDXs
         uint256 lastRewardBlock;// Last transaction block
     }
 
@@ -95,7 +95,7 @@ contract SwapMining is Ownable {
         quantity : 0,
         totalQuantity : 0,
         allocPoint : _allocPoint,
-        allocMdxAmount : 0,
+        allocEbeAmount : 0,
         lastRewardBlock : lastRewardBlock
         }));
         pairOfPid[_pair] = poolLength() - 1;
@@ -110,10 +110,10 @@ contract SwapMining is Ownable {
         poolInfo[_pid].allocPoint = _allocPoint;
     }
 
-    // Set the number of mdx produced by each block
-    function setMdxPerBlock(uint256 _newPerBlock) public onlyOwner {
+    // Set the number of ebe produced by each block
+    function setEbePerBlock(uint256 _newPerBlock) public onlyOwner {
         massMintPools();
-        mdxPerBlock = _newPerBlock;
+        ebePerBlock = _newPerBlock;
     }
 
     // Only tokens in the whitelist can be mined MDX
@@ -171,7 +171,7 @@ contract SwapMining is Ownable {
 
     function reward(uint256 blockNumber) public view returns (uint256) {
         uint256 _phase = phase(blockNumber);
-        return mdxPerBlock.div(2 ** _phase);
+        return ebePerBlock.div(2 ** _phase);
     }
 
     function reward() public view returns (uint256) {
@@ -179,7 +179,7 @@ contract SwapMining is Ownable {
     }
 
     // Rewards for the current block
-    function getMdxReward(uint256 _lastRewardBlock) public view returns (uint256) {
+    function getEbeReward(uint256 _lastRewardBlock) public view returns (uint256) {
         require(_lastRewardBlock <= block.number, "SwapMining: must little than the current block number");
         uint256 blockReward = 0;
         uint256 n = phase(_lastRewardBlock);
@@ -210,15 +210,15 @@ contract SwapMining is Ownable {
         if (block.number <= pool.lastRewardBlock) {
             return false;
         }
-        uint256 blockReward = getMdxReward(pool.lastRewardBlock);
+        uint256 blockReward = getEbeReward(pool.lastRewardBlock);
         if (blockReward <= 0) {
             return false;
         }
         // Calculate the rewards obtained by the pool based on the allocPoint
-        uint256 mdxReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
-        mdx.mint(address(this), mdxReward);
+        uint256 ebeReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
+        ebe.mint(address(this), ebeReward);
         // Increase the number of tokens in the current pool
-        pool.allocMdxAmount = pool.allocMdxAmount.add(mdxReward);
+        pool.allocEbeAmount = pool.allocEbeAmount.add(ebeReward);
         pool.lastRewardBlock = block.number;
         return true;
     }
@@ -247,7 +247,7 @@ contract SwapMining is Ownable {
             return false;
         }
 
-        uint256 quantity = getQuantity(output, amount, targetToken);
+        uint256 quantity = fee; //getQuantity(output, fee, targetToken);
         if (quantity <= 0) {
             return false;
         }
@@ -272,9 +272,9 @@ contract SwapMining is Ownable {
             if (user.quantity > 0) {
                 mint(pid);
                 // The reward held by the user in this pool
-                uint256 userReward = pool.allocMdxAmount.mul(user.quantity).div(pool.quantity);
+                uint256 userReward = pool.allocEbeAmount.mul(user.quantity).div(pool.quantity);
                 pool.quantity = pool.quantity.sub(user.quantity);
-                pool.allocMdxAmount = pool.allocMdxAmount.sub(userReward);
+                pool.allocEbeAmount = pool.allocEbeAmount.sub(userReward);
                 user.quantity = 0;
                 user.blockNumber = block.number;
                 userSub = userSub.add(userReward);
@@ -283,7 +283,7 @@ contract SwapMining is Ownable {
         if (userSub <= 0) {
             return;
         }
-        mdx.transfer(msg.sender, userSub);
+        ebe.transfer(msg.sender, userSub);
     }
 
     // Get rewards from users in the current pool
@@ -293,11 +293,11 @@ contract SwapMining is Ownable {
         PoolInfo memory pool = poolInfo[_pid];
         UserInfo memory user = userInfo[_pid][msg.sender];
         if (user.quantity > 0) {
-            uint256 blockReward = getMdxReward(pool.lastRewardBlock);
-            uint256 mdxReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
-            userSub = userSub.add((pool.allocMdxAmount.add(mdxReward)).mul(user.quantity).div(pool.quantity));
+            uint256 blockReward = getEbeReward(pool.lastRewardBlock);
+            uint256 ebeReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
+            userSub = userSub.add((pool.allocEbeAmount.add(ebeReward)).mul(user.quantity).div(pool.quantity));
         }
-        //Mdx available to users, User transaction amount
+        //Ebe available to users, User transaction amount
         return (userSub, user.quantity);
     }
 
@@ -307,12 +307,12 @@ contract SwapMining is Ownable {
         PoolInfo memory pool = poolInfo[_pid];
         address token0 = IDeBankPair(pool.pair).token0();
         address token1 = IDeBankPair(pool.pair).token1();
-        uint256 mdxAmount = pool.allocMdxAmount;
-        uint256 blockReward = getMdxReward(pool.lastRewardBlock);
-        uint256 mdxReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
-        mdxAmount = mdxAmount.add(mdxReward);
+        uint256 ebeAmount = pool.allocEbeAmount;
+        uint256 blockReward = getEbeReward(pool.lastRewardBlock);
+        uint256 ebeReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint);
+        ebeAmount = ebeAmount.add(ebeReward);
         //token0,token1,Pool remaining reward,Total /Current transaction volume of the pool
-        return (token0, token1, mdxAmount, pool.totalQuantity, pool.quantity, pool.allocPoint);
+        return (token0, token1, ebeAmount, pool.totalQuantity, pool.quantity, pool.allocPoint);
     }
 
     modifier onlyRouter() {
