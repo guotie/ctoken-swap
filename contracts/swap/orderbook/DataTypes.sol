@@ -23,6 +23,7 @@ library DataTypes {
         uint amountInMint;             // 如果 srcToken 不是 eToken, mint 成为 etoken 的数量
         uint fulfiled;                 // 已经成交部分, 单位 etoken
         uint guaranteeAmountOut;       // 最低兑换后要求得到的数量
+        uint destFulfiled;             // destEToken 已经得到的 destEToken
     }
 
     struct OrderItem {

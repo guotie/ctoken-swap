@@ -653,6 +653,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
         // 已成交
         order.tokenAmt.fulfiled = order.tokenAmt.fulfiled.add(filled);
+        order.tokenAmt.destFulfiled = order.tokenAmt.destFulfiled.add(makerGot);
 
         if (order.tokenAmt.fulfiled >= order.tokenAmt.amountInMint) {
           //

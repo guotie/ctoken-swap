@@ -11,11 +11,11 @@ import "../interface/IDeBankPair.sol";
 
 import "../interface/IEbe.sol";
 
-interface IOracle {
-    function update(address tokenA, address tokenB) external;
+// interface IOracle {
+//     function update(address tokenA, address tokenB) external;
 
-    function consult(address tokenIn, uint amountIn, address tokenOut) external view returns (uint amountOut);
-}
+//     function consult(address tokenIn, uint amountIn, address tokenOut) external view returns (uint amountOut);
+// }
 
 contract SwapMining is Ownable {
     using SafeMath for uint256;
@@ -163,6 +163,7 @@ contract SwapMining is Ownable {
         if (halvingPeriod == 0) {
             return 0;
         }
+
         if (blockNumber > startBlock) {
             return (blockNumber.sub(startBlock).sub(1)).div(halvingPeriod);
         }
