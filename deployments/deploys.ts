@@ -145,7 +145,7 @@ export async function deployFactory(usdt: string) {
   let namedSigners = await ethers.getSigners()
       , deployer = namedSigners[0].address
 
-  await _deploy('DeBankFactory', {
+  return await _deploy('DeBankFactory', {
     from: deployer,
     // 10% 60% 稳定币 usdt 地址
     args: [ usdt],
@@ -163,13 +163,15 @@ export async function deployRouter(
   let namedSigners = await ethers.getSigners()
       , deployer = namedSigners[0].address
 
-    const router = await _deploy('DeBankRouter', {
+  const router = await _deploy('DeBankRouter', {
     from: deployer,
     // factory wht lht startBlock
     args: [factory, wht, lht, ctokenFactory],
     // libraries: { 'ExchangeRate': exchangeRateLib.address },
     log: true
   }, true)
+
+  return router
 }
 
 // 部署 OrderBook

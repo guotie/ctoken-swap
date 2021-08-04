@@ -4,10 +4,30 @@ import 'dotenv/config';
 
 import { abi as ctokenABI } from './abi/CToken.json'
 import { abi as tokenABI } from './abi/Token.json'
+import { abi as routerABI } from './abi/DeBankRouter.json'
+import { abi as factoryABI } from './abi/DeBankFactory.json'
+import { abi as pairABI } from './abi/DeBankPair.json'
 import { abi as orderBookABI } from './abi/OrderBook.json'
 import { abi as ctokenFactoryABI } from './abi/LErc20DelegatorFactory.json'
+import { zeroAddress } from '../deployments/deploys';
+import { IToken } from './token';
 
 const hre = require('hardhat')
+
+type TokenContractName = 'USDT' 
+                    | 'SEA'
+                    | 'DOGE'
+                    | 'SHIB'
+                    | 'WETH'
+                    | 'WHT'
+                    | 'CETH'
+                    | 'Comptroller'
+                    | 'CtokenFactory'
+                    | 'Factory'
+                    | 'Router'
+                    | 'SwapMining'
+                    | 'SwapPool'
+                    | 'OrderBook'
 
 let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hecotest': {
@@ -16,11 +36,13 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'DOGE': '0xA323120A386558ac95203019881C739D3c0A1346',
         'SHIB': '0xf2b80eff2A06f46cA839CA77cCaf32aa820e78D1',
         'WETH': '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
-        'CETH': '',
+        'WHT':  '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
+        'CETH': '0x78114ed51B179616Ea5F76913ebbCEad4625fc7E',
+        // 0xa5142692F4B9ffa9FcC328aB92cFAb06C889f89F 不限制 router 地址
+        'CtokenFactory': ' 0xa5142692F4B9ffa9FcC328aB92cFAb06C889f89F', // '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
         'Comptroller': '',
-        'CtokenFactory': '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
-        'Factory': '',
-        'Router': '',
+        'Factory': '0xB8124973f103a05317ae19c542b464dd03cd43ac',
+        'Router': '0xB83181Fca94A3aeE1B832A4EeF50f232D2AbE054', // '0xD70C027A1893f4A0fe3002c56AB63137942B5D6B',
         'SwapPool': '',
         'SwapMining': '',
         'OrderBook': '0x6545A6C3B6f28121CC7c65882b49023eE27Eaef0',
@@ -52,27 +74,10 @@ interface ITokenPair {
     etokenc?: Contract
 }
 
-const endpoints: { [index: string]: string } = {
-    'hecotest': 'https://http-testnet.hecochain.com'
-}
-
 const e18 = BigNumber.from('1000000000000000000')
 
 let NETWORK: string = hre.network.name
 
-type TokenContractName = 'USDT' 
-                    | 'SEA'
-                    | 'DOGE'
-                    | 'SHIB'
-                    | 'WETH'
-                    | 'CETH'
-                    | 'Comptroller'
-                    | 'CtokenFactory'
-                    | 'Factory'
-                    | 'Router'
-                    | 'SwapMining'
-                    | 'SwapPool'
-                    | 'OrderBook'
 
 function setContractAddress(name: TokenContractName, addr: string) {
     contractAddress[NETWORK][name] = addr
@@ -97,24 +102,24 @@ function getTakerSigner(addressOrIndex?: string | number): Signer {
     return new Wallet(process.env.TAKER_PRIVATE_KEY!, getProvider())
 }
 
-function getTokenContract(address: string, signerOrProvider?: Signer | Provider) {
-    return new Contract(address, tokenABI, signerOrProvider)
+function getTokenContract(address: string, signer?: Signer | Provider) {
+    return new Contract(address, tokenABI, signer ?? getProvider())
 }
 
-function getCTokenContract(address: string, signerOrProvider?: Signer | Provider) {
-    return new Contract(address, ctokenABI, signerOrProvider)
+function getCTokenContract(address: string, signer?: Signer | Provider) {
+    return new Contract(address, ctokenABI, signer ?? getProvider())
 }
 
-function getCTokenFactoryContract(address: string, signerOrProvider?: Signer | Provider) {
-    return new Contract(address, ctokenFactoryABI, signerOrProvider ?? getProvider())
-}
-
-async function getTokenPair(factory: string, token: string, signerOrProvider?: Signer | Provider): Promise<ITokenPair> {
+async function getTokenPair(factory: string, token: string, signer?: Signer | Provider): Promise<ITokenPair> {
     let etoken = await getETokenAddress(factory, token)
-        , tokenc = getTokenContract(token, signerOrProvider)
-        , etokenc = getCTokenContract(etoken, signerOrProvider)
+        , tokenc = getTokenContract(token, signer)
+        , etokenc = getCTokenContract(etoken, signer)
 
     return {token: token, tokenc: tokenc, etoken: etoken, etokenc: etokenc}
+}
+
+function getCTokenFactoryContract(address?: string, signer?: Signer | Provider) {
+    return new Contract(address ?? addressOf('CtokenFactory'), ctokenFactoryABI, signer ?? getProvider())
 }
 
 // 获取 eToken 对应的 token 地址
@@ -124,27 +129,58 @@ async function getTokenAddress(factory: string, etoken: string) {
 }
 
 // 获取 token 对应的 etoken 地址
-async function getETokenAddress(factory: string | Contract, token: string, signerOrProvider?: Signer | Provider): Promise<string> {
+async function getETokenAddress(factory: string | Contract, token: string, signer?: Signer | Provider): Promise<string> {
     if (typeof factory === 'string') {
-        let ctokenFactory = getCTokenFactoryContract(factory, signerOrProvider) // addressOf('ctokenFactory'))
+        let ctokenFactory = getCTokenFactoryContract(factory, signer) // addressOf('ctokenFactory'))
         return ctokenFactory.getCTokenAddressPure(token)
     } else {
         return factory.getCTokenAddressPure(token)
     }
 }
 
-function getOrderbookContract(address = contractAddress[NETWORK]['OrderBook'], signerOrProvider?: Signer | Provider) {
-    return new Contract(address, orderBookABI, signerOrProvider ?? getProvider())
+// 
+function getEbankRouter(address = contractAddress[NETWORK]['Router'], signer?: Signer | Provider) {
+    return new Contract(address, routerABI, signer ?? getProvider())
+}
+// 
+function getEbankFactory(address = contractAddress[NETWORK]['Factory'], signer?: Signer | Provider) {
+    return new Contract(address, factoryABI, signer ?? getProvider())
+}
+
+function getEbankPair(address: string, signer?: Signer | Provider) {
+    return new Contract(address, pairABI, signer ?? getProvider())
+}
+
+function getOrderbookContract(address = contractAddress[NETWORK]['OrderBook'], signer?: Signer | Provider) {
+    return new Contract(address, orderBookABI, signer ?? getProvider())
 }
 
 // 根据 abi 地址获取 Contract
-function getContractByAddressABI(addr: string, abi: string, signerOrProvider?: Signer | Provider) {
-    return new Contract(addr, abi, signerOrProvider ?? getProvider())
+function getContractByAddressABI(addr: string, abi: string, signer?: Signer | Provider) {
+    return new Contract(addr, abi, signer ?? getProvider())
 }
+
 // 根据 abi 地址获取 Contract
-async function getContractByAddressName(addr: string, name: string, signerOrProvider?: Signer | Provider) {
+async function getContractByAddressName(addr: string, name: string, signer?: Signer | Provider) {
     const art = await hre.artifacts.readArtifact(name)
-    return new Contract(addr, art.abi, signerOrProvider ?? getProvider())
+    return new Contract(addr, art.abi, signer ?? getProvider())
+}
+
+async function getBalances(tokens: IToken[], owner: string): Promise<BigNumber[]> {
+    let balances: BigNumber[] = []
+        , provider = getProvider()
+
+    for (let token of tokens) {
+        let balance: BigNumber
+
+        if (token.address === zeroAddress) {
+            balance = await provider.getBalance(owner)
+        } else {
+            balance = await token.contract!.balanceOf(owner)
+        }
+        balances.push(balance)
+    }
+    return balances
 }
 
 export {
@@ -155,10 +191,14 @@ export {
     addressOf,
     // contractAddress,
     getProvider,
+    getBalances,
     getSigner,
     getTokenPair,
     getTokenAddress,
     getETokenAddress,
+    getEbankRouter,
+    getEbankFactory,
+    getEbankPair,
     getTakerSigner,
     getTokenContract,
     getCTokenContract,

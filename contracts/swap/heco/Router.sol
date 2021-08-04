@@ -80,6 +80,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // startBlock = _startBlock;
         // heco 链上的 usdt
         quoteTokens.push(IDeBankFactory(_factory).anchorToken()); // usdt
+        // todo 应该是 wht
         quoteTokens.push(_cwht); // wht
         // quoteTokens.push();  // husd
     }
@@ -165,16 +166,19 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     function _getOrCreateCtoken(address token) private returns (address ctoken) {
         // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddress(token);
         ctoken = ctokenFactory.getCTokenAddress(token);
+        require(ctoken != address(0), "get or create etoken failed");
     }
 
     function _getCtoken(address token) private view returns (address ctoken) {
         // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
         ctoken = ctokenFactory.getCTokenAddressPure(token);
+        require(ctoken != address(0), "get etoken failed");
     }
 
     function _getTokenByCtoken(address ctoken) private view returns (address token) {
         // token = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getTokenAddress(ctoken);
         token = ctokenFactory.getTokenAddress(ctoken);
+        require(token != address(0), "get token failed");
     }
 
     // function _safeTransferCtoken(address token, address from, address to, uint amt) private {
@@ -206,21 +210,21 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
     // tokenA tokenB 都必须是 cToken
     function _addLiquidity(
-        address ctokenA,
-        address ctokenB,
-        uint amountADesired,
-        uint amountBDesired,
-        uint amountAMin,
-        uint amountBMin
+        LiquidityLocalVars memory liquidity
     ) internal returns (uint amountA, uint amountB) {
-        // console.log("_addLiquidity", factory);
-        address tokenA = _getTokenByCtoken(ctokenA);
-        address tokenB = _getTokenByCtoken(ctokenB);
+        address ctokenA = liquidity.ctokenA;
+        address ctokenB = liquidity.ctokenB;
+        uint amountADesired  = liquidity.camountDesiredA;
+        uint amountBDesired = liquidity.camountDesiredB;
+        uint amountAMin = liquidity.camountMinA;
+        uint amountBMin = liquidity.camountMinB;
+        address tokenA =  liquidity.tokenA; // _getTokenByCtoken(ctokenA);
+        address tokenB =  liquidity.tokenB; // _getTokenByCtoken(ctokenB);
+
         // create the pair if it doesn't exist yet
         if (IDeBankFactory(factory).getPair(tokenA, tokenB) == address(0)) {
             IDeBankFactory(factory).createPair(tokenA, tokenB, ctokenA, ctokenB);
         }
-        // console.log("_addLiquidity getReserves");
         (uint reserveA, uint reserveB) = IDeBankFactory(factory).getReserves(tokenA, tokenB);
         if (reserveA == 0 && reserveB == 0) {
             (amountA, amountB) = (amountADesired, amountBDesired);
@@ -253,18 +257,27 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         uint amountBMin,
         address to,
         uint deadline
-    ) external ensure(deadline) returns (uint amountA, uint amountB, uint liquidity) {
+    ) external ensure(deadline) returns (uint amountA, uint amountB, uint liquidityAmt) {
         // console.log(tokenA, tokenB);
         // console.log("amountDesired:", amountADesired, amountBDesired);
         // console.log("amountMin:", amountAMin, amountBMin);
-        (amountA, amountB) = _addLiquidity(tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
+        LiquidityLocalVars memory liquidity;
+        liquidity.camountDesiredA = amountADesired;
+        liquidity.camountDesiredB = amountBDesired;
+        liquidity.camountMinA = amountAMin;
+        liquidity.camountMinB = amountBMin;
+        liquidity.ctokenA = tokenA;
+        liquidity.ctokenB = tokenB;
+        liquidity.tokenA = _getTokenByCtoken(tokenA);
+        liquidity.tokenB = _getTokenByCtoken(tokenB);
+        (amountA, amountB) = _addLiquidity(liquidity); // tokenA, tokenB, amountADesired, amountBDesired, amountAMin, amountBMin);
         address pair = pairFor(tokenA, tokenB);
         // console.log("pair: %s", pair);
         TransferHelper.safeTransferFrom(tokenA, msg.sender, pair, amountA);
         TransferHelper.safeTransferFrom(tokenB, msg.sender, pair, amountB);
         // _safeTransferCtoken(tokenA, msg.sender, pair, amountA);
         // _safeTransferCtoken(tokenB, msg.sender, pair, amountB);
-        liquidity = IDeBankPair(pair).mint(to);
+        liquidityAmt = IDeBankPair(pair).mint(to);
     }
 
     function _cTokenExchangeRate(address ctoken) private view returns(uint) {
@@ -334,6 +347,8 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
         vars.ctokenA = _getOrCreateCtoken(tokenA);
         vars.ctokenB = _getOrCreateCtoken(tokenB);
+        vars.tokenA = tokenA;
+        vars.tokenB = tokenB;
         vars.rateA = _cTokenExchangeRate(vars.ctokenA);
         vars.rateB = _cTokenExchangeRate(vars.ctokenB);
         vars.camountDesiredA = _amount2CAmount(amountADesired, vars.rateA);
@@ -341,12 +356,12 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         vars.camountMinA = _amount2CAmount(amountAMin, vars.rateA);
         vars.camountMinB = _amount2CAmount(amountBMin, vars.rateB);
 
-        (vars.camountA, vars.camountB) = _addLiquidity(vars.ctokenA,
-                vars.ctokenB,
-                vars.camountDesiredA,
-                vars.camountDesiredB,
-                vars.camountMinA,
-                vars.camountMinB);
+        (vars.camountA, vars.camountB) = _addLiquidity(vars); //.ctokenA,
+                // vars.ctokenB,
+                // vars.camountDesiredA,
+                // vars.camountDesiredB,
+                // vars.camountMinA,
+                // vars.camountMinB);
         address pair = pairFor(tokenA, tokenB);
         // mint token 得到 ctoken
         amountA = _camount2Amount(vars.camountA, vars.rateA);
@@ -380,14 +395,18 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         vars.camountDesiredB = _amount2CAmount(msg.value, vars.rateB);
         vars.camountMinA = _amount2CAmount(amountTokenMin, vars.rateA);
         vars.camountMinB = _amount2CAmount(amountETHMin, vars.rateB);
-        (uint amountCToken, uint amountCETH) = _addLiquidity(
-            ctoken,
-            cWHT,
-            vars.camountDesiredA,
-            vars.camountDesiredB,
-            vars.camountMinA,
-            vars.camountMinB
-        );
+        vars.ctokenA = ctoken;
+        vars.ctokenB = cWHT;
+        vars.tokenA = token;
+        vars.tokenB = WHT;
+        (uint amountCToken, uint amountCETH) = _addLiquidity(vars);
+        //     ctoken,
+        //     cWHT,
+        //     vars.camountDesiredA,
+        //     vars.camountDesiredB,
+        //     vars.camountMinA,
+        //     vars.camountMinB
+        // );
         address pair = pairFor(token, WHT);
 
         amountToken = _camount2Amount(amountCToken, vars.rateA);

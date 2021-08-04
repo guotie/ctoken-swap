@@ -107,7 +107,7 @@ async function fufilOrder(
         , gotTokenC = getTokenContract(gotToken, signer)
         , orderbook = addressOf('OrderBook')
         , obC = getOrderbookContract(orderbook, signer)
-        , factory = addressOf('ctokenFactory')
+        , factory = addressOf('CtokenFactory')
         , ctoken = await getETokenAddress(factory, token)
         , ctokenC = getCTokenContract(ctoken, getProvider())
         , camt = await amountToCAmount(ctokenC, amount)
