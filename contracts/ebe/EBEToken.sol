@@ -2,8 +2,9 @@
 pragma solidity ^0.5.16;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/ownership/Ownable.sol";
 
-contract EbeToken is ERC20 {
+contract EbeToken is ERC20, Ownable {
     string public name;
     string public symbol;
     uint8 public decimals;
@@ -67,6 +68,11 @@ contract EbeToken is ERC20 {
         return reward(ebePerBlock, block.number);
     }
 
+    // set start block
+    function setStartBlock(uint256 start) public onlyOwner {
+        startBlock = start;
+    }
+
     // Rewards for the current block
     function getEbeReward(uint256 ebePerBlock, uint256 _lastRewardBlock) public view returns (uint256) {
         require(_lastRewardBlock <= block.number, "EBEToken: must little than the current block number");
@@ -79,7 +85,7 @@ contract EbeToken is ERC20 {
             // Get the last block of the previous cycle
             uint256 r = n.mul(halvingPeriod).add(startBlock);
             // Get rewards from previous periods
-            blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
+            blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(ebePerBlock, r)));
             _lastRewardBlock = r;
         }
         blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));

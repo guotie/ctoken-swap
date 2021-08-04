@@ -18,7 +18,7 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'WETH': '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
         'CETH': '',
         'Comptroller': '',
-        'CtokenFactory': '0xC65d5ea738F466FEb518b6079732C7b03eE04CF0',
+        'CtokenFactory': '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
         'Factory': '',
         'Router': '',
         'SwapPool': '',
@@ -78,16 +78,7 @@ function setContractAddress(name: TokenContractName, addr: string) {
     contractAddress[NETWORK][name] = addr
 }
 
-function addressOf(name: 'USDT' 
-                        | 'SEA'
-                        | 'WETH'
-                        | 'CETH'
-                        | 'comptroller'
-                        | 'ctokenFactory'
-                        | 'Factory'
-                        | 'Router'
-                        | 'OrderBook'
-                    ): string {
+function addressOf(name: TokenContractName): string {
     return contractAddress[NETWORK][name]
 }
 

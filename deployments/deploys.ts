@@ -129,6 +129,18 @@ export async function deployStepSwap(
     }
 }
 
+export async function deployEbe() {
+  let namedSigners = await ethers.getSigners()
+      , deployer = namedSigners[0].address
+
+  await _deploy('EbeToken', {
+        from: deployer,
+        //
+        args: [],
+        log: true,
+      }, true);
+}
+
 export async function deployFactory(usdt: string) {
   let namedSigners = await ethers.getSigners()
       , deployer = namedSigners[0].address
