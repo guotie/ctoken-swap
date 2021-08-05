@@ -1,17 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 pragma solidity ^0.5.16;
 
 import "./CToken.sol";
@@ -45,7 +31,18 @@ contract LErc20 is CToken, CErc20Interface {
         underlying = underlying_;
         EIP20Interface(underlying).totalSupply();
     }
-
+    
+    // -------- new  add
+    /**
+     * @notice Sender redeems cTokens in exchange for the underlying asset
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param redeemTokens The number of cTokens to redeem into underlying
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function redeemLeverage(uint redeemTokens) external returns (uint, uint) {
+        return redeemLeverageInternal(redeemTokens);
+    }
+    
     /*** User Interface ***/
 
     /**
@@ -54,18 +51,29 @@ contract LErc20 is CToken, CErc20Interface {
      * @param mintAmount The amount of the underlying asset to supply
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function mint(uint mintAmount) external returns (uint) {
-        (uint err,) = mintInternal(mintAmount);
-        return err;
+    function mint(uint mintAmount) external returns (uint, uint) {
+        (uint error, ,uint mintTokens) = mintInternal(mintAmount);
+        return (error, mintTokens);
     }
-
+    
+     /**
+     * @notice Sender supplies assets into the market and receives cTokens in exchange
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param leverageAmount The amount of the underlying asset to leverage
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function leverageBorrow(uint leverageAmount) external returns (uint) {
+        (, , uint mintTokens) = leverageBorrowInternal(leverageAmount);
+        return mintTokens;
+    }
+    
     /**
      * @notice Sender redeems cTokens in exchange for the underlying asset
      * @dev Accrues interest whether or not the operation succeeds, unless reverted
      * @param redeemTokens The number of cTokens to redeem into underlying
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeem(uint redeemTokens) external returns (uint) {
+    function redeem(uint redeemTokens) external returns (uint, uint, uint) {
         return redeemInternal(redeemTokens);
     }
 
@@ -75,7 +83,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @param redeemAmount The amount of underlying to redeem
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeemUnderlying(uint redeemAmount) external returns (uint) {
+    function redeemUnderlying(uint redeemAmount) external returns (uint, uint, uint) {
         return redeemUnderlyingInternal(redeemAmount);
     }
 
@@ -84,27 +92,8 @@ contract LErc20 is CToken, CErc20Interface {
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrow(uint borrowAmount) external returns (uint) {
-        return borrowInternal(borrowAmount);
-    }
-
-    /**
-     *  @notice 流动性杠杆借贷, 用户杠杆借款由 margin 合约代持, 并由 margin 合约负责清算
-     *          只能由 marignLP 合约调用
-     *  @param borrowAmount 要借贷的数量
-     */
-    function borrowLPMargin(address borrower, uint borrowAmount) external returns (uint) {
-        // todo
-        return 0;
-    }
-
-    /**
-     *  @notice swap 杠杆借贷, 用户杠杆借款由 margin 合约代持, 并由 margin 合约负责清算
-     *          只能由 marignSWAP 合约调用
-     *  @param borrowAmount 要借贷的数量
-     */
-    function borrowSwapMargin(address borrower, uint borrowAmount) external returns (uint) {
-        return 0;
+    function borrow(uint borrowAmount, address to) external returns (uint) {
+        return borrowInternal(borrowAmount, to);
     }
 
     /**
@@ -136,9 +125,7 @@ contract LErc20 is CToken, CErc20Interface {
      * @param cTokenCollateral The market in which to seize collateral from the borrower
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function liquidateBorrow(address borrower,
-                        uint repayAmount,
-                        CTokenInterface cTokenCollateral) external returns (uint) {
+    function liquidateBorrow(address borrower, uint repayAmount, CTokenInterface cTokenCollateral) external returns (uint) {
         (uint err,) = liquidateBorrowInternal(borrower, repayAmount, cTokenCollateral);
         return err;
     }
@@ -176,10 +163,6 @@ contract LErc20 is CToken, CErc20Interface {
     function doTransferIn(address from, uint amount) internal returns (uint) {
         EIP20NonStandardInterface token = EIP20NonStandardInterface(underlying);
         uint balanceBefore = EIP20Interface(underlying).balanceOf(address(this));
-        console.log('balanceBefore:', EIP20Interface(underlying).balanceOf(from));
-        console.log('spender:', address(this));
-        console.log('from:', from);
-        console.log('allowance:', EIP20Interface(underlying).allowance(from, address(this))); // transferAllowances[from][address(this)], amount);
         token.transferFrom(from, address(this), amount);
 
         bool success;
@@ -201,7 +184,6 @@ contract LErc20 is CToken, CErc20Interface {
         // Calculate the amount that was *actually* transferred
         uint balanceAfter = EIP20Interface(underlying).balanceOf(address(this));
         require(balanceAfter >= balanceBefore, "TOKEN_TRANSFER_IN_OVERFLOW");
-        console.log("doTransferIn success");
         return balanceAfter - balanceBefore;   // underflow already checked above, just subtract
     }
 

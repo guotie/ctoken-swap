@@ -1,42 +1,34 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 pragma solidity ^0.5.16;
 
 import "./CToken.sol";
 import "./PriceOracle.sol";
 
-contract UnitrollerAdminStorage {
+contract UnitrollerAdminStorage { 
     /**
     * @notice Administrator for this contract
     */
     address public admin;
-
+    
+     /**
+    * @notice The address of delegateFactory
+    */
+    address public delegateFactoryAddress;
+    
     /**
     * @notice Pending administrator for this contract
     */
     address public pendingAdmin;
 
     /**
-    * @notice Active brains of Unitroller
-    */
-    address public comptrollerImplementation;
-
-    /**
     * @notice Pending brains of Unitroller
     */
     address public pendingComptrollerImplementation;
+    
+    // @notice 每一个方法 对应的 implemention地址 的索引
+    mapping(bytes => uint) public methodImplements; 
+
+    // @notice 实现地址.集合的
+    mapping(uint => address) public implementsMapping;
 }
 
 contract ComptrollerV1Storage is UnitrollerAdminStorage {
@@ -70,30 +62,50 @@ contract ComptrollerV1Storage is UnitrollerAdminStorage {
 
 contract ComptrollerV2Storage is ComptrollerV1Storage {
     struct Market {
-        // @notice Whether or not this market is listed
+        /// @notice Whether or not this market is listed
         bool isListed;
 
-        /*
+        /**
          * @notice Multiplier representing the most one can borrow against their collateral in this market.
          *  For instance, 0.9 to allow borrowing 90% of collateral value.
          *  Must be between 0 and 1, and stored as a mantissa.
          */
         uint collateralFactorMantissa;
 
-        // @notice Per-market mapping of "accounts in this asset"
+        /// @notice Per-market mapping of "accounts in this asset"
         mapping(address => bool) accountMembership;
 
-        // @notice Whether or not this market receives LHB
+        /// @notice Whether or not this market receives LHB
         bool isComped;
+          //--修改  borrowFactorMantissa
+         /**
+         * @notice Multiplier representing the most one can borrow against their collateral in this market.
+         *  For instance, 1 to allow borrowing 100% of borrow value.
+         *  Must be between 0 and 1, and stored as a mantissa.
+         */
+        uint borrowFactorMantissa;
+        
+        bool isLPPool;
     }
 
     /**
      * @notice Official mapping of cTokens -> Market metadata
      * @dev Used e.g. to determine if a market is supported
      */
-    mapping(address => Market) public markets;
-
-
+    mapping(address => Market) public markets;    // 资产地址
+    
+     /**
+     * @notice 资产 和 ctoken绑定集合 k:eToken  v:token
+     * @dev Used e.g. to determine if a market is supported
+     */
+    mapping(address => address) public eTokensMapping;
+    
+    /**
+     * @notice 资产 和 ctoken绑定集合 k:token  v:eToken
+     * @dev Used e.g. to determine if a market is supported
+     */
+    mapping(address => address) public tokensMapping;
+    
     /**
      * @notice The Pause Guardian can pause certain actions as a safety mechanism.
      *  Actions which allow users to remove their own assets cannot be paused.
@@ -110,10 +122,10 @@ contract ComptrollerV2Storage is ComptrollerV1Storage {
 
 contract ComptrollerV3Storage is ComptrollerV2Storage {
     struct CompMarketState {
-        // @notice The market's last updated compBorrowIndex or compSupplyIndex
+        /// @notice The market's last updated compBorrowIndex or compSupplyIndex
         uint224 index;
 
-        // @notice The block number the index was last updated at
+        /// @notice The block number the index was last updated at
         uint32 block;
     }
 
@@ -148,15 +160,31 @@ contract ComptrollerV4Storage is ComptrollerV3Storage {
 
     // @notice Borrow caps enforced by borrowAllowed for each cToken address. Defaults to zero which corresponds to unlimited borrowing.
     mapping(address => uint) public borrowCaps;
+
+    
+    /// @notice The threshold above which the flywheel transfers LHB, in wei
+    uint public constant compClaimThreshold = 0.001e18;
+
+    /// @notice The initial LHB index for a market
+    uint224 public constant compInitialIndex = 1e36;
+
+    // closeFactorMantissa must be strictly greater than this value
+    uint internal constant closeFactorMinMantissa = 0.05e18; // 0.05
+
+    // closeFactorMantissa must not exceed this value
+    uint internal constant closeFactorMaxMantissa = 0.9e18; // 0.9
+
+    // No collateralFactorMantissa may exceed this value
+    uint internal constant collateralFactorMaxMantissa = 0.9e18; // 0.9
+
+    // No borrowFactorMantissa may exceed this value   0.9 shezhicheng 10/9 
+    uint internal constant borrowFactorMaxMantissa = 1e18; // 1
+
 }
 
-// struct Position {
-//     address owner;
-//     uint256 productionId;  // lend 池中的代币 CToken
-//     uint256 debtShare;
-// }
-
 contract ComptrollerV5Storage is ComptrollerV4Storage {
-    address public marginLP;    // 杠杆 LP 地址
-    address public marginSwap;  // 杠杆 Swap 地址
+    
+    mapping(address => uint) public pledgedMaxs;
+    
+    mapping(address => uint) public pledgeAmounts;
 }

@@ -562,14 +562,15 @@ export async function deployToken(name: string, supply: BigNumber, decimals = 18
   const factory = await ethers.getContractFactory('Token')
 
   let deployed = await factory.deploy(name, name, supply, deployer, decimals)
-  let c = new ethers.Contract(deployed.address, deployed.abi, signer[0])
+  console.info('deploy mock token:', name, deployed.address)
+  // let c = new ethers.Contract(deployed.address, deployed.abi, signer[0])
   return {
     name: name,
     symbol: name,
     decimals: decimals,
     totalSupply: supply,
     address: deployed.address,
-    contract: c,
+    contract: deployed,
   }
 }
 

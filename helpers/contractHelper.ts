@@ -11,6 +11,7 @@ import { abi as orderBookABI } from './abi/OrderBook.json'
 import { abi as ctokenFactoryABI } from './abi/LErc20DelegatorFactory.json'
 import { zeroAddress } from '../deployments/deploys';
 import { IToken } from './token';
+import { boolean } from 'hardhat/internal/core/params/argumentTypes';
 
 const hre = require('hardhat')
 
@@ -22,12 +23,16 @@ type TokenContractName = 'USDT'
                     | 'WHT'
                     | 'CETH'
                     | 'Comptroller'
+                    | 'ComptrollerV2'
+                    | 'Unitroller'
+                    | 'LErc20Delegate'
                     | 'CtokenFactory'
                     | 'Factory'
                     | 'Router'
                     | 'SwapMining'
                     | 'SwapPool'
                     | 'OrderBook'
+                    | 'InterestRateModel'
 
 let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hecotest': {
@@ -41,6 +46,10 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         // 0xa5142692F4B9ffa9FcC328aB92cFAb06C889f89F 不限制 router 地址
         'CtokenFactory': '0xa5142692F4B9ffa9FcC328aB92cFAb06C889f89F', // '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
         'Comptroller': '',
+        'ComptrollerV2': '',
+        'Unitroller': '',
+        'LErc20Delegate': '',
+        'InterestRateModel': '',
         'Factory': '0xB8124973f103a05317ae19c542b464dd03cd43ac',
         'Router': '0x2B6bE4dc1083A7053ccccEbf821743354D7964E1', // '0x9f186BC496e62dBd41d845f188eA1eA28C6EEF71', //'0xB83181Fca94A3aeE1B832A4EeF50f232D2AbE054', // '0xD70C027A1893f4A0fe3002c56AB63137942B5D6B',
         'SwapPool': '',
@@ -50,13 +59,22 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hardhat' : {
         'USDT': '',
         'SEA': '',
+        'DOGE': '',
+        'SHIB': '',
         'WETH': '',
+        'WHT':  '',
         'CETH': '',
         'Comptroller': '',
+        'ComptrollerV2': '',
+        'Unitroller': '',
+        'LErc20Delegate': '',
+        'InterestRateModel': '',
         'CtokenFactory': '',
         'Factory': '',
         'Router': '',
         'OrderBook': '',
+        'SwapPool': '',
+        'SwapMining': '',
     }
 }
 
@@ -83,8 +101,17 @@ function setContractAddress(name: TokenContractName, addr: string) {
     contractAddress[NETWORK][name] = addr
 }
 
+function tokenHasExist(name: TokenContractName): boolean {
+    return !!contractAddress[NETWORK][name]
+}
+
 function addressOf(name: TokenContractName): string {
-    return contractAddress[NETWORK][name]
+    let addr =  contractAddress[NETWORK][name]
+    if (!addr) {
+        throw new Error('not found contract ' + name)
+    }
+
+    return addr
 }
 
 function getProvider() {
@@ -192,6 +219,7 @@ export {
     TokenContractName,
     setContractAddress,
     addressOf,
+    tokenHasExist,
     // contractAddress,
     getProvider,
     getBalances,

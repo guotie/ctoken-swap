@@ -1,7 +1,7 @@
 import { assert } from "console";
 import { BigNumber, BigNumberish, Contract, Signer } from "ethers";
 import { deployToken, zeroAddress } from "../deployments/deploys";
-import { getTokenContract, addressOf, TokenContractName, getEbankPair } from './contractHelper'
+import { getTokenContract, addressOf, TokenContractName, getEbankPair, setContractAddress, tokenHasExist } from './contractHelper'
 
 const hre = require('hardhat')
 const ethers = hre.ethers
@@ -23,15 +23,26 @@ const HTToken: IToken = {
     address: zeroAddress,
 }
 
+function setTokenAddress(token: IToken) {
+    setContractAddress(token.name as TokenContractName, token.address)
+}
+
 async function getMockToken(tokenName: string, total?: BigNumberish, decimals = 18): Promise<IToken> {
     const networkName: string = hre.network.name
     const signer = await ethers.getSigners()
 
     if (networkName === 'hardhat') {
-        return deployToken(tokenName, BigNumber.from(total!), decimals)
+        if (!tokenHasExist(tokenName as TokenContractName)) {
+            let token = await deployToken(tokenName, BigNumber.from(total!), decimals)
+            setTokenAddress(token)
+            return token
+        }
+        // got exist token
+        // console.info('maybe token %s has deployed: ', tokenName, addressOf(tokenName as TokenContractName))
+    } else {
+        assert(networkName === 'hecotest', "invalid network name")
     }
 
-    assert(networkName === 'hecotest', "invalid network name")
     let addr = addressOf(tokenName as TokenContractName)
     if (!addr) {
         throw new Error('token not found:' + tokenName)
@@ -40,7 +51,7 @@ async function getMockToken(tokenName: string, total?: BigNumberish, decimals = 
     let supply = await c.totalSupply()
         , _decimals = await c.decimals()
     console.info('got Token %s at %s, totalSupply: %s decimals: %s', tokenName, c.address, supply.toString(), _decimals.toString())
-    return {
+    let token = {
         name: tokenName,
         symbol: tokenName,
         decimals: _decimals,
@@ -48,6 +59,10 @@ async function getMockToken(tokenName: string, total?: BigNumberish, decimals = 
         address: addr,
         contract: c,
     }
+    if (networkName === 'hecotest') {
+        setTokenAddress(token)
+    }
+    return token
 }
 
 // 交易对 token
@@ -75,6 +90,7 @@ function decimalsToBignumber(decimals: number): BigNumber {
 
     return base
 }
+
 
 const readableTokenAmount = (token: IToken, amt: BigNumberish) => {
     return BigNumber.from(amt).mul(decimalsToBignumber(token.decimals))        

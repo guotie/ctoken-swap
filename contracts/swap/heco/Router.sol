@@ -24,10 +24,10 @@ import "../interface/LErc20DelegatorInterface.sol";
 import "../interface/ICToken.sol";
 
 // import "../../compound/LHT.sol";
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 interface ILHT {
-    function mint() external payable;
+    function mint() external payable returns (uint, uint);
 }
 
 interface ISwapMining {
@@ -298,14 +298,16 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // uint amt = camt * er / 10**18;
 
         TransferHelper.safeTransferFrom(token, msg.sender, address(this), amt);
-        uint b0 = ICToken(ctoken).balanceOf(address(this));
+        // uint b0 = ICToken(ctoken).balanceOf(address(this));
         // mint 之前需要 approve
         ICToken(token).approve(address(ctoken), amt);
-        uint ret = ICToken(ctoken).mint(amt);
+        (uint ret, uint mintCAmt) = ICToken(ctoken).mint(amt);
         ICToken(ctoken).approve(address(ctoken), 0);
+        console.log("mint token to ctoken %s, amt: %d ret: %d", ctoken, amt, ret);
         require(ret == 0, "mint failed");
-        uint b1 = ICToken(ctoken).balanceOf(address(this));
-        uint mintCAmt = b1 - b0;
+        // uint b1 = ICToken(ctoken).balanceOf(address(this));
+        // uint mintCAmt = b1 - b0;
+        // uint mintCAmt = ICToken(ctoken).balanceOf(address(this));
 
         // console.log("_mintTransferCToken:", amt, mintCAmt);
 
@@ -313,12 +315,12 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     }
 
     function _mintTransferEth(address pair, uint amt) private {
-        uint b0 = ICToken(cWHT).balanceOf(address(this));
+        // uint b0 = ICToken(cWHT).balanceOf(address(this));
         // todo
         ILHT(cWHT).mint.value(amt)();
         // require(ret == 0, "mint failed");
-        uint b1 = ICToken(cWHT).balanceOf(address(this));
-        uint mintCAmt = b1 - b0;
+        uint mintCAmt = ICToken(cWHT).balanceOf(address(this));
+        // uint mintCAmt = b1 - b0;
         TransferHelper.safeTransferFrom(cWHT, address(this), pair, mintCAmt);
     }
 
@@ -450,23 +452,26 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
     // 赎回 ctoken
     function _redeemCToken(address ctoken, address token, uint camt) private returns (uint) {
-        uint b0 = IERC20(token).balanceOf(address(this));
+        // uint b0 = IERC20(token).balanceOf(address(this));
         // console.log("ctoken balance:", ctoken, IERC20(ctoken).balanceOf(address(this)));
-        uint err = ICToken(ctoken).redeem(camt);
+        (uint err, uint amt, ) = ICToken(ctoken).redeem(camt);
         require(err == 0, "redeem failed");
-        uint b1 = IERC20(token).balanceOf(address(this));
+        return amt;
+        // return IERC20(token).balanceOf(address(this));
+        // uint b1 = IERC20(token).balanceOf(address(this));
         // console.log(b1, b0);
         // require(b1 >= b0, "redeem failed");
-        return b1.sub(b0);
+        // return b1.sub(b0);
     }
 
     // 赎回 ctoken
     function _redeemCEth(uint camt) private returns (uint) {
-        uint b0 = IERC20(WHT).balanceOf(address(this));
-        uint err = ICToken(cWHT).redeem(camt);
+        // uint b0 = IERC20(WHT).balanceOf(address(this));
+        (uint err, uint amt, ) = ICToken(cWHT).redeem(camt);
         require(err == 0, "redeem failed");
-        uint b1 = IERC20(WHT).balanceOf(address(this));
-        return b1.sub(b0);
+        return amt;
+        // uint b1 = IERC20(WHT).balanceOf(address(this));
+        // return b1.sub(b0);
     }
 
     function _redeemCTokenTransfer(address ctoken, address token, address to, uint camt) private returns (uint)  {

@@ -1,17 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 pragma solidity ^0.5.16;
 
 contract ComptrollerErrorReporter {
@@ -23,6 +9,7 @@ contract ComptrollerErrorReporter {
         INSUFFICIENT_LIQUIDITY,
         INVALID_CLOSE_FACTOR,
         INVALID_COLLATERAL_FACTOR,
+        INVALID_BORROW_FACTOR,
         INVALID_LIQUIDATION_INCENTIVE,
         MARKET_NOT_ENTERED, // no longer possible
         MARKET_NOT_LISTED,
@@ -33,11 +20,13 @@ contract ComptrollerErrorReporter {
         REJECTION,
         SNAPSHOT_ERROR,
         TOO_MANY_ASSETS,
-        TOO_MUCH_REPAY
+        TOO_MUCH_REPAY,
+        TOO_MUCH_MORTAGES
+        
     }
 
     enum FailureInfo {
-        ACCEPT_ADMIN_PENDING_ADMIN_CHECK,
+       ACCEPT_ADMIN_PENDING_ADMIN_CHECK,
         ACCEPT_PENDING_IMPLEMENTATION_ADDRESS_CHECK,
         EXIT_MARKET_BALANCE_OWED,
         EXIT_MARKET_REJECTION,
@@ -47,6 +36,14 @@ contract ComptrollerErrorReporter {
         SET_COLLATERAL_FACTOR_NO_EXISTS,
         SET_COLLATERAL_FACTOR_VALIDATION,
         SET_COLLATERAL_FACTOR_WITHOUT_PRICE,
+        SET_BORROW_FACTOR_OWNER_CHECK,
+        SET_BORROW_FACTOR_NO_EXISTS,
+        SET_BORROW_FACTOR_VALIDATION,
+        SET_BORROW_FACTOR_WITHOUT_PRICE,
+        SET_MAXIMUNBORROWED_OWNER_CHECK,
+        SET_MAXIMUNBORROWED_NO_EXISTS,
+        SET_MAXIMUNBORROWED_VALIDATION,
+        SET_MAXIMUNBORROWED_WITHOUT_PRICE,
         SET_IMPLEMENTATION_OWNER_CHECK,
         SET_LIQUIDATION_INCENTIVE_OWNER_CHECK,
         SET_LIQUIDATION_INCENTIVE_VALIDATION,
@@ -218,4 +215,122 @@ contract TokenErrorReporter {
 
         return uint(err);
     }
+}
+
+contract LeverageError{
+    enum Error {
+        NO_ERROR,
+        UNAUTHORIZED,
+        BAD_INPUT,
+        MATH_ERROR,
+        NO_LEVERAGE,
+        INSUFFICIENT_SHORTFALL,
+        TOO_MUCH_REPAY,
+        BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED,
+        BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED,
+        COMPTROLLER_REJECTION,
+        LIQUIDATE_COMPTROLLER_REJECTION,
+        MARKET_NOT_FRESH,
+        LIQUIDATE_FRESHNESS_CHECK,
+        INVALID_ACCOUNT_PAIR,
+        LIQUIDATE_LIQUIDATOR_IS_BORROWER,
+        INVALID_CLOSE_AMOUNT_REQUESTED,
+        LIQUIDATE_CLOSE_AMOUNT_IS_ZERO,
+        LIQUIDATE_CLOSE_AMOUNT_IS_UINT_MAX,
+        REPAY_BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED,
+        REDEEM_EXCHANGE_RATE_READ_FAILED,
+        REPAY_BORROW_FRESHNESS_CHECK,
+        BORROW_FRESHNESS_CHECK,
+        LIQUIDATE_ACCRUE_BORROW_INTEREST_FAILED,
+        LIQUIDATE_ACCRUE_COLLATERAL_INTEREST_FAILED,
+        LIQUIDATE_COLLATERAL_FRESHNESS_CHECK,
+        LIQUIDATE_REPAY_BORROW_FRESH_FAILED,
+        PRICE_ERROR,
+        LIQUIDATE_SEIZE_LIQUIDATOR_IS_BORROWER,
+        BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED,
+        ACCRUE_INTEREST_SIMPLE_INTEREST_FACTOR_CALCULATION_FAILED,
+        ACCRUE_INTEREST_ACCUMULATED_INTEREST_CALCULATION_FAILED,
+        ACCRUE_INTEREST_NEW_TOTAL_BORROWS_CALCULATION_FAILED,
+        SET_PENDING_IMPLEMENTATION_OWNER_CHECK,
+        ACCEPT_PENDING_IMPLEMENTATION_ADDRESS_CHECK,
+        SET_PENDING_ADMIN_OWNER_CHECK,
+        ACCEPT_ADMIN_PENDING_ADMIN_CHECK,
+        QUERY_ERROR,
+        SET_COMPTROLLER_OWNER_CHECK
+        
+    }
+    
+    /**
+      * @dev `error` corresponds to enum Error; `info` corresponds to enum FailureInfo, and `detail` is an arbitrary
+      * contract-specific code that enables us to report opaque error codes from upgradeable contracts.
+      **/
+    event Failure(uint error, uint info, uint detail);
+      /**
+      * @dev use this when reporting a known error from the money market or a non-upgradeable collaborator
+      */
+    function fail(Error err, Error info) internal returns (uint) {
+        emit Failure(uint(err), uint(info), 0);
+
+        return uint(err);
+    }
+
+    /**
+      * @dev use this when reporting an opaque error from an upgradeable collaborator contract
+      */
+    function failOpaque(Error err, Error info, uint opaqueError) internal returns (uint) {
+        emit Failure(uint(err), uint(info), opaqueError);
+
+        return uint(err);
+    }
+    
+    
+}
+
+contract LiquidityError is LeverageError{
+
+}
+
+contract LPPoolError is LeverageError{
+
+}
+
+contract LeverageComprollerError{
+    enum Error {
+        NO_ERROR,
+        SAME_ADDR,
+        ZERO_ADDR,
+        QUERY_ERROR,
+        UNOPENED_LEVER,
+        INVALID_ADDR,
+        MATH_ERROR,
+        INSUFFICIENT_SHORTFALL,
+        UNAUTHORIZED,
+        SET_PENDING_IMPLEMENTATION_OWNER_CHECK
+        
+    }
+    
+    /**
+      * @dev `error` corresponds to enum Error; `info` corresponds to enum FailureInfo, and `detail` is an arbitrary
+      * contract-specific code that enables us to report opaque error codes from upgradeable contracts.
+      **/
+    event Failure(uint error, uint info, uint detail);
+      /**
+      * @dev use this when reporting a known error from the money market or a non-upgradeable collaborator
+      */
+    function fail(Error err, Error info) internal returns (uint) {
+        emit Failure(uint(err), uint(info), 0);
+
+        return uint(err);
+    }
+
+    /**
+      * @dev use this when reporting an opaque error from an upgradeable collaborator contract
+      */
+    function failOpaque(Error err, Error info, uint opaqueError) internal returns (uint) {
+        emit Failure(uint(err), uint(info), opaqueError);
+
+        return uint(err);
+    }
+    
+    
 }

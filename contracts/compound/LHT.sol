@@ -1,33 +1,13 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 pragma solidity ^0.5.16;
 
 import "./CToken.sol";
-
-import "hardhat/console.sol";
-
-interface ILHT {
-    function mint() external payable;
-}
 
 /**
  * @title LendHub's LHT Contract
  * @notice CToken which wraps HT
  * @author LendHub
  */
-contract LHT is CToken, ILHT {
+contract LHT is CToken {
     /**
      * @notice Construct a new CEther money market
      * @param comptroller_ The address of the Comptroller
@@ -59,22 +39,43 @@ contract LHT is CToken, ILHT {
 
     /**
      * @notice Sender supplies assets into the market and receives cTokens in exchange
-     * @dev Reverts upon any failure
+     * @dev Reverts upon any failure 
      */
-    function mint() external payable {
-        console.log("mint LHT");
-        (uint err,) = mintInternal(msg.value);
+    function mint() external payable returns (uint, uint) {
+        (uint err, , uint mintTokens) = mintInternal(msg.value);
         requireNoError(err, "mint failed");
+        return (err, mintTokens);
     }
-
+    
+     /**
+     * @notice Sender supplies assets into the market and receives cTokens in exchange
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param leverageAmount The amount of the underlying asset to leverage
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function leverageBorrow(uint leverageAmount) external returns (uint) {
+        (uint err, , uint mintTokens) = leverageBorrowInternal(leverageAmount);
+        requireNoError(err, "mint failed");
+        return mintTokens;
+    }
+    
     /**
      * @notice Sender redeems cTokens in exchange for the underlying asset
      * @dev Accrues interest whether or not the operation succeeds, unless reverted
      * @param redeemTokens The number of cTokens to redeem into underlying
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeem(uint redeemTokens) external returns (uint) {
-        console.log("redeem LHT:", redeemTokens);
+    function redeemLeverage(uint redeemTokens) external returns (uint, uint) {
+        return redeemLeverageInternal(redeemTokens);
+    }
+    
+    /**
+     * @notice Sender redeems cTokens in exchange for the underlying asset
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param redeemTokens The number of cTokens to redeem into underlying
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function redeem(uint redeemTokens) external returns (uint, uint, uint) {
         return redeemInternal(redeemTokens);
     }
 
@@ -84,7 +85,7 @@ contract LHT is CToken, ILHT {
      * @param redeemAmount The amount of underlying to redeem
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeemUnderlying(uint redeemAmount) external returns (uint) {
+    function redeemUnderlying(uint redeemAmount) external returns (uint, uint, uint) {
         return redeemUnderlyingInternal(redeemAmount);
     }
 
@@ -93,8 +94,8 @@ contract LHT is CToken, ILHT {
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrow(uint borrowAmount) external returns (uint) {
-        return borrowInternal(borrowAmount);
+    function borrow(uint borrowAmount, address to) external returns (uint) {
+        return borrowInternal(borrowAmount, to);
     }
 
     /**
@@ -131,16 +132,11 @@ contract LHT is CToken, ILHT {
     /**
      * @notice Send Ether to CEther to mint
      */
-    // function () external payable {
-    function() external payable {
-        (uint err,) = mintInternal(msg.value);
+    function () external payable {
+        (uint err, ,) = mintInternal(msg.value);
         requireNoError(err, "mint failed");
     }
 
-    // receive() external payable {
-    //     (uint err,) = mintInternal(msg.value);
-    //     requireNoError(err, "mint failed");
-    // }
     /*** Safe Token ***/
 
     /**
@@ -168,7 +164,6 @@ contract LHT is CToken, ILHT {
     }
 
     function doTransferOut(address payable to, uint amount) internal {
-        console.log("LHT doTransferOut:", to, amount);
         /* Send the Ether, with minimal gas and revert on failure */
         to.transfer(amount);
     }

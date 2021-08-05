@@ -5,7 +5,7 @@ import sleep from '../utils/sleep'
 
 const network = hre.network
 
-async function _deploy(name: string, opts: any, verify: boolean) {
+async function deploy(name: string, opts: any, verify: boolean) {
     const deploy = hre.deployments.deploy
   
     try {
@@ -31,3 +31,6 @@ async function _deploy(name: string, opts: any, verify: boolean) {
       console.error('deploy %s failed:', name, err)
     }
 }
+
+export default deploy
+

@@ -381,14 +381,14 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
                     address to,
                     uint256 redeemAmt
                 ) private {
-        uint ret = ICToken(etoken).redeem(redeemAmt);
+        (uint ret, uint amt, ) = ICToken(etoken).redeem(redeemAmt);
         require(ret == 0, "redeem failed");
         // console.log("redeem ceth:", ret, redeemAmt);
 
         if (token == address(0)) {
-            TransferHelper.safeTransferETH(to, address(this).balance);
+            TransferHelper.safeTransferETH(to, amt); // address(this).balance);
         } else {
-            TransferHelper.safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
+            TransferHelper.safeTransfer(token, to, amt); // IERC20(token).balanceOf(address(this)));
         }
     }
 
@@ -602,7 +602,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
             TransferHelper.safeTransferFrom(destToken, msg.sender, address(this), fulFilAmt.amtDestToken);
             // mint
             IERC20(destToken).approve(destEToken, fulFilAmt.amtDestToken);
-            uint ret = ICToken(destEToken).mint(fulFilAmt.amtDestToken);
+            (uint ret, ) = ICToken(destEToken).mint(fulFilAmt.amtDestToken);
             require(ret == 0, "mint failed");
           } else {
             // taker 得到 srcEToken, maker 得到的 destEToken, 暂存在 合约中

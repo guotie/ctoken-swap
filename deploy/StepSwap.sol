@@ -531,8 +531,8 @@ interface ICToken {
 
 interface ILHT {
 
-    function mint() external returns (uint);
-    function redeem(uint redeemTokens) external returns (uint);
+    function mint() external returns (uint, uint);
+    function redeem(uint redeemTokens) external returns (uint, uint, uint);
 
     function transfer(address dst, uint amount) external returns (bool);
     function transferFrom(address src, address dst, uint amount) external returns (bool);

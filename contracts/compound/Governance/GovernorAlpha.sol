@@ -1,20 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
-// pragma abicoder v2;
 
 contract GovernorAlpha {
     /// @notice The name of this contract
@@ -48,58 +33,58 @@ contract GovernorAlpha {
     uint public proposalCount;
 
     struct Proposal {
-        // @notice Unique id for looking up a proposal
+        /// @notice Unique id for looking up a proposal
         uint id;
 
-        // @notice Creator of the proposal
+        /// @notice Creator of the proposal
         address proposer;
 
-        // @notice The timestamp that the proposal will be available for execution, set once the vote succeeds
+        /// @notice The timestamp that the proposal will be available for execution, set once the vote succeeds
         uint eta;
 
-        // @notice the ordered list of target addresses for calls to be made
+        /// @notice the ordered list of target addresses for calls to be made
         address[] targets;
 
-        // @notice The ordered list of values (i.e. msg.value) to be passed to the calls to be made
+        /// @notice The ordered list of values (i.e. msg.value) to be passed to the calls to be made
         uint[] values;
 
-        // @notice The ordered list of function signatures to be called
+        /// @notice The ordered list of function signatures to be called
         string[] signatures;
 
-        // @notice The ordered list of calldata to be passed to each call
+        /// @notice The ordered list of calldata to be passed to each call
         bytes[] calldatas;
 
-        // @notice The block at which voting begins: holders must delegate their votes prior to this block
+        /// @notice The block at which voting begins: holders must delegate their votes prior to this block
         uint startBlock;
 
-        // @notice The block at which voting ends: votes must be cast prior to this block
+        /// @notice The block at which voting ends: votes must be cast prior to this block
         uint endBlock;
 
-        // @notice Current number of votes in favor of this proposal
+        /// @notice Current number of votes in favor of this proposal
         uint forVotes;
 
-        // @notice Current number of votes in opposition to this proposal
+        /// @notice Current number of votes in opposition to this proposal
         uint againstVotes;
 
-        // @notice Flag marking whether the proposal has been canceled
+        /// @notice Flag marking whether the proposal has been canceled
         bool canceled;
 
-        // @notice Flag marking whether the proposal has been executed
+        /// @notice Flag marking whether the proposal has been executed
         bool executed;
 
-        // @notice Receipts of ballots for the entire set of voters
+        /// @notice Receipts of ballots for the entire set of voters
         mapping (address => Receipt) receipts;
     }
 
     /// @notice Ballot receipt record for a voter
     struct Receipt {
-        // @notice Whether or not a vote has been cast
+        /// @notice Whether or not a vote has been cast
         bool hasVoted;
 
-        // @notice Whether or not the voter supports the proposal
+        /// @notice Whether or not the voter supports the proposal
         bool support;
 
-        // @notice The number of votes the voter had, which were cast
+        /// @notice The number of votes the voter had, which were cast
         uint96 votes;
     }
 
@@ -165,38 +150,23 @@ contract GovernorAlpha {
         uint endBlock = add256(startBlock, votingPeriod());
 
         proposalCount++;
-        // Proposal memory newProposal = Proposal({
-        //     id: proposalCount,
-        //     proposer: msg.sender,
-        //     eta: 0,
-        //     targets: targets,
-        //     values: values,
-        //     signatures: signatures,
-        //     calldatas: calldatas,
-        //     startBlock: startBlock,
-        //     endBlock: endBlock,
-        //     forVotes: 0,
-        //     againstVotes: 0,
-        //     canceled: false,
-        //     executed: false
-        // });
+        Proposal memory newProposal = Proposal({
+            id: proposalCount,
+            proposer: msg.sender,
+            eta: 0,
+            targets: targets,
+            values: values,
+            signatures: signatures,
+            calldatas: calldatas,
+            startBlock: startBlock,
+            endBlock: endBlock,
+            forVotes: 0,
+            againstVotes: 0,
+            canceled: false,
+            executed: false
+        });
 
-        // proposals[newProposal.id] = newProposal;
-        Proposal storage newProposal = proposals[proposalCount];
-        newProposal.id = proposalCount;
-        newProposal.proposer = msg.sender;
-        newProposal.eta = 0;
-        newProposal.targets = targets;
-        newProposal.values = values;
-        newProposal.signatures = signatures;
-        newProposal.calldatas = calldatas;
-        newProposal.startBlock = startBlock;
-        newProposal.endBlock = endBlock;
-        newProposal.forVotes = 0;
-        newProposal.againstVotes = 0;
-        newProposal.canceled = false;
-        newProposal.executed = false;
-
+        proposals[newProposal.id] = newProposal;
         latestProposalIds[newProposal.proposer] = newProposal.id;
 
         emit ProposalCreated(newProposal.id, msg.sender, targets, values, signatures, calldatas, startBlock, endBlock, description);
@@ -230,8 +200,8 @@ contract GovernorAlpha {
     }
 
     function cancel(uint proposalId) public {
-        ProposalState pState = state(proposalId);
-        require(pState != ProposalState.Executed, "GovernorAlpha::cancel: cannot cancel executed proposal");
+        ProposalState state = state(proposalId);
+        require(state != ProposalState.Executed, "GovernorAlpha::cancel: cannot cancel executed proposal");
 
         Proposal storage proposal = proposals[proposalId];
         require(msg.sender == guardian || comp.getPriorVotes(proposal.proposer, sub256(block.number, 1)) < proposalThreshold(), "GovernorAlpha::cancel: proposer above threshold");

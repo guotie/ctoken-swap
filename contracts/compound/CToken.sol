@@ -1,30 +1,13 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 pragma solidity ^0.5.16;
 
-import "../common/ComptrollerInterface.sol";
-import "../common/CTokenInterfaces.sol";
-import "../common/InterestRateModel.sol";
-
+import "./ComptrollerInterface.sol";
+import "./ComptrollerInterfaceV2.sol";
+import "./CTokenInterfaces.sol";
 import "./ErrorReporter.sol";
 import "./Exponential.sol";
 import "./EIP20Interface.sol";
 import "./EIP20NonStandardInterface.sol";
-
-// for debug
-import "hardhat/console.sol";
+import "./InterestRateModel.sol";
 
 /**
  * @title LendHub's CToken Contract
@@ -84,11 +67,9 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return Whether or not the transfer succeeded
      */
     function transferTokens(address spender, address src, address dst, uint tokens) internal returns (uint) {
-        // console.log("transfer ctoken:", spender, src, dst);
         /* Fail if transfer not allowed */
-        uint allowed = 0; // comptroller.transferAllowed(address(this), src, dst, tokens);
+        uint allowed = comptroller.transferAllowed(address(this), src, dst, tokens);
         if (allowed != 0) {
-            // console.log("not allow transfer");
             return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.TRANSFER_COMPTROLLER_REJECTION, allowed);
         }
 
@@ -105,19 +86,17 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
             startingAllowance = transferAllowances[src][spender];
         }
 
-
         /* Do the calculations, checking for {under,over}flow */
         MathError mathErr;
         uint allowanceNew;
         uint srcTokensNew;
-        uint dstTokensNew;
+        uint dstTokensNew; 
 
         (mathErr, allowanceNew) = subUInt(startingAllowance, tokens);
         if (mathErr != MathError.NO_ERROR) {
             return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ALLOWED);
         }
 
-        console.log(startingAllowance, tokens, accountTokens[src]);
         (mathErr, srcTokensNew) = subUInt(accountTokens[src], tokens);
         if (mathErr != MathError.NO_ERROR) {
             return fail(Error.MATH_ERROR, FailureInfo.TRANSFER_NOT_ENOUGH);
@@ -145,11 +124,39 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         comptroller.transferVerify(address(this), src, dst, tokens);
 
-        console.log("transfer ctoken: from=%s to=%s %d", src, dst, tokens);
-        console.log("transfer ctoken %s success: %d", address(this), tokens);
         return uint(Error.NO_ERROR);
     }
+    
+    struct ExternalDebt{
+        MathError mathErr;
+        uint uintErr;
+        uint totalBorrowsNew;
+    }
+    
+    //tian jia waimian de  qiankuan lixi
+    function externalDebtAdd(uint addBorrow) external returns (uint){
+        //??????????????????????????????????????????panduandizhi--------------------------- ganggan dizhi
+        require(msg.sender == address(0));
+        
+        uint error = accrueInterest();
+        if (error != uint(Error.NO_ERROR)) {
+            // accrueInterest emits logs on errors, but we still want to log the fact that an attempted borrow failed
+            return fail(Error(error), FailureInfo.BORROW_ACCRUE_INTEREST_FAILED);
+        }
+        
+        ExternalDebt memory vars;
+         (vars.mathErr, vars.totalBorrowsNew) = addUInt(totalBorrows, addBorrow);
+        if (vars.mathErr != MathError.NO_ERROR) {
+            return failOpaque(Error.MATH_ERROR, FailureInfo.BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
+        }
 
+        /* We write the previously calculated values into storage */
+        totalBorrows = vars.totalBorrowsNew;
+
+        /* We emit a Borrow event */
+        //emit Borrow(borrower, borrowAmount, vars.accountBorrowsNew, vars.totalBorrowsNew);
+    }
+    
     /**
      * @notice Transfer `amount` tokens from `msg.sender` to `dst`
      * @param dst The address of the destination account
@@ -157,6 +164,10 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return Whether or not the transfer succeeded
      */
     function transfer(address dst, uint256 amount) external nonReentrant returns (bool) {
+        bool isLp = comptrollerV2.isLP(address(this));
+        if(isLp){
+            require(msg.sender == address(this),"Users are not allowed to transfer in private");
+        }
         return transferTokens(msg.sender, msg.sender, dst, amount) == uint(Error.NO_ERROR);
     }
 
@@ -168,6 +179,10 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return Whether or not the transfer succeeded
      */
     function transferFrom(address src, address dst, uint256 amount) external nonReentrant returns (bool) {
+        bool isLp = comptrollerV2.isLP(address(this));
+        if(isLp){
+            require(dst == address(this),"Users are not allowed to transfer in private");
+        }
         return transferTokens(msg.sender, src, dst, amount) == uint(Error.NO_ERROR);
     }
 
@@ -335,45 +350,6 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         return (MathError.NO_ERROR, result);
     }
 
-    // marginType: 0: LP margin; 1: swap margin
-    function borrowMarginBalanceStoredInternal(uint posId, uint marginType) internal view returns (MathError, uint) {
-        /* Note: we do not assert that the market is up to date */
-        MathError mathErr;
-        uint principalTimesIndex;
-        uint result;
-
-        /* Get borrowBalance and borrowIndex */
-        BorrowSnapshot storage borrowSnapshot = lpMarginBorrows[posId];
-        
-        if (marginType != 0) {
-        //     borrowSnapshot = lpMarginBorrows[posId];
-        // } else {
-            borrowSnapshot = swapMarginBorrows[posId];
-        }
-
-        /* If borrowBalance = 0 then borrowIndex is likely also 0.
-         * Rather than failing the calculation with a division by 0, we immediately return 0 in this case.
-         */
-        if (borrowSnapshot.principal == 0) {
-            return (MathError.NO_ERROR, 0);
-        }
-
-        /* Calculate new borrow balance using the interest index:
-         *  recentBorrowBalance = borrower.borrowBalance * market.borrowIndex / borrower.borrowIndex
-         */
-        (mathErr, principalTimesIndex) = mulUInt(borrowSnapshot.principal, borrowIndex);
-        if (mathErr != MathError.NO_ERROR) {
-            return (mathErr, 0);
-        }
-
-        (mathErr, result) = divUInt(principalTimesIndex, borrowSnapshot.interestIndex);
-        if (mathErr != MathError.NO_ERROR) {
-            return (mathErr, 0);
-        }
-
-        return (MathError.NO_ERROR, result);
-    }
-
     /**
      * @notice Accrue interest then return the up-to-date exchange rate
      * @return Calculated exchange rate scaled by 1e18
@@ -400,15 +376,12 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @return (error code, calculated exchange rate scaled by 1e18)
      */
     function exchangeRateStoredInternal() internal view returns (MathError, uint) {
-        // console.log('exchangeRateStoredInternal address: %s', address(this));
-
         uint _totalSupply = totalSupply;
         if (_totalSupply == 0) {
             /*
              * If there are no tokens minted:
              *  exchangeRate = initialExchangeRate
              */
-            //  console.log('initialExchangeRateMantissa: %d', initialExchangeRateMantissa);
             return (MathError.NO_ERROR, initialExchangeRateMantissa);
         } else {
             /*
@@ -430,12 +403,6 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
                 return (mathErr, 0);
             }
 
-            // console.log("exchangeRateStoredInternal: totalCash: %d", totalCash);
-            // console.log("exchangeRateStoredInternal: totalBorrows: %d", totalBorrows);
-            // console.log("exchangeRateStoredInternal: totalReserves: %d", totalReserves);
-            // console.log("exchangeRateStoredInternal: totalSupply: %d", totalSupply);
-            // console.log("exchangeRateStoredInternal: exchangeRate: %d", exchangeRate.mantissa);
-            // console.log(totalCash, totalBorrows, totalReserves, _totalSupply);
             return (MathError.NO_ERROR, exchangeRate.mantissa);
         }
     }
@@ -452,7 +419,6 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @notice Applies accrued interest to total borrows and reserves
      * @dev This calculates interest accrued from the last checkpointed block
      *   up to the current block and writes new checkpoint to storage.
-     *   更新利息 每个块只计算一次利息
      */
     function accrueInterest() public returns (uint) {
         /* Remember the initial block number */
@@ -465,7 +431,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         }
 
         /* Read the previous values out of storage */
-        uint cashPrior = getCashPrior();  // token 的数量
+        uint cashPrior = getCashPrior();
         uint borrowsPrior = totalBorrows;
         uint reservesPrior = totalReserves;
         uint borrowIndexPrior = borrowIndex;
@@ -498,25 +464,21 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_SIMPLE_INTEREST_FACTOR_CALCULATION_FAILED, uint(mathErr));
         }
 
-        // 增加的利息收入
         (mathErr, interestAccumulated) = mulScalarTruncate(simpleInterestFactor, borrowsPrior);
         if (mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_ACCUMULATED_INTEREST_CALCULATION_FAILED, uint(mathErr));
         }
 
-        // 更新借款 借款 = 借款 + 利息
         (mathErr, totalBorrowsNew) = addUInt(interestAccumulated, borrowsPrior);
         if (mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_NEW_TOTAL_BORROWS_CALCULATION_FAILED, uint(mathErr));
         }
 
-        // 增加准备金 
         (mathErr, totalReservesNew) = mulScalarTruncateAddUInt(Exp({mantissa: reserveFactorMantissa}), interestAccumulated, reservesPrior);
         if (mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_NEW_TOTAL_RESERVES_CALCULATION_FAILED, uint(mathErr));
         }
 
-        // 更新贷款利息
         (mathErr, borrowIndexNew) = mulScalarTruncateAddUInt(simpleInterestFactor, borrowIndexPrior, borrowIndexPrior);
         if (mathErr != MathError.NO_ERROR) {
             return failOpaque(Error.MATH_ERROR, FailureInfo.ACCRUE_INTEREST_NEW_BORROW_INDEX_CALCULATION_FAILED, uint(mathErr));
@@ -538,57 +500,87 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         return uint(Error.NO_ERROR);
     }
 
+    function getBorrowRate() public view returns(uint){
+        /* Read the previous values out of storage */
+        uint cashPrior = getCashPrior();
+        uint borrowsPrior = totalBorrows;
+        uint reservesPrior = totalReserves;
+
+        /* Calculate the current borrow interest rate */
+        uint borrowRateMantissa = interestRateModel.getBorrowRate(cashPrior, borrowsPrior, reservesPrior);
+        require(borrowRateMantissa <= borrowRateMaxMantissa, "borrow rate is absurdly high");
+        return borrowRateMantissa;
+    }
+
     /**
      * @notice Sender supplies assets into the market and receives cTokens in exchange
      * @dev Accrues interest whether or not the operation succeeds, unless reverted
      * @param mintAmount The amount of the underlying asset to supply
      * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual mint amount.
      */
-    function mintInternal(uint mintAmount) internal nonReentrant returns (uint, uint) {
+    function mintInternal(uint mintAmount) internal nonReentrant returns (uint, uint, uint) {
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
             // accrueInterest emits logs on errors, but we still want to log the fact that an attempted borrow failed
-            return (fail(Error(error), FailureInfo.MINT_ACCRUE_INTEREST_FAILED), 0);
+            return (fail(Error(error), FailureInfo.MINT_ACCRUE_INTEREST_FAILED), 0, 0);
         }
         // mintFresh emits the actual Mint event if successful and logs on errors, so we don't need to
         return mintFresh(msg.sender, mintAmount);
     }
-
+    
+    /** ??????? 可以一样？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？
+     * @notice Sender supplies assets into the market and receives cTokens in exchange
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param mintAmount The amount of the underlying asset to supply
+     * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual mint amount.
+     */
+    function leverageBorrowInternal(uint mintAmount) internal nonReentrant returns (uint, uint, uint) {
+        //require(msg.seder == ); ?????????????????????????????????????????????????????????????????????????  quanxiankongzhi zai nali 
+        uint error = accrueInterest();
+        if (error != uint(Error.NO_ERROR)) {
+            // accrueInterest emits logs on errors, but we still want to log the fact that an attempted borrow failed
+            return (fail(Error(error), FailureInfo.MINT_ACCRUE_INTEREST_FAILED), 0, 0);
+        }
+        // mintFresh emits the actual Mint event if successful and logs on errors, so we don't need to
+        return leverageBorrowFresh(msg.sender, mintAmount);
+    }
+    
     struct MintLocalVars {
         Error err;
         MathError mathErr;
         uint exchangeRateMantissa;
         uint mintTokens;
         uint totalSupplyNew;
+        uint mintSupplyNew;
         uint accountTokensNew;
         uint actualMintAmount;
+        uint leverageSupplyNew;
     }
 
-    /**
+   /**
      * @notice User supplies assets into the market and receives cTokens in exchange
      * @dev Assumes interest has already been accrued up to the current block
      * @param minter The address of the account which is supplying the assets
      * @param mintAmount The amount of the underlying asset to supply
      * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual mint amount.
      */
-    function mintFresh(address minter, uint mintAmount) internal returns (uint, uint) {
+    function mintFresh(address minter, uint mintAmount) internal returns (uint, uint, uint) {
         /* Fail if mint not allowed */
         uint allowed = comptroller.mintAllowed(address(this), minter, mintAmount);
         if (allowed != 0) {
-            // console.log("token not allowed");
-            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.MINT_COMPTROLLER_REJECTION, allowed), 0);
+            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.MINT_COMPTROLLER_REJECTION, allowed), 0, 0);
         }
 
         /* Verify market's block number equals current block number */
         if (accrualBlockNumber != getBlockNumber()) {
-            return (fail(Error.MARKET_NOT_FRESH, FailureInfo.MINT_FRESHNESS_CHECK), 0);
+            return (fail(Error.MARKET_NOT_FRESH, FailureInfo.MINT_FRESHNESS_CHECK), 0, 0);
         }
 
         MintLocalVars memory vars;
 
         (vars.mathErr, vars.exchangeRateMantissa) = exchangeRateStoredInternal();
         if (vars.mathErr != MathError.NO_ERROR) {
-            return (failOpaque(Error.MATH_ERROR, FailureInfo.MINT_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr)), 0);
+            return (failOpaque(Error.MATH_ERROR, FailureInfo.MINT_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr)), 0, 0);
         }
 
         /////////////////////////
@@ -609,8 +601,8 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          * We get the current exchange rate and calculate the number of cTokens to be minted:
          *  mintTokens = actualMintAmount / exchangeRate
          */
+
         (vars.mathErr, vars.mintTokens) = divScalarByExpTruncate(vars.actualMintAmount, Exp({mantissa: vars.exchangeRateMantissa}));
-        // console.log("mintAmount: %d exchangeRate: %d mintTokens: %d", vars.actualMintAmount, vars.exchangeRateMantissa, vars.mintTokens);
         require(vars.mathErr == MathError.NO_ERROR, "MINT_EXCHANGE_CALCULATION_FAILED");
 
         /*
@@ -634,23 +626,152 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         /* We call the defense hook */
         comptroller.mintVerify(address(this), minter, vars.actualMintAmount, vars.mintTokens);
+        
+        //tianjia zong diya  shuliang
+        uint error = comptroller.pledgeAllowed(vars.mintTokens);
+        require(error == 0, "Exceed the maximum number of mortgages");
+        
+        return (uint(Error.NO_ERROR), vars.actualMintAmount, vars.mintTokens);
+    }
+    
+    /**
+     * @notice User supplies assets into the market and receives cTokens in exchange
+     * @dev Assumes interest has already been accrued up to the current block
+     * @param minter The address of the account which is supplying the assets
+     * @param mintAmount The amount of the underlying asset to supply
+     * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual mint amount.
+     */
+    function leverageBorrowFresh(address minter, uint mintAmount) internal returns (uint, uint, uint ) {
+        mintAmount;
+        /* Fail if mint not allowed */
+        //uint allowed = comptroller.mintAllowed(address(this), minter, mintAmount);
+        //if (allowed != 0) {
+        //    return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.MINT_COMPTROLLER_REJECTION, allowed), 0, 0);
+        //}
 
-        return (uint(Error.NO_ERROR), vars.actualMintAmount);
+        /* Verify market's block number equals current block number */
+        if (accrualBlockNumber != getBlockNumber()) {
+            return (fail(Error.MARKET_NOT_FRESH, FailureInfo.MINT_FRESHNESS_CHECK), 0, 0);
+        }
+
+        MintLocalVars memory vars;
+
+        (vars.mathErr, vars.exchangeRateMantissa) = exchangeRateStoredInternal();
+        if (vars.mathErr != MathError.NO_ERROR) {
+            return (failOpaque(Error.MATH_ERROR, FailureInfo.MINT_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr)), 0, 0);
+        }
+
+        //wu zhuan zhang ---
+        
+        /*
+         * We get the current exchange rate and calculate the number of cTokens to be minted:
+         *  mintTokens = actualMintAmount / exchangeRate
+         */
+
+        (vars.mathErr, vars.mintTokens) = divScalarByExpTruncate(vars.actualMintAmount, Exp({mantissa: vars.exchangeRateMantissa}));
+        require(vars.mathErr == MathError.NO_ERROR, "MINT_EXCHANGE_CALCULATION_FAILED");
+
+        /*
+         * We calculate the new total leverageSupply of cTokens and minter token balance, checking for overflow:
+         *  leverageSupplyNew = leverageSupply + mintTokens
+         *  accountTokensNew = accountTokens[minter] + mintTokens
+         */
+        (vars.mathErr, vars.leverageSupplyNew) = addUInt(leverageSupply, vars.mintTokens);
+        require(vars.mathErr == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
+
+        (vars.mathErr, vars.accountTokensNew) = addUInt(accountTokens[minter], vars.mintTokens);
+        require(vars.mathErr == MathError.NO_ERROR, "MINT_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED");
+
+        /* We write previously calculated values into storage */
+        leverageSupply = vars.totalSupplyNew;
+        accountTokens[minter] = vars.accountTokensNew;
+
+        /* We emit a Mint event, and a Transfer event */
+        emit Mint(minter, vars.actualMintAmount, vars.mintTokens);
+        emit Transfer(address(this), minter, vars.mintTokens);
+
+        /* We call the defense hook */
+        //comptroller.mintVerify(address(this), minter, vars.actualMintAmount, vars.mintTokens);
+        
+        return (uint(Error.NO_ERROR), vars.actualMintAmount, vars.mintTokens);
+    }
+    
+    struct RedeemLeverageVars {
+        Error err;
+        MathError mathErr;
+        uint exchangeRateMantissa;
+        uint redeemTokens;
+        uint leverageSupplyNew;
+        uint mintSupplyNew;
+        uint accountTokensNew;
     }
 
+    /**
+     * @notice User redeems cTokens in exchange for the underlying asset
+     * @dev Assumes interest has already been accrued up to the current block
+     * @param redeemer The address of the account which is redeeming the tokens
+     * @param redeemTokensIn The number of cTokens to redeem into underlying (only one of redeemTokensIn or redeemAmountIn may be non-zero)
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function redeemLeverageFresh(address redeemer, uint redeemTokensIn) internal returns (uint, uint) {
+        require(redeemTokensIn == 0, "redeemTokensIn mustn't be zero");
+
+        RedeemLeverageVars memory vars;
+
+        vars.redeemTokens = redeemTokensIn;
+
+        /*
+         * We calculate the new total supply and redeemer balance, checking for underflow:
+         *  totalSupplyNew = totalSupply - redeemTokens
+         *  accountTokensNew = accountTokens[redeemer] - redeemTokens
+         */
+        (vars.mathErr, vars.leverageSupplyNew) = subUInt(leverageSupply, vars.redeemTokens);
+        if (vars.mathErr != MathError.NO_ERROR) {
+            return (failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_TOTAL_SUPPLY_CALCULATION_FAILED, uint(vars.mathErr)), 0);
+        }
+
+        (vars.mathErr, vars.accountTokensNew) = subUInt(accountTokens[redeemer], vars.redeemTokens);
+        if (vars.mathErr != MathError.NO_ERROR) {
+            return (failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED, uint(vars.mathErr)), 0);
+        }
+
+        /* We write previously calculated values into storage */
+        leverageSupply = vars.leverageSupplyNew;
+        accountTokens[redeemer] = vars.accountTokensNew;
+
+        /* We emit a Transfer event, and a Redeem event */
+        //emit Transfer(redeemer, address(this), vars.redeemTokens);
+        //emit Redeem(redeemer, vars.redeemAmount, vars.redeemTokens);
+
+        /* We call the defense hook */
+        //comptroller.redeemVerify(address(this), redeemer, vars.redeemAmount, vars.redeemTokens);
+
+        return (uint(Error.NO_ERROR), vars.redeemTokens);
+    }
+    
+
+     /**
+     * @notice Sender redeems cTokens in exchange for the underlying asset
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param redeemTokens The number of cTokens to redeem into underlying
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function redeemLeverageInternal(uint redeemTokens) internal nonReentrant returns (uint ,uint) {
+        // redeemFresh emits redeem-specific logs on errors, so we don't need to
+        return redeemLeverageFresh(msg.sender, redeemTokens);
+    }
+    
     /**
      * @notice Sender redeems cTokens in exchange for the underlying asset
      * @dev Accrues interest whether or not the operation succeeds, unless reverted
      * @param redeemTokens The number of cTokens to redeem into underlying
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeemInternal(uint redeemTokens) internal nonReentrant returns (uint) {
-        console.log("redeemInternal:", redeemTokens);
+    function redeemInternal(uint redeemTokens) internal nonReentrant returns (uint ,uint, uint) {
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
-            console.log("accrueInterest failed:", error);
             // accrueInterest emits logs on errors, but we still want to log the fact that an attempted redeem failed
-            return fail(Error(error), FailureInfo.REDEEM_ACCRUE_INTEREST_FAILED);
+            return (fail(Error(error), FailureInfo.REDEEM_ACCRUE_INTEREST_FAILED), 0, 0);
         }
         // redeemFresh emits redeem-specific logs on errors, so we don't need to
         return redeemFresh(msg.sender, redeemTokens, 0);
@@ -662,11 +783,11 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @param redeemAmount The amount of underlying to receive from redeeming cTokens
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeemUnderlyingInternal(uint redeemAmount) internal nonReentrant returns (uint) {
+    function redeemUnderlyingInternal(uint redeemAmount) internal nonReentrant returns (uint ,uint, uint) {
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
             // accrueInterest emits logs on errors, but we still want to log the fact that an attempted redeem failed
-            return fail(Error(error), FailureInfo.REDEEM_ACCRUE_INTEREST_FAILED);
+            return (fail(Error(error), FailureInfo.REDEEM_ACCRUE_INTEREST_FAILED), 0, 0);
         }
         // redeemFresh emits redeem-specific logs on errors, so we don't need to
         return redeemFresh(msg.sender, 0, redeemAmount);
@@ -679,6 +800,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         uint redeemTokens;
         uint redeemAmount;
         uint totalSupplyNew;
+        uint mintSupplyNew;
         uint accountTokensNew;
     }
 
@@ -690,7 +812,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
      * @param redeemAmountIn The number of underlying tokens to receive from redeeming cTokens (only one of redeemTokensIn or redeemAmountIn may be non-zero)
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeemFresh(address payable redeemer, uint redeemTokensIn, uint redeemAmountIn) internal returns (uint) {
+    function redeemFresh(address payable redeemer, uint redeemTokensIn, uint redeemAmountIn) internal returns (uint, uint, uint) {
         require(redeemTokensIn == 0 || redeemAmountIn == 0, "one of redeemTokensIn or redeemAmountIn must be zero");
 
         RedeemLocalVars memory vars;
@@ -698,8 +820,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* exchangeRate = invoke Exchange Rate Stored() */
         (vars.mathErr, vars.exchangeRateMantissa) = exchangeRateStoredInternal();
         if (vars.mathErr != MathError.NO_ERROR) {
-            // console.log('redeemFresh: exchangeRateStoredInternal failed');
-            return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr));
+            return (failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr)), 0, 0);
         }
 
         /* If redeemTokensIn > 0: */
@@ -713,8 +834,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
             (vars.mathErr, vars.redeemAmount) = mulScalarTruncate(Exp({mantissa: vars.exchangeRateMantissa}), redeemTokensIn);
             if (vars.mathErr != MathError.NO_ERROR) {
-                // console.log('redeemFresh: mulScalarTruncate failed');
-                return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_TOKENS_CALCULATION_FAILED, uint(vars.mathErr));
+                return (failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_TOKENS_CALCULATION_FAILED, uint(vars.mathErr)), 0, 0);
             }
         } else {
             /*
@@ -725,8 +845,7 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
             (vars.mathErr, vars.redeemTokens) = divScalarByExpTruncate(redeemAmountIn, Exp({mantissa: vars.exchangeRateMantissa}));
             if (vars.mathErr != MathError.NO_ERROR) {
-                console.log('redeemFresh: divScalarByExpTruncate failed');
-                return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_AMOUNT_CALCULATION_FAILED, uint(vars.mathErr));
+                return (failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_EXCHANGE_AMOUNT_CALCULATION_FAILED, uint(vars.mathErr)), 0, 0);
             }
 
             vars.redeemAmount = redeemAmountIn;
@@ -735,14 +854,12 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         /* Fail if redeem not allowed */
         uint allowed = comptroller.redeemAllowed(address(this), redeemer, vars.redeemTokens);
         if (allowed != 0) {
-            console.log('redeemFresh: redeem not allowed:', allowed, address(this));
-            // return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REDEEM_COMPTROLLER_REJECTION, allowed);
+            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REDEEM_COMPTROLLER_REJECTION, allowed), 0, 0);
         }
 
         /* Verify market's block number equals current block number */
         if (accrualBlockNumber != getBlockNumber()) {
-            console.log('redeemFresh: MARKET_NOT_FRESH');
-            return fail(Error.MARKET_NOT_FRESH, FailureInfo.REDEEM_FRESHNESS_CHECK);
+            return (fail(Error.MARKET_NOT_FRESH, FailureInfo.REDEEM_FRESHNESS_CHECK), 0, 0);
         }
 
         /*
@@ -752,19 +869,17 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          */
         (vars.mathErr, vars.totalSupplyNew) = subUInt(totalSupply, vars.redeemTokens);
         if (vars.mathErr != MathError.NO_ERROR) {
-            console.log('redeemFresh: subUInt failed: totalSupply=%d redeemTokens=%d', totalSupply, vars.redeemTokens);
-            return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_TOTAL_SUPPLY_CALCULATION_FAILED, uint(vars.mathErr));
+            return (failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_TOTAL_SUPPLY_CALCULATION_FAILED, uint(vars.mathErr)), 0, 0);
         }
 
         (vars.mathErr, vars.accountTokensNew) = subUInt(accountTokens[redeemer], vars.redeemTokens);
         if (vars.mathErr != MathError.NO_ERROR) {
-            console.log('redeemFresh: subUInt failed: accountTokens[redeemer]=%d redeemTokens=%d', accountTokens[redeemer], vars.redeemTokens);
-            return failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
+            return (failOpaque(Error.MATH_ERROR, FailureInfo.REDEEM_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED, uint(vars.mathErr)), 0, 0);
         }
 
         /* Fail gracefully if protocol has insufficient cash */
         if (getCashPrior() < vars.redeemAmount) {
-            return fail(Error.TOKEN_INSUFFICIENT_CASH, FailureInfo.REDEEM_TRANSFER_OUT_NOT_POSSIBLE);
+            return (fail(Error.TOKEN_INSUFFICIENT_CASH, FailureInfo.REDEEM_TRANSFER_OUT_NOT_POSSIBLE), 0, 0);
         }
 
         /////////////////////////
@@ -777,7 +892,6 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          *  On success, the cToken has redeemAmount less of cash.
          *  doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
          */
-        console.log("prepare to doTransferOut ....", vars.redeemAmount);
         doTransferOut(redeemer, vars.redeemAmount);
 
         /* We write previously calculated values into storage */
@@ -790,8 +904,12 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         /* We call the defense hook */
         comptroller.redeemVerify(address(this), redeemer, vars.redeemAmount, vars.redeemTokens);
+        
+        //jianshao zong diya shuliang
+        uint error = comptroller.retrieveAllowed(vars.redeemTokens);
+        require(error == 0, "retrieve failed");
 
-        return uint(Error.NO_ERROR);
+        return (uint(Error.NO_ERROR), vars.redeemAmount, vars.redeemTokens);
     }
 
     /**
@@ -799,29 +917,31 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrowInternal(uint borrowAmount) internal nonReentrant returns (uint) {
+    function borrowInternal(uint borrowAmount , address to_) internal nonReentrant returns (uint) {
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
             // accrueInterest emits logs on errors, but we still want to log the fact that an attempted borrow failed
             return fail(Error(error), FailureInfo.BORROW_ACCRUE_INTEREST_FAILED);
         }
         // borrowFresh emits borrow-specific logs on errors, so we don't need to
-        return borrowFresh(msg.sender, borrowAmount);
+        address payable to = address(uint160(to_));
+        return borrowFresh(msg.sender, borrowAmount, to);
     }
 
     struct BorrowLocalVars {
         MathError mathErr;
+        uint uintErr;
         uint accountBorrows;
         uint accountBorrowsNew;
         uint totalBorrowsNew;
     }
 
-    /**
+     /**
       * @notice Users borrow assets from the protocol to their own address
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrowFresh(address payable borrower, uint borrowAmount) internal returns (uint) {
+    function borrowFresh(address payable borrower, uint borrowAmount, address payable to) internal returns (uint) {
         /* Fail if borrow not allowed */
         uint allowed = comptroller.borrowAllowed(address(this), borrower, borrowAmount);
         if (allowed != 0) {
@@ -870,7 +990,10 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          *  On success, the cToken borrowAmount less of cash.
          *  doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
          */
-        doTransferOut(borrower, borrowAmount);
+         if(to == address(0)){
+             to = borrower;
+         }
+        doTransferOut(to, borrowAmount);
 
         /* We write the previously calculated values into storage */
         accountBorrows[borrower].principal = vars.accountBorrowsNew;
@@ -879,92 +1002,6 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         /* We emit a Borrow event */
         emit Borrow(borrower, borrowAmount, vars.accountBorrowsNew, vars.totalBorrowsNew);
-
-        /* We call the defense hook */
-        comptroller.borrowVerify(address(this), borrower, borrowAmount);
-
-        return uint(Error.NO_ERROR);
-    }
-
-    /**
-      * @notice Sender borrows assets from the protocol to their own address
-      * @param borrowAmount The amount of the underlying asset to borrow
-      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-      */
-    function borrowMarginInternal(address borrower, uint posId, uint borrowAmount, uint marginType) internal nonReentrant returns (uint) {
-        uint error = accrueInterest();
-        if (error != uint(Error.NO_ERROR)) {
-            // accrueInterest emits logs on errors, but we still want to log the fact that an attempted borrow failed
-            return fail(Error(error), FailureInfo.BORROW_ACCRUE_INTEREST_FAILED);
-        }
-        // borrowFresh emits borrow-specific logs on errors, so we don't need to
-        return borrowMarginFresh(msg.sender, borrower, posId, borrowAmount, marginType);
-    }
-
-    /**
-      * @notice 杠杆借贷 真实的币转给 borrower, 记账记在 realBorrower
-      * @param borrowAmount The amount of the underlying asset to borrow
-      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-      */
-    function borrowMarginFresh(address payable borrower, address realBorrower, uint posId, uint borrowAmount, uint marginType) internal returns (uint) {
-        /* Fail if borrow not allowed */
-        // todo 这里不需要要验证用户是否有流动性问题, 只需要做基本的检查即可 还有 comp 的分发！！！
-        uint allowed = comptroller.borrowAllowed(address(this), borrower, borrowAmount);
-        if (allowed != 0) {
-            return failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.BORROW_COMPTROLLER_REJECTION, allowed);
-        }
-
-        /* Verify market's block number equals current block number */
-        if (accrualBlockNumber != getBlockNumber()) {
-            return fail(Error.MARKET_NOT_FRESH, FailureInfo.BORROW_FRESHNESS_CHECK);
-        }
-
-        /* Fail gracefully if protocol has insufficient underlying cash */
-        if (getCashPrior() < borrowAmount) {
-            return fail(Error.TOKEN_INSUFFICIENT_CASH, FailureInfo.BORROW_CASH_NOT_AVAILABLE);
-        }
-
-        BorrowLocalVars memory vars;
-
-        /*
-         * We calculate the new borrower and total borrow balances, failing on overflow:
-         *  accountBorrowsNew = accountBorrows + borrowAmount
-         *  totalBorrowsNew = totalBorrows + borrowAmount
-         */
-        (vars.mathErr, vars.accountBorrows) = borrowMarginBalanceStoredInternal(posId, marginType);
-        if (vars.mathErr != MathError.NO_ERROR) {
-            return failOpaque(Error.MATH_ERROR, FailureInfo.BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
-        }
-
-        (vars.mathErr, vars.accountBorrowsNew) = addUInt(vars.accountBorrows, borrowAmount);
-        if (vars.mathErr != MathError.NO_ERROR) {
-            return failOpaque(Error.MATH_ERROR, FailureInfo.BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
-        }
-
-        (vars.mathErr, vars.totalBorrowsNew) = addUInt(totalBorrows, borrowAmount);
-        if (vars.mathErr != MathError.NO_ERROR) {
-            return failOpaque(Error.MATH_ERROR, FailureInfo.BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED, uint(vars.mathErr));
-        }
-
-        /////////////////////////
-        // EFFECTS & INTERACTIONS
-        // (No safe failures beyond this point)
-
-        /*
-         * We invoke doTransferOut for the borrower and the borrowAmount.
-         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
-         *  On success, the cToken borrowAmount less of cash.
-         *  doTransferOut reverts if anything goes wrong, since we can't be sure if side effects occurred.
-         */
-        doTransferOut(borrower, borrowAmount);
-
-        /* We write the previously calculated values into storage */
-        accountBorrows[realBorrower].principal = vars.accountBorrowsNew;
-        accountBorrows[realBorrower].interestIndex = borrowIndex;
-        totalBorrows = vars.totalBorrowsNew;
-
-        /* We emit a Borrow event */
-        emit Borrow(realBorrower, borrowAmount, vars.accountBorrowsNew, vars.totalBorrowsNew);
 
         /* We call the defense hook */
         comptroller.borrowVerify(address(this), borrower, borrowAmount);
@@ -1090,90 +1127,6 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
     }
 
     /**
-     * @notice Borrows are repaid by another user (possibly the borrower).
-     * @param payer the account paying off the borrow
-     * @param borrower the account with the debt being payed off
-     * @param repayAmount the amount of undelrying tokens being returned
-     * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual repayment amount.
-     */
-    function repayBorrowMarginFresh(uint posId, address payer, address borrower, uint repayAmount, uint marginType) internal returns (uint, uint) {
-        /* Fail if repayBorrow not allowed */
-        uint allowed = comptroller.repayBorrowAllowed(address(this), payer, borrower, repayAmount);
-        if (allowed != 0) {
-            return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.REPAY_BORROW_COMPTROLLER_REJECTION, allowed), 0);
-        }
-
-        /* Verify market's block number equals current block number */
-        if (accrualBlockNumber != getBlockNumber()) {
-            return (fail(Error.MARKET_NOT_FRESH, FailureInfo.REPAY_BORROW_FRESHNESS_CHECK), 0);
-        }
-
-        RepayBorrowLocalVars memory vars;
-
-        /* We remember the original borrowerIndex for verification purposes */
-        if (marginType == 0) {
-            vars.borrowerIndex = lpMarginBorrows[posId].interestIndex;
-        } else {
-            vars.borrowerIndex = swapMarginBorrows[posId].interestIndex;
-        }
-
-        /* We fetch the amount the borrower owes, with accumulated interest */
-        (vars.mathErr, vars.accountBorrows) = borrowMarginBalanceStoredInternal(posId, marginType);
-        if (vars.mathErr != MathError.NO_ERROR) {
-            return (failOpaque(Error.MATH_ERROR, FailureInfo.REPAY_BORROW_ACCUMULATED_BALANCE_CALCULATION_FAILED, uint(vars.mathErr)), 0);
-        }
-
-        /* If repayAmount == -1, repayAmount = accountBorrows */
-        if (repayAmount == uint(-1)) {
-            vars.repayAmount = vars.accountBorrows;
-        } else {
-            vars.repayAmount = repayAmount;
-        }
-
-        /////////////////////////
-        // EFFECTS & INTERACTIONS
-        // (No safe failures beyond this point)
-
-        /*
-         * We call doTransferIn for the payer and the repayAmount
-         *  Note: The cToken must handle variations between ERC-20 and ETH underlying.
-         *  On success, the cToken holds an additional repayAmount of cash.
-         *  doTransferIn reverts if anything goes wrong, since we can't be sure if side effects occurred.
-         *   it returns the amount actually transferred, in case of a fee.
-         */
-        vars.actualRepayAmount = doTransferIn(payer, vars.repayAmount);
-
-        /*
-         * We calculate the new borrower and total borrow balances, failing on underflow:
-         *  accountBorrowsNew = accountBorrows - actualRepayAmount
-         *  totalBorrowsNew = totalBorrows - actualRepayAmount
-         */
-        (vars.mathErr, vars.accountBorrowsNew) = subUInt(vars.accountBorrows, vars.actualRepayAmount);
-        require(vars.mathErr == MathError.NO_ERROR, "REPAY_BORROW_NEW_ACCOUNT_BORROW_BALANCE_CALCULATION_FAILED");
-
-        (vars.mathErr, vars.totalBorrowsNew) = subUInt(totalBorrows, vars.actualRepayAmount);
-        require(vars.mathErr == MathError.NO_ERROR, "REPAY_BORROW_NEW_TOTAL_BALANCE_CALCULATION_FAILED");
-
-        /* We write the previously calculated values into storage */
-        if (marginType == 0) {
-            lpMarginBorrows[posId].principal = vars.accountBorrowsNew;
-            lpMarginBorrows[posId].interestIndex = borrowIndex;
-        } else {
-            swapMarginBorrows[posId].principal = vars.accountBorrowsNew;
-            swapMarginBorrows[posId].interestIndex = borrowIndex;
-        }
-        totalBorrows = vars.totalBorrowsNew;
-
-        /* We emit a RepayBorrow event */
-        emit RepayBorrow(payer, borrower, vars.actualRepayAmount, vars.accountBorrowsNew, vars.totalBorrowsNew);
-
-        /* We call the defense hook */
-        comptroller.repayBorrowVerify(address(this), payer, borrower, vars.actualRepayAmount, vars.borrowerIndex);
-
-        return (uint(Error.NO_ERROR), vars.actualRepayAmount);
-    }
-
-    /**
      * @notice The sender liquidates the borrowers collateral.
      *  The collateral seized is transferred to the liquidator.
      * @param borrower The borrower of this cToken to be liquidated
@@ -1276,7 +1229,6 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         return (uint(Error.NO_ERROR), actualRepayAmount);
     }
-
     /**
      * @notice Transfers collateral tokens (this market) to the liquidator.
      * @dev Will fail unless called by another cToken during the process of liquidation.
@@ -1419,7 +1371,10 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
 
         // Set market's comptroller to newComptroller
         comptroller = newComptroller;
-
+        
+        //set comptroller V2
+        comptrollerV2 = ComptrollerInterfaceV2(address(newComptroller));
+        
         // Emit NewComptroller(oldComptroller, newComptroller)
         emit NewComptroller(oldComptroller, newComptroller);
 

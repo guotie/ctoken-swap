@@ -8,6 +8,7 @@ import sleep from '../utils/sleep';
 import { addressOf, getBalances, getCTokenFactoryContract, getEbankFactory, getEbankRouter } from '../helpers/contractHelper'
 import { IToken, getMockToken, HTToken, readableTokenAmount, deadlineTs, getPairToken } from '../helpers/token';
 import { callWithEstimateGas } from '../helpers/estimateGas';
+import { deployMockContracts } from '../helpers/mock';
 const hre = require('hardhat')
 const ethers = hre.ethers
 const network = hre.network
@@ -39,9 +40,16 @@ describe("Router 测试", function() {
     this.timeout(60000000);
   
     before(async () => {
-        if (network.name !== 'hecotest') {
-            throw new Error('should test in hecotest')
+        if (network.name === 'hecotest') {
+            // throw new Error('should test in hecotest')
+            console.info('network hecotest ....')
+        } else if (network.name === 'hardhat') {
+            // deploy all contracts here
+            await deployMockContracts()
+        } else {
+            throw new Error('invalid network: ' + network.name)
         }
+
         let namedSigners = await ethers.getSigners()
         maker = namedSigners[0]
         taker = namedSigners[1]

@@ -1,20 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 pragma solidity ^0.5.16;
 
-import "../common/CTokenInterfaces.sol";
+import "./CTokenInterfaces.sol";
 
 /**
  * @title Compound's CErc20Delegator Contract
@@ -22,6 +8,15 @@ import "../common/CTokenInterfaces.sol";
  * @author Compound
  */
 contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterface {
+    
+     /**
+     * @notice Construct
+     */
+    constructor() public {
+        // Creator of the contract is admin during initialization
+        admin = msg.sender;
+    }
+    
     /**
      * @notice Construct a new money market
      * @param underlying_ The address of the underlying asset
@@ -45,9 +40,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
                 address payable admin_,
                 address implementation_,
                 bytes memory becomeImplementationData) public {
-        // Creator of the contract is admin during initialization
-        admin = msg.sender;
-
+        
         // First delegate gets to initialize the delegator (i.e. storage contract)
         delegateTo(implementation_, abi.encodeWithSignature("initialize(address,address,address,uint256,string,string,uint8)",
                                                             underlying_,
@@ -85,25 +78,50 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
 
         emit NewImplementation(oldImplementation, implementation);
     }
-
-    /**
-     * @notice Sender supplies assets into the market and receives cTokens in exchange
-     * @dev Accrues interest whether or not the operation succeeds, unless reverted
-     * @param mintAmount The amount of the underlying asset to supply
-     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
-     */
-    function mint(uint mintAmount) external returns (uint) {
-        mintAmount; // Shh
-        delegateAndReturn();
-    }
-
+    
+    //- ------ new add --------------------
+    
     /**
      * @notice Sender redeems cTokens in exchange for the underlying asset
      * @dev Accrues interest whether or not the operation succeeds, unless reverted
      * @param redeemTokens The number of cTokens to redeem into underlying
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeem(uint redeemTokens) external returns (uint) {
+    function redeemLeverage(uint redeemTokens) external returns (uint, uint) {
+         redeemTokens;
+         delegateAndReturn();
+    }
+
+    
+    /**
+     * @notice Sender supplies assets into the market and receives cTokens in exchange
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param mintAmount The amount of the underlying asset to supply
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function mint(uint mintAmount) external returns (uint, uint) {
+        mintAmount; // Shh
+        delegateAndReturn();
+    }
+    
+     /**
+     * @notice Sender supplies assets into the market and receives cTokens in exchange
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param leverageAmount The amount of the underlying asset to leverage
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function leverageBorrow(uint leverageAmount) external returns (uint) {
+        leverageAmount; // Shh
+        delegateAndReturn();
+    }
+    
+    /**
+     * @notice Sender redeems cTokens in exchange for the underlying asset
+     * @dev Accrues interest whether or not the operation succeeds, unless reverted
+     * @param redeemTokens The number of cTokens to redeem into underlying
+     * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
+     */
+    function redeem(uint redeemTokens) external returns (uint, uint, uint) {
         redeemTokens; // Shh
         delegateAndReturn();
     }
@@ -114,7 +132,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param redeemAmount The amount of underlying to redeem
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function redeemUnderlying(uint redeemAmount) external returns (uint) {
+    function redeemUnderlying(uint redeemAmount) external returns (uint, uint, uint) {
         redeemAmount; // Shh
         delegateAndReturn();
     }
@@ -124,22 +142,12 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
       * @param borrowAmount The amount of the underlying asset to borrow
       * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
       */
-    function borrow(uint borrowAmount) external returns (uint) {
+    function borrow(uint borrowAmount, address to) external returns (uint) {
         borrowAmount; // Shh
+        to; // shh
         delegateAndReturn();
     }
 
-    function borrowLPMargin(address borrower, uint borrowAmount) external returns (uint) {
-        borrower;
-        borrowAmount; // Shh
-        delegateAndReturn();
-    }
-
-    function borrowSwapMargin(address borrower, uint borrowAmount) external returns (uint) {
-        borrower;
-        borrowAmount; // Shh
-        delegateAndReturn();
-    }
     /**
      * @notice Sender repays their own borrow
      * @param repayAmount The amount to repay
@@ -169,8 +177,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @param repayAmount The amount of the underlying borrowed asset to repay
      * @return uint 0=success, otherwise a failure (see ErrorReporter.sol for details)
      */
-    function liquidateBorrow(address borrower, uint repayAmount,
-                        CTokenInterface cTokenCollateral) external returns (uint) {
+    function liquidateBorrow(address borrower, uint repayAmount, CTokenInterface cTokenCollateral) external returns (uint) {
         borrower; repayAmount; cTokenCollateral; // Shh
         delegateAndReturn();
     }
@@ -430,7 +437,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
         (bool success, bytes memory returnData) = callee.delegatecall(data);
         assembly {
             if eq(success, 0) {
-                revert(add(returnData, 0x20), returndatasize())
+                revert(add(returnData, 0x20), returndatasize)
             }
         }
         return returnData;
@@ -457,7 +464,7 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
         (bool success, bytes memory returnData) = address(this).staticcall(abi.encodeWithSignature("delegateToImplementation(bytes)", data));
         assembly {
             if eq(success, 0) {
-                revert(add(returnData, 0x20), returndatasize())
+                revert(add(returnData, 0x20), returndatasize)
             }
         }
         return abi.decode(returnData, (bytes));
@@ -468,11 +475,11 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
 
         assembly {
             let free_mem_ptr := mload(0x40)
-            returndatacopy(free_mem_ptr, 0, returndatasize())
+            returndatacopy(free_mem_ptr, 0, returndatasize)
 
             switch success
-            case 0 { revert(free_mem_ptr, returndatasize()) }
-            default { return(add(free_mem_ptr, 0x40), returndatasize()) }
+            case 0 { revert(free_mem_ptr, returndatasize) }
+            default { return(add(free_mem_ptr, 0x40), returndatasize) }
         }
     }
 
@@ -481,11 +488,11 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
 
         assembly {
             let free_mem_ptr := mload(0x40)
-            returndatacopy(free_mem_ptr, 0, returndatasize())
+            returndatacopy(free_mem_ptr, 0, returndatasize)
 
             switch success
-            case 0 { revert(free_mem_ptr, returndatasize()) }
-            default { return(free_mem_ptr, returndatasize()) }
+            case 0 { revert(free_mem_ptr, returndatasize) }
+            default { return(free_mem_ptr, returndatasize) }
         }
     }
 
@@ -493,17 +500,10 @@ contract LErc20Delegator is CTokenInterface, CErc20Interface, CDelegatorInterfac
      * @notice Delegates execution to an implementation contract
      * @dev It returns to the external caller whatever the implementation returns or forwards reverts
      */
-    // function () external payable {
     function () external payable {
-        require(msg.value == 0, "LErc20Delegator:fallback: cannot send value to fallback");
+        require(msg.value == 0,"CErc20Delegator:fallback: cannot send value to fallback");
 
         // delegate all other functions to current implementation
         delegateAndReturn();
     }
-    // receive () external payable {
-    //     require(msg.value == 0, "LErc20Delegator:receive: cannot send value to receive");
-
-    //     // delegate all other functions to current implementation
-    //     // delegateAndReturn();
-    // }
 }

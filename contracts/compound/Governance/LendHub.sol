@@ -1,20 +1,5 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 pragma solidity ^0.5.16;
 pragma experimental ABIEncoderV2;
-// pragma abicoder v2;
 
 contract LendHub {
     /// @notice EIP-20 token name for this token
@@ -29,10 +14,10 @@ contract LendHub {
     /// @notice Total number of tokens in circulation
     uint public constant totalSupply = 1000000000e18; // 1 billion LHB
 
-    // @notice Allowance amounts on behalf of others
+    /// @notice Allowance amounts on behalf of others
     mapping (address => mapping (address => uint96)) internal allowances;
 
-    // @notice Official record of token balances for each account
+    /// @notice Official record of token balances for each account
     mapping (address => uint96) internal balances;
 
     /// @notice A record of each accounts delegate
@@ -180,8 +165,7 @@ contract LendHub {
         address signatory = ecrecover(digest, v, r, s);
         require(signatory != address(0), "Lend::delegateBySig: invalid signature");
         require(nonce == nonces[signatory]++, "Lend::delegateBySig: invalid nonce");
-        // require(now <= expiry, "Lend::delegateBySig: signature expired");
-        require(block.timestamp <= expiry, "Lend::delegateBySig: signature expired");
+        require(now <= expiry, "Lend::delegateBySig: signature expired");
         return _delegate(signatory, delegatee);
     }
 

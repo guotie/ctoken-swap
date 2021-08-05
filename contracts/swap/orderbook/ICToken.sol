@@ -16,8 +16,8 @@ pragma solidity ^0.6.12;
 
 interface ICToken {
 
-    function mint(uint mintAmount) external returns (uint);
-    function redeem(uint redeemTokens) external returns (uint);
+    function mint(uint mintAmount) external returns (uint, uint);
+    function redeem(uint redeemTokens) external returns (uint, uint, uint);
 
     function transfer(address dst, uint amount) external returns (bool);
     function transferFrom(address src, address dst, uint amount) external returns (bool);
