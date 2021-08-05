@@ -32,7 +32,7 @@ export const callWithEstimateGas = async (
   methodArgs: any[] = [],
   direct = false
 ): Promise<ethers.providers.TransactionResponse> => {
-  let gasEstimation = ethers.BigNumber.from(6000000)
+  let gasEstimation = ethers.BigNumber.from(8000000)
   
   if (!direct) {
     gasEstimation = await estimateGas(contract, methodName, methodArgs)

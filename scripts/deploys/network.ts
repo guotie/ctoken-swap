@@ -1,20 +1,19 @@
-import { assert } from "console"
-
 const hre = require('hardhat')
 
-const compoundAddress: { [index: string]: { [index: string]: string } } = {
-    'heco': {},
-    'hecotest': {
-        'USDT': '0x04F535663110A392A6504839BEeD34E019FdB4E0',
-        'WETH': '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
-        'CETH': '0x78114ed51B179616Ea5F76913ebbCEad4625fc7E',
-        'CTokenFactory': '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
-    }
-}
+import { addressOf, TokenContractName } from "../../helpers/contractHelper"
+
+// const compoundAddress: { [index: string]: { [index: string]: string } } = {
+//     'heco': {},
+//     'hecotest': {
+//         'USDT': '0x04F535663110A392A6504839BEeD34E019FdB4E0',
+//         'WETH': '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
+//         'CETH': '0x78114ed51B179616Ea5F76913ebbCEad4625fc7E',
+//         'CTokenFactory': '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
+//     }
+// }
 
 function _getCompundAddress(contract: string) {
-    let name = hre.network.name
-        , addr = compoundAddress[name][contract]
+    let addr = addressOf(contract as TokenContractName)
 
     if (!addr) {
         throw new Error('not found contract address: ' + contract)
@@ -29,7 +28,7 @@ export function getWETH(): string {
 
 
 export function getCTokenFactory() {
-    return _getCompundAddress('CTokenFactory')
+    return _getCompundAddress('CtokenFactory')
 }
 
 export function getCETH(): string {

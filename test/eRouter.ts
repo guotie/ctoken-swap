@@ -47,6 +47,8 @@ describe("Router 测试", function() {
         taker = namedSigners[1]
         delegatorFactory = getCTokenFactoryContract(addressOf('CtokenFactory'), maker)
         router = getEbankRouter(undefined, maker)
+
+        let cfactory = await router.ctokenFactory()
         factory = getEbankFactory()
 
         usdt = await getMockToken('USDT')
@@ -65,6 +67,8 @@ describe("Router 测试", function() {
 
     it('add Liquidity underlying: usdt/sea', async () => {
         await printBalance('Balance ' + maker.address + ' before add liquidity', maker.address, [usdt, sea])
+        await usdt.contract!.approve(router.address, BigNumber.from('10000000000000000000000000000'))
+        await sea.contract!.approve(router.address, BigNumber.from('10000000000000000000000000000'))
         let tx = await callWithEstimateGas(
                 router,
                 'addLiquidityUnderlying',

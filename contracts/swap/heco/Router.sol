@@ -81,7 +81,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // heco 链上的 usdt
         quoteTokens.push(IDeBankFactory(_factory).anchorToken()); // usdt
         // todo 应该是 wht
-        quoteTokens.push(_cwht); // wht
+        quoteTokens.push(WHT); // _cwht); // wht
         // quoteTokens.push();  // husd
     }
 
