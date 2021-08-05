@@ -109,9 +109,6 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
             // already joined
             return Error.NO_ERROR;
         }
-        uint accountAmount = cToken.balanceOf(borrower);
-        uint result = pledgeAllowedInternal(cToken, accountAmount);
-        require(result == 0,"TOO_MUCH_MORTAGES");
 
         // survived the gauntlet, add to list
         // NOTE: we store these somewhat redundantly as a significant optimization
@@ -120,15 +117,23 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         //  and not whenever we want to check if an account is in a particular market
         marketToJoin.accountMembership[borrower] = true;
         accountAssets[borrower].push(cToken);
-
+        
+        uint accountAmount = cToken.balanceOf(borrower);
+        uint result = pledgeAllowedInternal(cToken, accountAmount);
+        //require(result == 0,"TOO_MUCH_MORTAGES");
         emit MarketEntered(cToken, borrower);
 
         return Error.NO_ERROR;
     }
     
-    function pledgeAllowed(uint addAmount) external returns (uint){
+    function pledgeAllowed(uint addAmount, address pledger) external returns (uint){
+        Market storage marketToJoin = markets[msg.sender];
+        
         if (!markets[msg.sender].isListed) {
             return uint(Error.MARKET_NOT_LISTED);
+        }
+        if (marketToJoin.accountMembership[pledger] == false) {
+            return uint(Error.NO_ERROR);
         }
         return pledgeAllowedInternal(CToken(msg.sender), addAmount);
     }
@@ -136,26 +141,35 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
     function pledgeAllowedInternal(CToken cToken, uint addAmount)internal returns (uint){
         
         uint pledgeMax = pledgedMaxs[address(cToken)];
+        
         uint pledgeAmount = pledgeAmounts[address(cToken)];
         uint afterPledge = add_(pledgeAmount, addAmount);
         if(pledgeMax > 0 && afterPledge > pledgeMax){
             return uint(Error.TOO_MUCH_MORTAGES);
         }
-        pledgedMaxs[address(cToken)] = afterPledge;
+        pledgeAmounts[address(cToken)] = afterPledge;
         return uint(Error.NO_ERROR);
     } 
     
-    function retrieveAllowed(uint subAmount) external returns (uint){
+    function retrieveAllowed(uint subAmount, address redeemer) external returns (uint){
+         Market storage marketToJoin = markets[msg.sender];
+         
         if (!markets[msg.sender].isListed) {
             return uint(Error.MARKET_NOT_LISTED);
+        }
+        if (marketToJoin.accountMembership[redeemer] == false) {
+            return uint(Error.NO_ERROR);
         }
         return retrieveAllowedInternal(CToken(msg.sender), subAmount);
     }
     
     function retrieveAllowedInternal(CToken cToken, uint subAmount)internal returns (uint){
         uint pledgeAmount = pledgeAmounts[address(cToken)];
-        uint afterPledge = sub_(pledgeAmount, subAmount);
-        pledgedMaxs[address(cToken)] = afterPledge;
+        uint afterPledge = 0;
+        if(pledgeAmount >= subAmount){
+            afterPledge = sub_(pledgeAmount, subAmount);
+        }
+        pledgeAmounts[address(cToken)] = afterPledge;
         return uint(Error.NO_ERROR);
     } 
     
@@ -190,7 +204,9 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
         if (!marketToExit.accountMembership[msg.sender]) {
             return uint(Error.NO_ERROR);
         }
-
+        
+        uint result = retrieveAllowedInternal(cToken, tokensHeld);
+        //require(result == 0,"TOO_MUCH_MORTAGES");
         /* Set cToken account membership to false */
         delete marketToExit.accountMembership[msg.sender];
 
@@ -216,9 +232,6 @@ contract Comptroller is ComptrollerV5Storage, ComptrollerInterface, ComptrollerE
 
         emit MarketExited(cToken, msg.sender);
 
-        //
-        uint result = retrieveAllowedInternal(cToken, tokensHeld);
-        require(result == 0,"TOO_MUCH_MORTAGES");
         
         return uint(Error.NO_ERROR);
     }

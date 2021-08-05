@@ -145,8 +145,9 @@ describe("orderbook 测试", function() {
     await orderBookC.cancelOrder(orderId)
   }
 
-  const withdraw = async (etoken: IToken, amt = 0) => {
-    await orderBookC.withdraw(etoken.address, amt)
+  const withdraw = async (token: IToken, amt = 0) => {
+    let etoken = await delegatorFactory.getCTokenAddressPure(token.address)
+    await orderBookC.withdraw(etoken, amt)
   }
 
   const withdrawUnderlying = async (token: IToken, amt = 0) => {
@@ -222,6 +223,35 @@ describe("orderbook 测试", function() {
     let amt = await tokenC.contract!.balanceOf(owner)
     return amt.toString()
   }
+
+  const dealOrders = async (tokenIn: IToken, tokenOut: IToken, orderIds: number[], amts: string[], isToken = true) => {
+
+    if (tokenIn.address == ht) {
+      // await tokenC.transfer(orderBook, {value: amt})
+      console.log('token %s, balance: %s', tokenIn.name, )
+      // todo 
+      await orderBookC.fulfilOrders(orderIds, amts, deployer, true, true, [], {value: 0})
+    } else {
+      let namt: BigNumber
+      namt = BigNumber.from('100000000000000000000000000000000')
+      // await token
+      console.log('tokenIn %s, balance: %s', tokenIn.name, await balanceOf(tokenIn, deployer))
+      console.log('tokenOut %s, balance: %s', tokenOut.name, await balanceOf(tokenOut, deployer))
+      console.log('aprrove %s', tokenIn.name, namt.toString())
+      await tokenIn.contract!.approve(orderBook, namt)
+
+      let gas = await orderBookC.estimateGas.fulfilOrders(orderIds, amts, deployer, true, true, [])
+      console.log('estimate gas:', gas.toString())
+      await orderBookC.fulfilOrders(orderIds, amts, deployer, true, true, [], {gasLimit: gas})
+      console.log('orderbook balance: %s', tokenIn.name, await balanceOf(tokenIn, deployer))
+      console.log('tokenIn %s, balance: %s', tokenIn.name, await balanceOf(tokenIn, deployer))
+      console.log('tokenOut %s, balance: %s', tokenIn.name, await balanceOf(tokenOut, deployer))
+
+      // let order = await orderBookC.orders(orderId)
+      // console.log('order status:', order.flag.toHexString(), order.pairAddrIdx.toHexString())
+    }
+  }
+
   // 对于买家来说的 tokenIn tokenOut
   const dealOrder = async (tokenIn: IToken, tokenOut: IToken, orderId: BigNumberish, amt: BigNumberish, isToken = true) => {
     // let tokenC = await getTokenContract(tokenIn)
@@ -235,7 +265,7 @@ describe("orderbook 测试", function() {
       let namt: BigNumber
       if (isToken) {
         // console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenC, deployer))
-        let ctokenIn = await delegatorFactory.getCTokenAddressPure(tokenIn)
+        let ctokenIn = await delegatorFactory.getCTokenAddressPure(tokenIn.address)
         console.log('ctoken: %s', ctokenIn)
         let ctokenInC = getCTokenContract(ctokenIn, namedSigners[0])
         namt = await camtToAmount(ctokenInC, amt)
@@ -244,17 +274,17 @@ describe("orderbook 测试", function() {
       }
       namt = BigNumber.from('100000000000000000000000000000000')
       // await token
-      console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenIn, deployer))
-      console.log('tokenOut %s, balance: %s', tokenOut, await balanceOf(tokenOut, deployer))
-      console.log('aprrove %s', tokenIn, namt.toString())
+      console.log('tokenIn %s, balance: %s', tokenIn.name, await balanceOf(tokenIn, deployer))
+      console.log('tokenOut %s, balance: %s', tokenOut.name, await balanceOf(tokenOut, deployer))
+      console.log('aprrove %s', tokenIn.name, namt.toString())
       await tokenIn.contract!.approve(orderBook, namt)
 
       let gas = await orderBookC.estimateGas.fulfilOrder(orderId, amt, deployer, true, true, [])
       console.log('estimate gas:', gas.toString())
       await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [], {gasLimit: gas})
-      console.log('orderbook balance: %s', tokenIn, await balanceOf(tokenIn, deployer))
-      console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenIn, deployer))
-      console.log('tokenOut %s, balance: %s', tokenIn, await balanceOf(tokenOut, deployer))
+      console.log('orderbook balance: %s', tokenIn.name, await balanceOf(tokenIn, deployer))
+      console.log('tokenIn %s, balance: %s', tokenIn.name, await balanceOf(tokenIn, deployer))
+      console.log('tokenOut %s, balance: %s', tokenIn.name, await balanceOf(tokenOut, deployer))
 
       let order = await orderBookC.orders(orderId)
       console.log('order status:', order.flag.toHexString(), order.pairAddrIdx.toHexString())
@@ -286,6 +316,16 @@ describe("orderbook 测试", function() {
     // await dealOrder(sea, usdt, o1, 200)
     // await dealOrder(sea, usdt, o1, 600)
     await withdrawUnderlying(sea, 0)
+  })
+
+  it('fulfil orders, then withdraw', async () => {
+    let o1 = await putOrder(usdt, sea, 100000, 300000)
+    let o2 = await putOrder(usdt, sea, 100000, 300000)
+
+    await dealOrders(sea, usdt, [o1, o2], ['200', '200'])
+    // await dealOrder(sea, usdt, o1, 200)
+    // await dealOrder(sea, usdt, o1, 600)
+    await withdraw(sea, 0)
   })
 
 

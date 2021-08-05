@@ -20,8 +20,8 @@ contract ComptrollerInterface {
     function borrowAllowed(address cToken, address borrower, uint borrowAmount) external returns (uint);
     function borrowVerify(address cToken, address borrower, uint borrowAmount) external;
 
-    function pledgeAllowed(uint addAmount) external returns (uint);
-    function retrieveAllowed(uint subAmount) external returns (uint);
+    function pledgeAllowed(uint addAmount, address pledger) external returns (uint);
+    function retrieveAllowed(uint subAmount, address redeemer) external returns (uint);
     
     function repayBorrowAllowed(
         address cToken,

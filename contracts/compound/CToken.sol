@@ -9,8 +9,6 @@ import "./EIP20Interface.sol";
 import "./EIP20NonStandardInterface.sol";
 import "./InterestRateModel.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title LendHub's CToken Contract
  * @notice Abstract base for CTokens
@@ -530,21 +528,16 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         return mintFresh(msg.sender, mintAmount);
     }
     
-    /** ??????? 可以一样？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？？
-     * @notice Sender supplies assets into the market and receives cTokens in exchange
-     * @dev Accrues interest whether or not the operation succeeds, unless reverted
-     * @param mintAmount The amount of the underlying asset to supply
-     * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual mint amount.
-     */
-    function leverageBorrowInternal(uint mintAmount) internal nonReentrant returns (uint, uint, uint) {
+
+    function leverageBorrowInternal(uint leverageAmount) internal nonReentrant returns (uint, uint, uint) {
         //require(msg.seder == ); ?????????????????????????????????????????????????????????????????????????  quanxiankongzhi zai nali 
         uint error = accrueInterest();
         if (error != uint(Error.NO_ERROR)) {
             // accrueInterest emits logs on errors, but we still want to log the fact that an attempted borrow failed
             return (fail(Error(error), FailureInfo.MINT_ACCRUE_INTEREST_FAILED), 0, 0);
         }
-        // mintFresh emits the actual Mint event if successful and logs on errors, so we don't need to
-        return leverageBorrowFresh(msg.sender, mintAmount);
+
+        return leverageBorrowFresh(msg.sender, leverageAmount);
     }
     
     struct MintLocalVars {
@@ -556,7 +549,6 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         uint mintSupplyNew;
         uint accountTokensNew;
         uint actualMintAmount;
-        uint leverageSupplyNew;
     }
 
    /**
@@ -630,47 +622,41 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         comptroller.mintVerify(address(this), minter, vars.actualMintAmount, vars.mintTokens);
         
         //tianjia zong diya  shuliang
-        uint error = comptroller.pledgeAllowed(vars.mintTokens);
-        require(error == 0, "Exceed the maximum number of mortgages");
+        uint error = comptroller.pledgeAllowed(vars.mintTokens, minter);
+        //require(error == 0, "Exceed the maximum number of mortgages");
         
         return (uint(Error.NO_ERROR), vars.actualMintAmount, vars.mintTokens);
     }
     
-    /**
-     * @notice User supplies assets into the market and receives cTokens in exchange
-     * @dev Assumes interest has already been accrued up to the current block
-     * @param minter The address of the account which is supplying the assets
-     * @param mintAmount The amount of the underlying asset to supply
-     * @return (uint, uint) An error code (0=success, otherwise a failure, see ErrorReporter.sol), and the actual mint amount.
-     */
-    function leverageBorrowFresh(address minter, uint mintAmount) internal returns (uint, uint, uint ) {
-        mintAmount;
-        /* Fail if mint not allowed */
-        //uint allowed = comptroller.mintAllowed(address(this), minter, mintAmount);
-        //if (allowed != 0) {
-        //    return (failOpaque(Error.COMPTROLLER_REJECTION, FailureInfo.MINT_COMPTROLLER_REJECTION, allowed), 0, 0);
-        //}
+    struct LeverageLocalVars {
+        Error err;
+        MathError mathErr;
+        uint exchangeRateMantissa;
+        uint leverageTokens;
+        uint accountTokensNew;
+        uint leverageSupplyNew;
+    }
+    function leverageBorrowFresh(address borrower, uint leverageAmount) internal returns (uint, uint, uint ) {
+        leverageAmount;
 
         /* Verify market's block number equals current block number */
         if (accrualBlockNumber != getBlockNumber()) {
             return (fail(Error.MARKET_NOT_FRESH, FailureInfo.MINT_FRESHNESS_CHECK), 0, 0);
         }
 
-        MintLocalVars memory vars;
+        LeverageLocalVars memory vars;
 
         (vars.mathErr, vars.exchangeRateMantissa) = exchangeRateStoredInternal();
         if (vars.mathErr != MathError.NO_ERROR) {
             return (failOpaque(Error.MATH_ERROR, FailureInfo.MINT_EXCHANGE_RATE_READ_FAILED, uint(vars.mathErr)), 0, 0);
         }
 
-        //wu zhuan zhang ---
-        
         /*
          * We get the current exchange rate and calculate the number of cTokens to be minted:
          *  mintTokens = actualMintAmount / exchangeRate
          */
 
-        (vars.mathErr, vars.mintTokens) = divScalarByExpTruncate(vars.actualMintAmount, Exp({mantissa: vars.exchangeRateMantissa}));
+        (vars.mathErr, vars.leverageTokens) = divScalarByExpTruncate(leverageAmount, Exp({mantissa: vars.exchangeRateMantissa}));
         require(vars.mathErr == MathError.NO_ERROR, "MINT_EXCHANGE_CALCULATION_FAILED");
 
         /*
@@ -678,24 +664,24 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
          *  leverageSupplyNew = leverageSupply + mintTokens
          *  accountTokensNew = accountTokens[minter] + mintTokens
          */
-        (vars.mathErr, vars.leverageSupplyNew) = addUInt(leverageSupply, vars.mintTokens);
+        (vars.mathErr, vars.leverageSupplyNew) = addUInt(leverageSupply, vars.leverageTokens);
         require(vars.mathErr == MathError.NO_ERROR, "MINT_NEW_TOTAL_SUPPLY_CALCULATION_FAILED");
 
-        (vars.mathErr, vars.accountTokensNew) = addUInt(accountTokens[minter], vars.mintTokens);
+        (vars.mathErr, vars.accountTokensNew) = addUInt(accountTokens[borrower], vars.leverageTokens);
         require(vars.mathErr == MathError.NO_ERROR, "MINT_NEW_ACCOUNT_BALANCE_CALCULATION_FAILED");
 
         /* We write previously calculated values into storage */
-        leverageSupply = vars.totalSupplyNew;
-        accountTokens[minter] = vars.accountTokensNew;
+        leverageSupply = vars.leverageSupplyNew;
+        accountTokens[borrower] = vars.accountTokensNew;
 
         /* We emit a Mint event, and a Transfer event */
-        emit Mint(minter, vars.actualMintAmount, vars.mintTokens);
-        emit Transfer(address(this), minter, vars.mintTokens);
+        // emit Leverage(borrower, leverageAmount, vars.leverageTokens);
+        emit Transfer(address(this), borrower, vars.leverageTokens);
 
         /* We call the defense hook */
         //comptroller.mintVerify(address(this), minter, vars.actualMintAmount, vars.mintTokens);
         
-        return (uint(Error.NO_ERROR), vars.actualMintAmount, vars.mintTokens);
+        return (uint(Error.NO_ERROR), leverageAmount, vars.leverageTokens);
     }
     
     struct RedeemLeverageVars {
@@ -908,10 +894,8 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         comptroller.redeemVerify(address(this), redeemer, vars.redeemAmount, vars.redeemTokens);
         
         //jianshao zong diya shuliang
-        console.log("retrieveAllowed ...");
-        uint error = comptroller.retrieveAllowed(vars.redeemTokens);
-        console.log("retrieveAllowed OK");
-        require(error == 0, "retrieve failed");
+        uint error = comptroller.retrieveAllowed(vars.redeemTokens, redeemer);
+        //require(error == 0, "retrieve failed");
 
         return (uint(Error.NO_ERROR), vars.redeemAmount, vars.redeemTokens);
     }

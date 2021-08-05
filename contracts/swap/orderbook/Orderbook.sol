@@ -522,8 +522,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
               )
               external
               payable
-              whenOpen
-              nonReentrant {
+              whenOpen {
         require(orderIds.length == amtToTakens.length, "invalid param");
 
         for (uint i = 0; i < orderIds.length; i ++) {
