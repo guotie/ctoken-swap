@@ -9,6 +9,8 @@ import "./EIP20Interface.sol";
 import "./EIP20NonStandardInterface.sol";
 import "./InterestRateModel.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title LendHub's CToken Contract
  * @notice Abstract base for CTokens
@@ -906,7 +908,9 @@ contract CToken is CTokenInterface, Exponential, TokenErrorReporter {
         comptroller.redeemVerify(address(this), redeemer, vars.redeemAmount, vars.redeemTokens);
         
         //jianshao zong diya shuliang
+        console.log("retrieveAllowed ...");
         uint error = comptroller.retrieveAllowed(vars.redeemTokens);
+        console.log("retrieveAllowed OK");
         require(error == 0, "retrieve failed");
 
         return (uint(Error.NO_ERROR), vars.redeemAmount, vars.redeemTokens);

@@ -138,9 +138,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         // if (to == address(0)) {
         //     return;
         // }
-        
         _updateRewardShare();
-        // console.log("update reward share done");
         // ctoken 挖矿, 负债, 在 totalSupply 增加之前更新
         _updateCtokenMintPerShare();
         // console.log("update ctoken mint share done");
@@ -408,6 +406,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
 
 
         require(liquidity > 0, 'DeBankSwap: INSUFFICIENT_LIQUIDITY_MINTED');
+        // console.log("mint: liquidity: %d", liquidity);
         _mint(to, liquidity);
 
         _update(balance0, balance1, _reserve0, _reserve1);

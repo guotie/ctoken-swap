@@ -4,14 +4,16 @@ import { BigNumber, BigNumberish, Contract, getDefaultProvider } from 'ethers'
 
 import { getContractAt, getContractBy } from '../utils/contracts'
 import { camtToAmount } from '../helpers/exchangeRate'
-import { getCTokenContract } from '../helpers/contractHelper'
+import { addressOf, getCTokenContract, getCTokenFactoryContract, getEbankRouter, getBalance } from '../helpers/contractHelper'
 
 // import { getCreate2Address } from '@ethersproject/address'
 // import { pack, keccak256 } from '@ethersproject/solidity'
 
-import { DeployContracts, deployAll, deployTokens, Tokens, getTokenContract, deployOrderBook } from '../deployments/deploys'
+import { deployTokens, Tokens, getTokenContract, deployOrderBook } from '../deployments/deploys'
 // import createCToken from './shared/ctoken'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { deployMockContracts } from '../helpers/mock';
+import { getMockToken, HTToken, IToken } from '../helpers/token';
 // import sleep from '../utils/sleep';
 const hre = require('hardhat')
 const ethers = hre.ethers
@@ -19,7 +21,7 @@ const network = hre.network
 
 const e18 = BigNumber.from('1000000000000000000')
 
-let deployContracts: DeployContracts
+// let deployContracts: DeployContracts
 // 测试 swap pair
 describe("orderbook 测试", function() {
   let tokens: Tokens
@@ -31,12 +33,13 @@ describe("orderbook 测试", function() {
   let tokenABI: any
   let deployer: string
   let buyer: SignerWithAddress
-  let usdt: string
-  let sea: string
-  let cusdt: string
-  let csea: string
-  let usdtC: Contract
-  let seaC: Contract
+  let usdt: IToken
+    , sea: IToken
+    , htToken = HTToken
+  // let cusdt: string
+  // let csea: string
+  // let usdtC: Contract
+  // let seaC: Contract
   let orderBook: string
   let orderBookC: Contract
   let ht = '0x0000000000000000000000000000000000000000'
@@ -63,24 +66,25 @@ describe("orderbook 测试", function() {
       addresses.push(tokens.addresses.get(key)!)
     }
 
-    deployContracts = await deployAll({log: true, anchorToken: tokens.addresses.get('USDT'), addresses: addresses}, true)
+    // deployContracts = await deployAll({log: true, anchorToken: tokens.addresses.get('USDT'), addresses: addresses}, true)
+    await deployMockContracts()
     // console.log('deploy contracts', deployTokens())
     // await getContractAt(deployContracts.unitroller)
     // delegatorFactory = await getContractAt(deployContracts.lErc20DelegatorFactory)
-    mdexFactory = await getContractAt(deployContracts.mdexFactory)
-    router = await getContractAt(deployContracts.router)
+    router = getEbankRouter(undefined, namedSigners[0]) // getContractAt(deployContracts.mdexFactory)
+    // router = await getContractAt(deployContracts.router)
 
     // create ctoken
-    usdt = tokens.addresses.get('USDT')!
-    sea = tokens.addresses.get('SEA')!
-    usdtC = await getTokenContract(usdt, namedSigners[0])
-    seaC = await getTokenContract(sea, namedSigners[0])
+    usdt = await getMockToken('USDT', '100000000000000000000', 6) // tokens.addresses.get('USDT')!
+    sea = await getMockToken('SEA', '20000000000000000000000000000000') // tokens.addresses.get('SEA')!
+    // usdtC = await getTokenContract(usdt, namedSigners[0])
+    // seaC = await getTokenContract(sea, namedSigners[0])
     // const delegatorFactoryContract = await getCon
-    delegatorFactory = await getContractAt(deployContracts.lErc20DelegatorFactory)
-    cusdt = await delegatorFactory.getCTokenAddressPure(usdt)
-    console.log('cusdt address:', cusdt)
-    csea = await delegatorFactory.getCTokenAddressPure(sea)
-    console.log('csea address:', csea)
+    delegatorFactory = getCTokenFactoryContract(undefined, namedSigners[0]) // await getContractAt(deployContracts.lErc20DelegatorFactory)
+    // cusdt = await delegatorFactory.getCTokenAddressPure(usdt)
+    // console.log('cusdt address:', cusdt)
+    // csea = await delegatorFactory.getCTokenAddressPure(sea)
+    // console.log('csea address:', csea)
 
     // 部署 SEA/USDT 交易对
     const obArt = await hre.artifacts.readArtifact('OrderBook')
@@ -88,43 +92,43 @@ describe("orderbook 测试", function() {
     obABI = obArt.abi
     tokenABI = tokenArt.abi
 
-    console.log(
-        deployContracts.lErc20DelegatorFactory.address,
-        deployContracts.cWHT.address,
-        deployContracts.WHT.address,
-        ht
-      )
+    // console.log(
+    //     deployContracts.lErc20DelegatorFactory.address,
+    //     deployContracts.cWHT.address,
+    //     deployContracts.WHT.address,
+    //     ht
+    //   )
     let rr = await deployOrderBook(
-          deployContracts.lErc20DelegatorFactory.address,
-          deployContracts.cWHT.address,
-          deployContracts.WHT.address,
+      delegatorFactory.address,
+          addressOf('CETH'),
+          addressOf('WHT'),
           ht,
           true, true)
     orderBook = rr.address
     orderBookC = await getContractBy(obArt.abi, orderBook)
 
-    console.info('USDT:', usdt, 'SEA:', sea, 'orderBook:', orderBook)
+    console.info('USDT:', usdt.address, 'SEA:', sea.address, 'orderBook:', orderBook)
     console.info('orderBook %s cETH: %s', orderBook, await orderBookC.cETH())
     expect(usdt).to.not.be.empty
     expect(sea).to.not.be.empty
   })
 
 
-  const putOrder = async (token0: string, token1: string, amtIn: BigNumberish, amtOut: BigNumberish) => {
-    const ctoken0 = await getTokenContract(token0)
+  const putOrder = async (token0: IToken, token1: IToken, amtIn: BigNumberish, amtOut: BigNumberish) => {
+    // const ctoken0 = await getTokenContract(token0)
       // , ctoken1 = getTokenContract(token1)
     let tx: any
-    if (token0 === '0x0000000000000000000000000000000000000000') {
-      let gas = await orderBookC.estimateGas.createOrder(token0, token1, deployer, amtIn, amtOut, 0, {value: amtIn})
+    if (token0.address === '0x0000000000000000000000000000000000000000') {
+      let gas = await orderBookC.estimateGas.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0, {value: amtIn})
       console.log('estimate ht gas:', gas.toString())
-      tx = await orderBookC.createOrder(token0, token1, deployer, amtIn, amtOut, 0, {value: amtIn, gasLimit: gas})
+      tx = await orderBookC.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0, {value: amtIn, gasLimit: gas})
     } else {
-      console.log('approve token0 ....', ctoken0.address)
-      await ctoken0.approve(orderBook, BigNumber.from(amtIn).mul(10000))
+      console.log('approve token0 ....', token0.address)
+      await token0.contract!.approve(orderBook, BigNumber.from(amtIn).mul(10000))
       // await ctoken0.transfer(orderBook, amtIn)
-      let gas = await orderBookC.estimateGas.createOrder(token0, token1, deployer, amtIn, amtOut, 0)
+      let gas = await orderBookC.estimateGas.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0)
       console.log('estimate gas:', gas.toString())
-      tx = await orderBookC.createOrder(token0, token1, deployer, amtIn, amtOut, 0, {gasLimit: gas})
+      tx = await orderBookC.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0, {gasLimit: gas})
     }
 
     let receipt = await tx.wait(1)
@@ -141,12 +145,12 @@ describe("orderbook 测试", function() {
     await orderBookC.cancelOrder(orderId)
   }
 
-  const withdraw = async (etoken: string, amt = 0) => {
-    await orderBookC.withdraw(etoken, amt)
+  const withdraw = async (etoken: IToken, amt = 0) => {
+    await orderBookC.withdraw(etoken.address, amt)
   }
 
-  const withdrawUnderlying = async (token: string, amt = 0) => {
-    await orderBookC.withdrawUnderlying(token, amt)
+  const withdrawUnderlying = async (token: IToken, amt = 0) => {
+    await orderBookC.withdrawUnderlying(token.address, amt)
   }
 
   const getOrder = async (orderId: BigNumberish) => {
@@ -155,16 +159,18 @@ describe("orderbook 测试", function() {
     return order
   }
 
-  const getBalance = async (token: string) => {
-    if (token === '0' || token === '') {
-      return ethers.provider.getBalance(deployer)
-    }
-    let ctoken = await getTokenContract(token)
-    return ctoken.balanceOf(deployer)
-  }
+  // const getBalance = async (token: IToken) => {
+  //   getBalance
+  //   if (token === '0' || token === '') {
+  //     return ethers.provider.getBalance(deployer)
+  //   }
+  //   let ctoken = await getTokenContract(token)
+  //   return ctoken.balanceOf(deployer)
+  // }
 
   it('createOrder', async () => {
-    let usdtBalanceBefore = await getBalance(usdt)
+    let owner = namedSigners[0].address
+    let usdtBalanceBefore = await getBalance(usdt, owner)
 
     let o1 = await putOrder(usdt, sea, 1000, 1000)
     let order1 = await getOrder(o1)
@@ -192,36 +198,36 @@ describe("orderbook 测试", function() {
     console.log('after cancel, order1:', order1.flag.toHexString())
 
     // 比较 usdt 是否已经退回
-    let usdtBalanceAfter = await getBalance(usdt)
+    let usdtBalanceAfter = await getBalance(usdt, owner)
     expect(usdtBalanceAfter).to.eq(usdtBalanceAfter)
     // console.log('usdt balance:', usdtBalanceAfter.toString(), usdtBalanceAfter.toString());
 
-    let comp = await getContractAt(deployContracts.comptroller)
-    console.log("ceth listed:", (await comp.functions.markets(deployContracts.cWHT.address)).isListed)
-    let htBalanceBefore = await getBalance('0')
+    // let comp = await getContractAt(deployContracts.comptroller)
+    // console.log("ceth listed:", (await comp.functions.markets(deployContracts.cWHT.address)).isListed)
+    let htBalanceBefore = await getBalance(htToken, owner)
     // await cancelOrder(o3)
-    let o4 = await putOrder(ht, sea, 1000, 1000)
+    let o4 = await putOrder(htToken, sea, 1000, 1000)
     await cancelOrder(o4)
-    let o5 = await putOrder(ht, sea, 1000, 1500)
+    let o5 = await putOrder(htToken, sea, 1000, 1500)
     await cancelOrder(o5)
-    let o6 = await putOrder(ht, sea, 1000, 2000)
+    let o6 = await putOrder(htToken, sea, 1000, 2000)
     await cancelOrder(o6)
 
-    let htBalanceAfter = await getBalance('0')
+    let htBalanceAfter = await getBalance(htToken, owner)
     console.log('ht balance:', htBalanceBefore.toString(), htBalanceAfter.toString())
     // expect(htBalanceAfter).to.eq(htBalanceBefore)
   })
 
-  const balanceOf = async (tokenC: Contract, owner: string) => {
-    let amt = await tokenC.balanceOf(owner)
+  const balanceOf = async (tokenC: IToken, owner: string) => {
+    let amt = await tokenC.contract!.balanceOf(owner)
     return amt.toString()
   }
   // 对于买家来说的 tokenIn tokenOut
-  const dealOrder = async (tokenIn: string, tokenOut: string, orderId: BigNumberish, amt: BigNumberish, isToken = true) => {
-    let tokenC = await getTokenContract(tokenIn)
-      , tokenOutC = await getTokenContract(tokenOut)
+  const dealOrder = async (tokenIn: IToken, tokenOut: IToken, orderId: BigNumberish, amt: BigNumberish, isToken = true) => {
+    // let tokenC = await getTokenContract(tokenIn)
+    //   , tokenOutC = await getTokenContract(tokenOut)
 
-    if (tokenIn == ht) {
+    if (tokenIn.address == ht) {
       // await tokenC.transfer(orderBook, {value: amt})
       console.log('token %s, balance: %s', tokenIn, )
       await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [], {value: amt})
@@ -238,17 +244,17 @@ describe("orderbook 测试", function() {
       }
       namt = BigNumber.from('100000000000000000000000000000000')
       // await token
-      console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenC, deployer))
-      console.log('tokenOut %s, balance: %s', tokenOut, await balanceOf(tokenOutC, deployer))
+      console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenIn, deployer))
+      console.log('tokenOut %s, balance: %s', tokenOut, await balanceOf(tokenOut, deployer))
       console.log('aprrove %s', tokenIn, namt.toString())
-      await tokenC.approve(orderBook, namt)
+      await tokenIn.contract!.approve(orderBook, namt)
 
       let gas = await orderBookC.estimateGas.fulfilOrder(orderId, amt, deployer, true, true, [])
       console.log('estimate gas:', gas.toString())
       await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [], {gasLimit: gas})
-      console.log('orderbook balance: %s', tokenIn, await balanceOf(tokenC, deployer))
-      console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenC, deployer))
-      console.log('tokenOut %s, balance: %s', tokenIn, await balanceOf(tokenOutC, deployer))
+      console.log('orderbook balance: %s', tokenIn, await balanceOf(tokenIn, deployer))
+      console.log('tokenIn %s, balance: %s', tokenIn, await balanceOf(tokenIn, deployer))
+      console.log('tokenOut %s, balance: %s', tokenIn, await balanceOf(tokenOut, deployer))
 
       let order = await orderBookC.orders(orderId)
       console.log('order status:', order.flag.toHexString(), order.pairAddrIdx.toHexString())
@@ -270,7 +276,7 @@ describe("orderbook 测试", function() {
     await dealOrder(sea, usdt, o1, 200)
     // await dealOrder(sea, usdt, o1, 200)
     // await dealOrder(sea, usdt, o1, 600)
-    await withdraw(csea, 0)
+    await withdraw(sea, 0)
   })
 
   it('fulfil order, then withdrawUnderlying', async () => {
@@ -279,7 +285,7 @@ describe("orderbook 测试", function() {
     await dealOrder(sea, usdt, o1, 200)
     // await dealOrder(sea, usdt, o1, 200)
     // await dealOrder(sea, usdt, o1, 600)
-    await withdrawUnderlying(csea, 0)
+    await withdrawUnderlying(sea, 0)
   })
 
 

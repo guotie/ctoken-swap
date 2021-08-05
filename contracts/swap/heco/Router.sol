@@ -24,7 +24,7 @@ import "../interface/LErc20DelegatorInterface.sol";
 import "../interface/ICToken.sol";
 
 // import "../../compound/LHT.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface ILHT {
     function mint() external payable returns (uint, uint);
@@ -303,7 +303,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         ICToken(token).approve(address(ctoken), amt);
         (uint ret, uint mintCAmt) = ICToken(ctoken).mint(amt);
         ICToken(ctoken).approve(address(ctoken), 0);
-        console.log("mint token to ctoken %s, amt: %d ret: %d", ctoken, amt, ret);
+        // console.log("mint token to ctoken %s, amt: %d ret: %d", ctoken, amt, ret);
         require(ret == 0, "mint failed");
         // uint b1 = ICToken(ctoken).balanceOf(address(this));
         // uint mintCAmt = b1 - b0;

@@ -24,7 +24,7 @@ import "./OBPriceLogic.sol";
 import "./OBPairConfig.sol";
 import "./SafeMath.sol";
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint value);
@@ -289,15 +289,17 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
           // order.isEToken = true;
           // mint to etoken
           if (srcToken == address(0)) {
-            uint balanceBefore = IERC20(cETH).balanceOf(address(this));
-            ICETH(cETH).mint{value: msg.value}();
-            order.tokenAmt.amountInMint = IERC20(cETH).balanceOf(address(this)).sub(balanceBefore);
+            // uint balanceBefore = IERC20(cETH).balanceOf(address(this));
+            (uint err, uint amt) = ICETH(cETH).mint{value: msg.value}();
+            require(err == 0, "mint failed");
+            order.tokenAmt.amountInMint = amt; // IERC20(cETH).balanceOf(address(this)).sub(balanceBefore);
           } else {
-            uint balanceBefore = IERC20(etoken).balanceOf(address(this));
+            // uint balanceBefore = IERC20(etoken).balanceOf(address(this));
             IERC20(srcToken).approve(etoken, amountIn);
-            ICToken(etoken).mint(amountIn);
+            (uint err, uint amt) = ICToken(etoken).mint(amountIn);
             ICToken(etoken).approve(etoken, 0);
-            order.tokenAmt.amountInMint = IERC20(etoken).balanceOf(address(this)).sub(balanceBefore);
+            require(err == 0, "mint failed");
+            order.tokenAmt.amountInMint = amt; // IERC20(etoken).balanceOf(address(this)).sub(balanceBefore);
           }
         } else {
           order.tokenAmt.amountInMint = amountIn;
@@ -381,13 +383,14 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
                     address to,
                     uint256 redeemAmt
                 ) private {
-        (uint ret, uint amt, ) = ICToken(etoken).redeem(redeemAmt);
+        console.log("redeemAmt:", redeemAmt);
+        (uint ret, , uint amt) = ICToken(etoken).redeem(redeemAmt);
         require(ret == 0, "redeem failed");
-        // console.log("redeem ceth:", ret, redeemAmt);
 
         if (token == address(0)) {
             TransferHelper.safeTransferETH(to, amt); // address(this).balance);
         } else {
+            console.log("redeem token amt:", redeemAmt, amt, IERC20(token).balanceOf(address(this)));
             TransferHelper.safeTransfer(token, to, amt); // IERC20(token).balanceOf(address(this)));
         }
     }
@@ -408,6 +411,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       address srcToken = order.tokenAmt.srcToken;
       address srcEToken = order.tokenAmt.srcEToken;
       uint amt = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+      console.log("cancel order: srcEToken amt=%d", amt);
 
       if (srcToken != srcEToken) {
         // redeem etoken
@@ -417,6 +421,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
 
         if (amt > 0) {
           _redeemTransfer(srcToken, srcEToken, order.owner, amt);
+          console.log("redeem transfer ok");
           /*
           // redeem token
           uint balanceBefore;

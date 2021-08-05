@@ -156,7 +156,7 @@ async function withdrawUnderlying(
         , maker = await signer.getAddress()
         , tokenBefore = await tokenC.balanceOf(maker)
         , gotTokenBefore = await gotTokenC.balanceOf(maker)
-        , factory = addressOf('ctokenFactory')
+        , factory = addressOf('CtokenFactory')
         , gotEToken = await getETokenAddress(factory, gotToken)
     
     logHr('withdrawUnderlying')

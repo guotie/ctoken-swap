@@ -19,7 +19,7 @@
 
 pragma solidity >=0.4.22 <0.6;
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract WHT {
     string public name     = "Wrapped HT";

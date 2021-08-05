@@ -1,5 +1,5 @@
 import deploy from './deploy'
-import { addressOf, setContractAddress } from './contractHelper'
+import { addressOf, dumpAddresses, setContractAddress } from './contractHelper'
 import { getMockToken } from './token'
 
 import { Contract } from '@ethersproject/contracts'
@@ -117,7 +117,7 @@ export async function deployCompound() {
     await setDelegateFactory(ctokenFactoryc, deployer)
     setContractAddress('CtokenFactory', lercFactoryDeployed.address)
     // 设置 compv2 的 _setDelegateFactoryAddress
-    console.info('_setDelegateFactoryAddress .... ')
+    // console.info('_setDelegateFactoryAddress .... ')
     await (await comptrollerv2c._setDelegateFactoryAddress(lercFactoryDeployed.address)).wait(1)
     
     let lht = await _deployMock('LHT', {
@@ -127,7 +127,7 @@ export async function deployCompound() {
     setContractAddress('CETH', lht.address)
     
     let wht = addressOf('WHT')
-    console.info('list WHT to compound market')
+    // console.info('list WHT to compound market')
     await comptrollerv2c._supportMarket(wht, lht.address)
 }
 
@@ -136,6 +136,7 @@ export async function deploySwap() {
         , wht = addressOf('WHT')
         , ceth = addressOf('CETH')
         , ctokenFactory = addressOf('CtokenFactory')
+        , namedSigners = await ethers.getSigners()
 
     const factory = await _deployMock('DeBankFactory', {
         // 10% 60% 稳定币 usdt 地址
@@ -148,6 +149,9 @@ export async function deploySwap() {
         args: [factory.address, wht, ceth, ctokenFactory],
       })
     setContractAddress('Router', router.address)
+    // set factory router !!!
+    let fc = new ethers.Contract(factory.address, factory.abi, namedSigners[0])
+    await fc.setRouter(router.address)
 }
 
 async function deployTokens() {
@@ -166,5 +170,6 @@ export async function deployMockContracts() {
     await _deployWHT()
     await deployCompound()
     await deploySwap()
+    console.log('contracts:', dumpAddresses())
 }
 

@@ -62,6 +62,8 @@ describe("Router 测试", function() {
         usdt = await getMockToken('USDT')
         sea = await getMockToken('SEA')
         wht = await getMockToken('WHT')
+
+        console.info('contracts: router=%s factory=%s', router.address, factory.address)
     })
 
     const printBalance = async (title: string, owner: string, tokens: IToken[]) => {
@@ -100,11 +102,11 @@ describe("Router 测试", function() {
                 ],
                 true
             )
-        console.log('tx:', tx)
-        // await tx.wait(0)
-        // let pair = await factory.pairFor(usdt.address, sea.address)
-        //     , pairToken = await getPairToken(pair)
-        // await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [usdt, sea, pairToken])
+        // console.log('tx:', tx)
+        await tx.wait(0)
+        let pair = await factory.pairFor(usdt.address, sea.address)
+            , pairToken = await getPairToken(pair)
+        await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [usdt, sea, pairToken])
     })
 })
 

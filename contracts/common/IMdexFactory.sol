@@ -13,7 +13,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 pragma solidity ^0.5.16;
 
-import "./LErc20DelegatorInterface.sol";
+// import "./LErc20DelegatorInterface.sol";
 
 interface IDeBankFactory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
@@ -26,7 +26,7 @@ interface IDeBankFactory {
 
     function lpFeeRate() external view returns (uint256);
 
-    function lErc20DelegatorFactory() external view returns (LErc20DelegatorInterface);
+    function lErc20DelegatorFactory() external view returns (address);
 
     function anchorToken() external view returns (address);
 
@@ -87,7 +87,7 @@ interface IMdexFactory {
 
     function lpFeeRate() external view returns (uint256);
 
-    function lErc20DelegatorFactory() external view returns (LErc20DelegatorInterface);
+    function lErc20DelegatorFactory() external view returns (address);
 
     function anchorToken() external view returns (address);
 

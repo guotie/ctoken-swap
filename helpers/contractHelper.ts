@@ -114,6 +114,10 @@ function addressOf(name: TokenContractName): string {
     return addr
 }
 
+function dumpAddresses() {
+    return contractAddress[NETWORK]
+}
+
 function getProvider() {
     return hre.ethers.provider
     // return new providers.JsonRpcProvider(endpoints[NETWORK])
@@ -196,6 +200,18 @@ async function getContractByAddressName(addr: string, name: string, signer?: Sig
     return new Contract(addr, art.abi, signer ?? getProvider())
 }
 
+async function getBalance(token: IToken, owner: string): Promise<BigNumber> {
+    let balance
+        , provider = getProvider()
+    if (token.address === zeroAddress) {
+        balance = await provider.getBalance(owner)
+    } else {
+        balance = await token.contract!.balanceOf(owner)
+    }
+
+    return balance
+}
+
 async function getBalances(tokens: IToken[], owner: string): Promise<BigNumber[]> {
     let balances: BigNumber[] = []
         , provider = getProvider()
@@ -219,9 +235,11 @@ export {
     TokenContractName,
     setContractAddress,
     addressOf,
+    dumpAddresses,
     tokenHasExist,
     // contractAddress,
     getProvider,
+    getBalance,
     getBalances,
     getSigner,
     getTokenPair,
