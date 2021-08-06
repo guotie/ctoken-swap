@@ -78,28 +78,6 @@ export async function _deploy(name: string, opts: any, verify: boolean) {
   }
 }
 
-export async function deployUniswap(salt: string) {
-  let namedSigners = await ethers.getSigners()
-    , deployer = namedSigners[0].address
-  // let salt = new Date().getTime()
-  let dr = await _deploy('MdexFactory', {
-      from: deployer,
-      args: [deployer],
-      log: true,
-      // deterministicDeployment: salt + '', //
-  }, true)
-
-  let wht = addressOf('WHT')
-  let router = await _deploy('MdexRouter', {
-      from: deployer,
-      args: [dr.address, wht],
-      log: true,
-      deterministicDeployment: salt + '', //
-  }, true)
-
-  return router
-}
-
 export async function deployStepSwap(
                         wethAddr: string,
                         ceth: string,
@@ -162,6 +140,30 @@ export async function deployEbe() {
         args: [],
         log: true,
       }, true);
+}
+
+export async function deployUniswap(salt: string) {
+  let namedSigners = await ethers.getSigners()
+    , deployer = namedSigners[0].address
+
+  // console.log('deployer: %s salt: %s', deployer, salt)
+  let dr = await _deploy('MdexFactory', {
+      from: deployer,
+      args: [deployer],
+      log: true,
+      // deterministicDeployment: salt + '', //
+  }, true)
+
+  let wht = zeroAddress //  addressOf('WHT')
+  let router = await _deploy('MdexRouter', {
+      from: deployer,
+      args: [dr.address, wht],
+      log: true,
+      deterministicDeployment: salt + '', //
+  }, true)
+
+  console.log('deployed factory/router: salt=%s %s %s', salt, dr.address, router.address)
+  return router
 }
 
 export async function deployFactory(usdt: string) {

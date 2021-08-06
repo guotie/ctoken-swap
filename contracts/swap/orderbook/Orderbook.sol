@@ -99,6 +99,7 @@ interface IOrderBook {
           uint orderId);
 }
 
+// 挂单合约
 contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     using SafeMath for uint;
     using SafeMath for uint256;
