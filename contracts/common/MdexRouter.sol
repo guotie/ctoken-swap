@@ -6,7 +6,7 @@ import "./libraries/SafeMath.sol";
 import "./IMdexFactory.sol";
 import "./IMdexPair.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface IMdexRouter {
     function factory() external pure returns (address);

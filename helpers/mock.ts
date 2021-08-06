@@ -1,8 +1,9 @@
 import deploy from './deploy'
-import { addressOf, dumpAddresses, setContractAddress } from './contractHelper'
+import { addressOf, dumpAddresses, NETWORK, setContractAddress } from './contractHelper'
 import { getMockToken } from './token'
 
 import { Contract } from '@ethersproject/contracts'
+import { zeroAddress } from '../deployments/deploys'
 
 const hre = require('hardhat')
 // const ethers = hre.ethers
@@ -162,14 +163,42 @@ async function deployTokens() {
     // await getMockToken()
 }
 
+async function deployOrderBook() {
+//   let namedSigners = await ethers.getSigners()
+//   , deployer = namedSigners[0].address
+
+    let l = await _deployMock('OBPriceLogic', { args: [] })
+    let c = await _deployMock('OBPairConfig', { args: [] })
+    let ctokenFactory = addressOf('CtokenFactory')
+        , ceth = addressOf('CETH')
+        , weth = addressOf('WHT')
+        , margin = zeroAddress
+
+    let ob = await _deployMock('OrderBook', {
+        args: [ctokenFactory, ceth, weth, margin],
+        libraries: {
+            OBPriceLogic: l.address,
+            OBPairConfig: c.address
+        },
+    });
+
+    setContractAddress('OrderBook', ob.address)
+    return ob
+}
+
 // deploy javascript vm env
 export async function deployMockContracts() {
-    console.info('deploy mock contracts ....')
     await deployTokens()
-
     await _deployWHT()
+    if (NETWORK !== 'hardhat') {
+        console.info('network %s, contracts should be deployed', NETWORK)
+        return
+    }
+    console.info('deploy mock contracts ....')
+
     await deployCompound()
     await deploySwap()
+    await deployOrderBook()
     console.log('contracts:', dumpAddresses())
 }
 

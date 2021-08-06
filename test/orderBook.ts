@@ -2,9 +2,8 @@ const { expect } = require("chai");
 
 import { BigNumber, BigNumberish, Contract, getDefaultProvider } from 'ethers'
 
-import { getContractAt, getContractBy } from '../utils/contracts'
 import { camtToAmount } from '../helpers/exchangeRate'
-import { addressOf, getCTokenContract, getCTokenFactoryContract, getEbankRouter, getBalance } from '../helpers/contractHelper'
+import { addressOf, getCTokenContract, getCTokenFactoryContract, getOrderbookContract, getBalance } from '../helpers/contractHelper'
 
 // import { getCreate2Address } from '@ethersproject/address'
 // import { pack, keccak256 } from '@ethersproject/solidity'
@@ -24,13 +23,8 @@ const e18 = BigNumber.from('1000000000000000000')
 // let deployContracts: DeployContracts
 // 测试 swap pair
 describe("orderbook 测试", function() {
-  let tokens: Tokens
   let namedSigners: SignerWithAddress[]
 
-  let mdexFactory: Contract
-  let router: Contract
-  let obABI: any
-  let tokenABI: any
   let deployer: string
   let buyer: SignerWithAddress
   let usdt: IToken
@@ -51,7 +45,7 @@ describe("orderbook 测试", function() {
   const e18 = BigNumber.from('1000000000000000000')
   const e30 = BigNumber.from('1000000000000000000000000000000')
 
-  this.timeout(60000000);
+  this.timeout(600000000);
 
   before(async () => {
     namedSigners = await ethers.getSigners()
@@ -60,59 +54,21 @@ describe("orderbook 测试", function() {
 
     console.log('deployer: %s buyer: %s', deployer, buyer.address)
 
-    tokens = await deployTokens()
-    let addresses: string[] = []
-    for (let key of tokens.addresses.keys()) {
-      addresses.push(tokens.addresses.get(key)!)
-    }
-
-    // deployContracts = await deployAll({log: true, anchorToken: tokens.addresses.get('USDT'), addresses: addresses}, true)
     await deployMockContracts()
-    // console.log('deploy contracts', deployTokens())
-    // await getContractAt(deployContracts.unitroller)
-    // delegatorFactory = await getContractAt(deployContracts.lErc20DelegatorFactory)
-    router = getEbankRouter(undefined, namedSigners[0]) // getContractAt(deployContracts.mdexFactory)
-    // router = await getContractAt(deployContracts.router)
-
     // create ctoken
     usdt = await getMockToken('USDT', '100000000000000000000', 6) // tokens.addresses.get('USDT')!
     sea = await getMockToken('SEA', '20000000000000000000000000000000') // tokens.addresses.get('SEA')!
-    // usdtC = await getTokenContract(usdt, namedSigners[0])
-    // seaC = await getTokenContract(sea, namedSigners[0])
-    // const delegatorFactoryContract = await getCon
+
     delegatorFactory = getCTokenFactoryContract(undefined, namedSigners[0]) // await getContractAt(deployContracts.lErc20DelegatorFactory)
-    // cusdt = await delegatorFactory.getCTokenAddressPure(usdt)
-    // console.log('cusdt address:', cusdt)
-    // csea = await delegatorFactory.getCTokenAddressPure(sea)
-    // console.log('csea address:', csea)
 
-    // 部署 SEA/USDT 交易对
-    const obArt = await hre.artifacts.readArtifact('OrderBook')
-    const tokenArt = await hre.artifacts.readArtifact('contracts/common/Token.sol:Token')
-    obABI = obArt.abi
-    tokenABI = tokenArt.abi
-
-    // console.log(
-    //     deployContracts.lErc20DelegatorFactory.address,
-    //     deployContracts.cWHT.address,
-    //     deployContracts.WHT.address,
-    //     ht
-    //   )
-    let rr = await deployOrderBook(
-      delegatorFactory.address,
-          addressOf('CETH'),
-          addressOf('WHT'),
-          ht,
-          true, true)
-    orderBook = rr.address
-    orderBookC = await getContractBy(obArt.abi, orderBook)
+    orderBookC = getOrderbookContract(undefined, namedSigners[0]) //new ethers.Contract(rr.address, rr.abi, namedSigners[0])
+    orderBook = orderBookC.address
 
     console.info('USDT:', usdt.address, 'SEA:', sea.address, 'orderBook:', orderBook)
     console.info('orderBook %s cETH: %s', orderBook, await orderBookC.cETH())
     expect(usdt).to.not.be.empty
     expect(sea).to.not.be.empty
   })
-
 
   const putOrder = async (token0: IToken, token1: IToken, amtIn: BigNumberish, amtOut: BigNumberish) => {
     // const ctoken0 = await getTokenContract(token0)
@@ -121,13 +77,21 @@ describe("orderbook 测试", function() {
     if (token0.address === '0x0000000000000000000000000000000000000000') {
       let gas = await orderBookC.estimateGas.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0, {value: amtIn})
       console.log('estimate ht gas:', gas.toString())
+      gas = gas.mul(2)
       tx = await orderBookC.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0, {value: amtIn, gasLimit: gas})
     } else {
       console.log('approve token0 ....', token0.address)
       await token0.contract!.approve(orderBook, BigNumber.from(amtIn).mul(10000))
       // await ctoken0.transfer(orderBook, amtIn)
-      let gas = await orderBookC.estimateGas.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0)
-      console.log('estimate gas:', gas.toString())
+      let gas: BigNumber
+      try {
+        gas = await orderBookC.estimateGas.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0)
+        console.log('estimate gas:', gas.toString())
+      } catch(err) {
+        console.log('estimate gas failed, set to 6000000')
+        gas = BigNumber.from(6000000)
+      }
+
       tx = await orderBookC.createOrder(token0.address, token1.address, deployer, amtIn, amtOut, 0, {gasLimit: gas})
     }
 
@@ -136,7 +100,7 @@ describe("orderbook 测试", function() {
     let data = receipt.events[receipt.events.length-1].data
     let orderId = data.slice(0, 66)
     // console.log('event data:', data)
-    console.log('put order:', orderId, BigNumber.from(orderId).toNumber())
+    console.log('put order: ', orderId, BigNumber.from(orderId).toNumber())
     return BigNumber.from(orderId).toNumber()
   }
 
@@ -147,6 +111,9 @@ describe("orderbook 测试", function() {
 
   const withdraw = async (token: IToken, amt = 0) => {
     let etoken = await delegatorFactory.getCTokenAddressPure(token.address)
+    if (!etoken) {
+        throw new Error('invalid etoken address')
+    }
     await orderBookC.withdraw(etoken, amt)
   }
 
@@ -168,56 +135,6 @@ describe("orderbook 测试", function() {
   //   let ctoken = await getTokenContract(token)
   //   return ctoken.balanceOf(deployer)
   // }
-
-  it('createOrder', async () => {
-    let owner = namedSigners[0].address
-    let usdtBalanceBefore = await getBalance(usdt, owner)
-
-    let o1 = await putOrder(usdt, sea, 1000, 1000)
-    let order1 = await getOrder(o1)
-    console.log('order1 flag:', order1.flag.toHexString(), order1.pairAddrIdx.toHexString())
-    // console.log('order1:', order1)
-    let o2 = await putOrder(usdt, sea, 1000, 2000)
-    let order2 = await getOrder(o2)
-    console.log('order2 flag:', order2.flag.toHexString(), order2.pairAddrIdx.toHexString())
-
-    let o3 = await putOrder(usdt, sea, 1000, 1500)
-    let order3 = await getOrder(o3)
-    console.log('order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
-
-    await cancelOrder(o1)
-    order2 = await getOrder(o2)
-    console.log('after cancel order1, order2 flag:', order2.flag.toHexString(), order2.pairAddrIdx.toHexString())
-    order3 = await getOrder(o3)
-    console.log('after cancel order1, order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
-
-    await cancelOrder(o2)
-    order3 = await getOrder(o3)
-    console.log('after cancel order1 & order2, order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
-    await cancelOrder(o3)
-    order1 = await getOrder(o1)
-    console.log('after cancel, order1:', order1.flag.toHexString())
-
-    // 比较 usdt 是否已经退回
-    let usdtBalanceAfter = await getBalance(usdt, owner)
-    expect(usdtBalanceAfter).to.eq(usdtBalanceAfter)
-    // console.log('usdt balance:', usdtBalanceAfter.toString(), usdtBalanceAfter.toString());
-
-    // let comp = await getContractAt(deployContracts.comptroller)
-    // console.log("ceth listed:", (await comp.functions.markets(deployContracts.cWHT.address)).isListed)
-    let htBalanceBefore = await getBalance(htToken, owner)
-    // await cancelOrder(o3)
-    let o4 = await putOrder(htToken, sea, 1000, 1000)
-    await cancelOrder(o4)
-    let o5 = await putOrder(htToken, sea, 1000, 1500)
-    await cancelOrder(o5)
-    let o6 = await putOrder(htToken, sea, 1000, 2000)
-    await cancelOrder(o6)
-
-    let htBalanceAfter = await getBalance(htToken, owner)
-    console.log('ht balance:', htBalanceBefore.toString(), htBalanceAfter.toString())
-    // expect(htBalanceAfter).to.eq(htBalanceBefore)
-  })
 
   const balanceOf = async (tokenC: IToken, owner: string) => {
     let amt = await tokenC.contract!.balanceOf(owner)
@@ -291,6 +208,57 @@ describe("orderbook 测试", function() {
     }
   }
 
+  /*
+  it('createOrder', async () => {
+    let owner = namedSigners[0].address
+    let usdtBalanceBefore = await getBalance(usdt, owner)
+
+    let o1 = await putOrder(usdt, sea, 1000, 1000)
+    let order1 = await getOrder(o1)
+    console.log('order1 flag:', order1.flag.toHexString(), order1.pairAddrIdx.toHexString())
+    // console.log('order1:', order1)
+    let o2 = await putOrder(usdt, sea, 1000, 2000)
+    let order2 = await getOrder(o2)
+    console.log('order2 flag:', order2.flag.toHexString(), order2.pairAddrIdx.toHexString())
+
+    let o3 = await putOrder(usdt, sea, 1000, 1500)
+    let order3 = await getOrder(o3)
+    console.log('order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
+
+    await cancelOrder(o1)
+    order2 = await getOrder(o2)
+    console.log('after cancel order1, order2 flag:', order2.flag.toHexString(), order2.pairAddrIdx.toHexString())
+    order3 = await getOrder(o3)
+    console.log('after cancel order1, order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
+
+    await cancelOrder(o2)
+    order3 = await getOrder(o3)
+    console.log('after cancel order1 & order2, order3 flag:', order3.flag.toHexString(), order3.pairAddrIdx.toHexString())
+    await cancelOrder(o3)
+    order1 = await getOrder(o1)
+    console.log('after cancel, order1:', order1.flag.toHexString())
+
+    // 比较 usdt 是否已经退回
+    let usdtBalanceAfter = await getBalance(usdt, owner)
+    expect(usdtBalanceAfter).to.eq(usdtBalanceAfter)
+    // console.log('usdt balance:', usdtBalanceAfter.toString(), usdtBalanceAfter.toString());
+
+    // let comp = await getContractAt(deployContracts.comptroller)
+    // console.log("ceth listed:", (await comp.functions.markets(deployContracts.cWHT.address)).isListed)
+    let htBalanceBefore = await getBalance(htToken, owner)
+    // await cancelOrder(o3)
+    let o4 = await putOrder(htToken, sea, 1000, 1000)
+    await cancelOrder(o4)
+    let o5 = await putOrder(htToken, sea, 1000, 1500)
+    await cancelOrder(o5)
+    let o6 = await putOrder(htToken, sea, 1000, 2000)
+    await cancelOrder(o6)
+
+    let htBalanceAfter = await getBalance(htToken, owner)
+    console.log('ht balance:', htBalanceBefore.toString(), htBalanceAfter.toString())
+    // expect(htBalanceAfter).to.eq(htBalanceBefore)
+  })
+
   it('fulfil order, then cancel order', async () => {
     let o1 = await putOrder(usdt, sea, 100000, 300000)
 
@@ -299,34 +267,33 @@ describe("orderbook 测试", function() {
     // await dealOrder(sea, usdt, o1, 600)
     await cancelOrder(o1)
   })
+  */
 
   it('fulfil order, then withdraw', async () => {
     let o1 = await putOrder(usdt, sea, 100000, 300000)
 
     await dealOrder(sea, usdt, o1, 200)
-    // await dealOrder(sea, usdt, o1, 200)
-    // await dealOrder(sea, usdt, o1, 600)
     await withdraw(sea, 0)
   })
 
-  it('fulfil order, then withdrawUnderlying', async () => {
-    let o1 = await putOrder(usdt, sea, 100000, 300000)
+  // it('fulfil order, then withdrawUnderlying', async () => {
+  //   let o1 = await putOrder(usdt, sea, 100000, 300000)
 
-    await dealOrder(sea, usdt, o1, 200)
-    // await dealOrder(sea, usdt, o1, 200)
-    // await dealOrder(sea, usdt, o1, 600)
-    await withdrawUnderlying(sea, 0)
-  })
+  //   await dealOrder(sea, usdt, o1, 200)
+  //   // await dealOrder(sea, usdt, o1, 200)
+  //   // await dealOrder(sea, usdt, o1, 600)
+  //   await withdrawUnderlying(sea, 0)
+  // })
 
-  it('fulfil orders, then withdraw', async () => {
-    let o1 = await putOrder(usdt, sea, 100000, 300000)
-    let o2 = await putOrder(usdt, sea, 100000, 300000)
+  // it('fulfil orders, then withdraw', async () => {
+  //   let o1 = await putOrder(usdt, sea, 100000, 300000)
+  //   let o2 = await putOrder(usdt, sea, 100000, 300000)
 
-    await dealOrders(sea, usdt, [o1, o2], ['200', '200'])
-    // await dealOrder(sea, usdt, o1, 200)
-    // await dealOrder(sea, usdt, o1, 600)
-    await withdraw(sea, 0)
-  })
+  //   await dealOrders(sea, usdt, [o1, o2], ['200', '200'])
+  //   // await dealOrder(sea, usdt, o1, 200)
+  //   // await dealOrder(sea, usdt, o1, 600)
+  //   await withdraw(sea, 0)
+  // })
 
 
   // it('cancelOrder', async () => {

@@ -11,6 +11,7 @@
     "deploy:stepswap": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/stepswap.ts",
     "deploy:hecopool": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/hecopool.ts",
     "deploy:swapmining": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/swapmining.ts",
+    "deploy:uniswap": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/uniswap.ts",
     "test:swap": "hardhat test test/swap.ts",
     "test:router": "hardhat test test/router.ts",
     "test:stable": "hardhat test test/stable.ts",
