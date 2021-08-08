@@ -151,19 +151,21 @@ export async function deployUniswap(salt: string) {
       from: deployer,
       args: [deployer],
       log: true,
-      // deterministicDeployment: salt + '', //
+      deterministicDeployment: salt, //
   }, true)
+  let fc = new ethers.Contract(dr.address, dr.abi, namedSigners[0])
 
-  let wht = zeroAddress //  addressOf('WHT')
+  let wht = addressOf('WHT')
   let router = await _deploy('MdexRouter', {
       from: deployer,
       args: [dr.address, wht],
       log: true,
-      deterministicDeployment: salt + '', //
+      deterministicDeployment: salt, //
   }, true)
+  let rc = new ethers.Contract(router.address, router.abi, namedSigners[0])
 
   console.log('deployed factory/router: salt=%s %s %s', salt, dr.address, router.address)
-  return router
+  return { fa: dr.address, fc: fc, ra: router.address, rc: rc}
 }
 
 export async function deployFactory(usdt: string) {

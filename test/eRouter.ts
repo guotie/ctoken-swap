@@ -82,14 +82,6 @@ describe("Router 测试", function() {
         let tx = await callWithEstimateGas(
                 router,
                 'addLiquidityUnderlying',
-                // tokenA,
-                // address tokenB,
-                // uint amountADesired,
-                // uint amountBDesired,
-                // uint amountAMin,
-                // uint amountBMin,
-                // address to,
-                // uint deadline
                 [
                     usdt.address,
                     sea.address,
@@ -106,6 +98,28 @@ describe("Router 测试", function() {
         await tx.wait(0)
         let pair = await factory.pairFor(usdt.address, sea.address)
             , pairToken = await getPairToken(pair)
+        await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [usdt, sea, pairToken])
+
+        // second time
+        tx = await callWithEstimateGas(
+                router,
+                'addLiquidityUnderlying',
+                [
+                    usdt.address,
+                    sea.address,
+                    readableTokenAmount(usdt, 10),
+                    readableTokenAmount(sea, 667),
+                    0,
+                    0,
+                    maker.address,
+                    deadlineTs(100)
+                ],
+                true
+            )
+        // console.log('tx:', tx)
+        await tx.wait(0)
+        pair = await factory.pairFor(usdt.address, sea.address)
+        pairToken = await getPairToken(pair)
         await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [usdt, sea, pairToken])
     })
 })

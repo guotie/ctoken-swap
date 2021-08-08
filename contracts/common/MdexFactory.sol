@@ -518,6 +518,7 @@ contract MdexFactory is IMdexFactory {
 
     constructor(address _feeToSetter) public {
         feeToSetter = _feeToSetter;
+        initCodeHash = keccak256(abi.encodePacked(type(MdexPair).creationCode));
     }
 
     function allPairsLength() external view returns (uint) {

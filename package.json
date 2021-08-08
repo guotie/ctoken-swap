@@ -14,6 +14,7 @@
     "deploy:uniswap": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/uniswap.ts",
     "test:swap": "hardhat test test/swap.ts",
     "test:router": "hardhat test test/router.ts",
+    "test:uniswap": "hardhat test test/uniswap.ts",
     "test:stable": "hardhat test test/stable.ts",
     "test:orderBook": "hardhat test test/orderBook.ts",
     "test:eRouter": "hardhat test --network hecotest test/eRouter.ts",

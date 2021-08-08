@@ -155,7 +155,7 @@ export async function deploySwap() {
     await fc.setRouter(router.address)
 }
 
-async function deployTokens() {
+export async function deployTokens() {
     await getMockToken('USDT', '100000000000000000', 6)
     await getMockToken('SEA',  '200000000000000000000000000000000')
     await getMockToken('DOGE', '300000000000000000000000000000000')
