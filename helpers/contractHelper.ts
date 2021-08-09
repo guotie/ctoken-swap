@@ -8,6 +8,8 @@ import { abi as routerABI } from './abi/DeBankRouter.json'
 import { abi as factoryABI } from './abi/DeBankFactory.json'
 import { abi as pairABI } from './abi/DeBankPair.json'
 import { abi as orderBookABI } from './abi/OrderBook.json'
+import { abi as ebeTokenABI } from './abi/EbeToken.json'
+import { abi as hecoPoolABI } from './abi/HecoPool.json'
 import { abi as ctokenFactoryABI } from './abi/LErc20DelegatorFactory.json'
 import { zeroAddress } from '../deployments/deploys';
 import { IToken } from './token';
@@ -30,10 +32,11 @@ type TokenContractName = 'USDT'
                     | 'Factory'
                     | 'Router'
                     | 'SwapMining'
-                    | 'SwapPool'
                     | 'OrderBook'
                     | 'StepSwap'
                     | 'InterestRateModel'
+                    | 'EBEToken'
+                    | 'HecoPool'
 
 let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hecotest': {
@@ -53,7 +56,6 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'InterestRateModel': '0x85C1740414A26655054946e78BEE75fC27707542',
         'Factory': '0x3182528c58c54DE504cE45B21c15e47f73d58F09',
         'Router': '0xb18911609A5b9C7abDc7DBdA585Ae83F01ced0C5', // '0x9f186BC496e62dBd41d845f188eA1eA28C6EEF71', //'0xB83181Fca94A3aeE1B832A4EeF50f232D2AbE054', // '0xD70C027A1893f4A0fe3002c56AB63137942B5D6B',
-        'SwapPool': '',
         'SwapMining': '',
         'OrderBook': '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
         'StepSwap': '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
@@ -75,7 +77,6 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'Factory': '',
         'Router': '',
         'OrderBook': '',
-        'SwapPool': '',
         'SwapMining': '',
     }
 }
@@ -191,6 +192,14 @@ function getOrderbookContract(address = contractAddress[NETWORK]['OrderBook'], s
     return new Contract(address, orderBookABI, signer ?? getProvider())
 }
 
+function getEbeTokenContract(address = contractAddress[NETWORK]['EBEToken'], signer?: Signer | Provider) {
+    return new Contract(address, ebeTokenABI, signer ?? getProvider())
+}
+
+function getHecoPollContract(address = contractAddress[NETWORK]['HecoPool'], signer?: Signer | Provider) {
+    return new Contract(address, hecoPoolABI, signer ?? getProvider())
+}
+
 // 根据 abi 地址获取 Contract
 function getContractByAddressABI(addr: string, abi: string, signer?: Signer | Provider) {
     return new Contract(addr, abi, signer ?? getProvider())
@@ -201,6 +210,7 @@ async function getContractByAddressName(addr: string, name: string, signer?: Sig
     const art = await hre.artifacts.readArtifact(name)
     return new Contract(addr, art.abi, signer ?? getProvider())
 }
+
 
 async function getBalance(token: IToken, owner: string): Promise<BigNumber> {
     let balance
@@ -250,6 +260,8 @@ export {
     getEbankRouter,
     getEbankFactory,
     getEbankPair,
+    getEbeTokenContract,
+    getHecoPollContract,
     getTakerSigner,
     getTokenContract,
     getCTokenContract,

@@ -4,12 +4,12 @@ pragma solidity ^0.5.16;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/ownership/Ownable.sol";
 
-contract EbeToken is ERC20, Ownable {
+contract EBEToken is ERC20, Ownable {
     string public name;
     string public symbol;
     uint8 public decimals;
 
-    address public minter;
+    mapping(address => bool) public minters;
     // The block number when EBE mining starts.
     uint256 public startBlock;
     // How many blocks are halved
@@ -23,7 +23,7 @@ contract EbeToken is ERC20, Ownable {
 
     // modifier for mint function
     modifier onlyMinter() {
-        require(msg.sender == minter, "caller is not the minter");
+        require(minters[msg.sender], "caller is not the minter");
         _;
     }
 
@@ -38,9 +38,10 @@ contract EbeToken is ERC20, Ownable {
     }
 
     function setMinter(address _newMinter) external {
-        require(minter == address(0), "has set up");
+        // require(minter == address(0), "has set up");
         require(_newMinter != address(0), "is zero address");
-        minter = _newMinter;
+        // minter = _newMinter;
+        minters[_newMinter] = true;
     }
 
     // At what phase

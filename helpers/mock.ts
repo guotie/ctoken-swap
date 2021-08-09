@@ -1,9 +1,13 @@
 import deploy from './deploy'
 import { addressOf, dumpAddresses, NETWORK, setContractAddress } from './contractHelper'
-import { getMockToken } from './token'
+import { getMockToken, IToken, readableTokenAmount, deadlineTs } from './token'
 
-import { Contract } from '@ethersproject/contracts'
+import { BigNumber } from '@ethersproject/bignumber'
+import { Contract } from 'ethers'
+// import { Contract } from '@ethersproject/contracts'
 import { zeroAddress } from '../deployments/deploys'
+import { BigNumberish } from 'ethers'
+import { callWithEstimateGas } from './estimateGas';
 
 const hre = require('hardhat')
 // const ethers = hre.ethers
@@ -186,6 +190,36 @@ async function deployOrderBook() {
     return ob
 }
 
+export async function deployEbe() {
+    // let namedSigners = await ethers.getSigners()
+        // , deployer = namedSigners[0].address
+    const result = await _deployMock('EBEToken', { args: [] });
+
+    setContractAddress('EBEToken', result.address)
+    return result
+}
+
+export async function deployHecoPool(ebe: string, ebePerBlock: number, startBlock: number) {
+
+  
+    const e18 = BigNumber.from('1000000000000000000')
+        , result = await _deployMock('HecoPool', {
+            args: [ ebe, BigNumber.from(ebePerBlock).mul(e18), startBlock ],
+            });
+    setContractAddress('HecoPool', result.address)
+    return result
+}
+
+async function deployEbeHecoPool() {
+    let namedSigners = await ethers.getSigners()
+        // , deployer = namedSigners[0].address
+    
+    let ebe = await deployEbe()
+    let pool = await deployHecoPool(ebe.address, 10, 0)
+    let ebec = new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
+    await ebec.setMinter(pool.address)
+}
+
 // deploy javascript vm env
 export async function deployMockContracts() {
     await deployTokens()
@@ -199,6 +233,43 @@ export async function deployMockContracts() {
     await deployCompound()
     await deploySwap()
     await deployOrderBook()
+    await deployEbeHecoPool()
+
     console.log('contracts:', dumpAddresses())
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+export async function addLiquidityUnderlying(
+                        router: Contract,
+                        token0: IToken,
+                        token1: IToken,
+                        amt0: BigNumberish,
+                        amt1: BigNumberish,
+                        to: string
+                    ) {
+    if (token0.address !== zeroAddress) {
+        await token0.contract!.approve(router.address, '1000000000000000000000000000000000')
+    }
+    if (token1.address !== zeroAddress) {
+        await token1.contract!.approve(router.address, '1000000000000000000000000000000000')
+    }
+
+    if (token0.address === zeroAddress || token1.address === zeroAddress) {
+        throw new Error('todo: not support ht add liquidity')
+    }
+
+    await callWithEstimateGas(router,
+        'addLiquidityUnderlying',
+        [
+            token0.address,
+            token1.address,
+            readableTokenAmount(token0, amt0),
+            readableTokenAmount(token1, amt1),
+            0,
+            0,
+            to,
+            deadlineTs(100)
+        ],
+        true)
+}

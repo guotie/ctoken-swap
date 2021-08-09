@@ -239,10 +239,14 @@ contract DeBankPair is IDeBankPair, PairStorage {
         // address addr = _getLPDepositAddr();
         if (_isMarginHoldingAddr(from) == false && _isMarginHoldingAddr(to) == false) {
             _updateRewardShare();
+            // console.log("_updateRewardShare done");
             // ctoken 挖矿, 负债, 在 totalSupply 减少之前更新
             _updateCtokenMintPerShare();
+            // console.log("_updateCtokenMintPerShare done");
             _updateUserMintReward(from, value, false);
+            // console.log("_updateUserMintReward from done");
             _updateUserMintReward(to, value, true);
+            // console.log("_updateUserMintReward to done");
 
             // mintOf[from] = mintOf[from].sub(value);
             // mintOf[to] = mintOf[to].add(value);

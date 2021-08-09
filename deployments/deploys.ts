@@ -134,12 +134,24 @@ export async function deployEbe() {
   let namedSigners = await ethers.getSigners()
       , deployer = namedSigners[0].address
 
-  await _deploy('EbeToken', {
+  return _deploy('EbeToken', {
         from: deployer,
         //
         args: [],
         log: true,
-      }, true);
+      }, network.name !== 'hardhat');
+}
+
+export async function deployHecoPool(ebe: string, ebePerBlock: number, startBlock: number) {
+  let namedSigners = await ethers.getSigners()
+      , deployer = namedSigners[0].address
+
+  const e18 = BigNumber.from('1000000000000000000')
+  return _deploy('HecoPool', {
+        from: deployer,
+        args: [ ebe, BigNumber.from(ebePerBlock).mul(e18), startBlock ],
+        log: true,
+      }, network.name !== 'hardhat');
 }
 
 export async function deployUniswap(salt: string) {
@@ -167,6 +179,7 @@ export async function deployUniswap(salt: string) {
   console.log('deployed factory/router: salt=%s %s %s', salt, dr.address, router.address)
   return { fa: dr.address, fc: fc, ra: router.address, rc: rc}
 }
+
 
 export async function deployFactory(usdt: string) {
   let namedSigners = await ethers.getSigners()
