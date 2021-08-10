@@ -225,10 +225,10 @@ contract DeBankPair is IDeBankPair, PairStorage {
     }
 
     // 获取 LP 抵押合约地址
-    function _isMarginHoldingAddr(address addr) private view returns (bool) {
-        addr;
+    function _isMintExcludeAddr(address addr) private view returns (bool) {
+        // addr;
         // todo 判断那些地址是杠杆代持合约地址
-        return false;
+        return IDeBankFactory(factory).mintFreeAddress(addr); //false;
         // return IDeBankRouter(IDeBankFactory(factory).router()).lpDepositAddr();
     }
 
@@ -237,7 +237,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         balanceOf[to] = balanceOf[to].add(value);
         // 更改挖矿权
         // address addr = _getLPDepositAddr();
-        if (_isMarginHoldingAddr(from) == false && _isMarginHoldingAddr(to) == false) {
+        if (_isMintExcludeAddr(from) == false && _isMintExcludeAddr(to) == false) {
             _updateRewardShare();
             // console.log("_updateRewardShare done");
             // ctoken 挖矿, 负债, 在 totalSupply 减少之前更新
@@ -376,7 +376,11 @@ contract DeBankPair is IDeBankPair, PairStorage {
         if (lhb == address(0)) {
             return 0;
         }
+        // console.log("lhb:", lhb);
         address unitroller = IDeBankFactory(factory).compAddr();    // 从 factory/router 中获取
+        if (unitroller == address(0)) {
+            return IERC20(lhb).balanceOf(address(this));
+        }
 
         // 有部分币存在 compAccrued 中，没有转出来
         return IERC20(lhb).balanceOf(address(this)) + IUnitroller(unitroller).compAccrued(address(this));
@@ -604,6 +608,11 @@ contract DeBankPair is IDeBankPair, PairStorage {
 
     function getFee(uint256 amt) public view returns (uint256) {
         return amt.mul(feeRate).div(10000);
+    }
+
+    function getFee(uint256 amt, uint fr) public view returns (uint256) {
+        require(fr < 1000, "invalid feeRate");
+        return amt.mul(fr).div(10000);
     }
 
     // x * y = x' * y'   令 x' = x + a; y' = y - b

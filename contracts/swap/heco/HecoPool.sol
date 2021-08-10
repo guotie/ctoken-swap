@@ -6,7 +6,9 @@ import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../interface/IEbe.sol";
+
+// import "../interface/IERC20.sol";
+import "../../ebe/IEBEToken.sol";
 
 interface IMasterChefHeco {
     function pending(uint256 pid, address user) external view returns (uint256);
@@ -34,16 +36,16 @@ contract HecoPool is Ownable {
 
     // Info of each pool.
     struct PoolInfo {
-        IERC20 lpToken;           // Address of LP token contract.
-        uint256 allocPoint;       // How many allocation points assigned to this pool. EBEs to distribute per block.
-        uint256 lastRewardBlock;  // Last block number that EBEs distribution occurs.
-        uint256 accEbePerShare; // Accumulated EBEs per share, times 1e12.
+        IERC20 lpToken;            // Address of LP token contract.
+        uint256 allocPoint;        // How many allocation points assigned to this pool. EBEs to distribute per block.
+        uint256 lastRewardBlock;   // Last block number that EBEs distribution occurs.
+        uint256 accEbePerShare;    // Accumulated EBEs per share, times 1e12.
         uint256 accMultLpPerShare; //Accumulated multLp per share
-        uint256 totalAmount;    // Total amount of current pool deposit.
+        uint256 totalAmount;       // Total amount of current pool deposit.
     }
 
     // The EBE Token!
-    IEbe public ebe;
+    IEBEToken public ebe;
     // EBE tokens created per block.
     uint256 public ebePerBlock;
     // Info of each pool.
@@ -72,18 +74,18 @@ contract HecoPool is Ownable {
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
 
     constructor(
-        IEbe _ebe,
+        address _ebe,
         uint256 _ebePerBlock,
         uint256 _startBlock
     ) public {
-        ebe = _ebe;
+        ebe = IEBEToken(_ebe);
         ebePerBlock = _ebePerBlock;
         startBlock = _startBlock;
     }
 
-    function setHalvingPeriod(uint256 _block) public onlyOwner {
-        halvingPeriod = _block;
-    }
+    // function setHalvingPeriod(uint256 _block) public onlyOwner {
+    //     halvingPeriod = _block;
+    // }
 
     // Set the number of ebe produced by each block
     function setEbePerBlock(uint256 _newPerBlock) public onlyOwner {
@@ -174,33 +176,37 @@ contract HecoPool is Ownable {
         poolCorrespond[_pid] = _sid;
     }
 
-    function phase(uint256 blockNumber) public view returns (uint256) {
-        if (halvingPeriod == 0) {
-            return 0;
-        }
-        if (blockNumber > startBlock) {
-            return (blockNumber.sub(startBlock).sub(1)).div(halvingPeriod);
-        }
-        return 0;
-    }
+    // function phase(uint256 blockNumber) public view returns (uint256) {
+    //     if (halvingPeriod == 0) {
+    //         return 0;
+    //     }
+    //     if (blockNumber > startBlock) {
+    //         return (blockNumber.sub(startBlock).sub(1)).div(halvingPeriod);
+    //     }
+    //     return 0;
+    // }
 
-    function reward(uint256 blockNumber) public view returns (uint256) {
-        uint256 _phase = phase(blockNumber);
-        return ebePerBlock.div(2 ** _phase);
-    }
+    // function reward(uint256 blockNumber) public view returns (uint256) {
+    //     uint256 _phase = phase(blockNumber);
+    //     return ebePerBlock.div(2 ** _phase);
+    // }
+
+    // function getEbeBlockReward(uint256 _lastRewardBlock) public view returns (uint256) {
+    //     uint256 blockReward = 0;
+    //     uint256 n = phase(_lastRewardBlock);
+    //     uint256 m = phase(block.number);
+    //     while (n < m) {
+    //         n++;
+    //         uint256 r = n.mul(halvingPeriod).add(startBlock);
+    //         blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
+    //         _lastRewardBlock = r;
+    //     }
+    //     blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
+    //     return blockReward;
+    // }
 
     function getEbeBlockReward(uint256 _lastRewardBlock) public view returns (uint256) {
-        uint256 blockReward = 0;
-        uint256 n = phase(_lastRewardBlock);
-        uint256 m = phase(block.number);
-        while (n < m) {
-            n++;
-            uint256 r = n.mul(halvingPeriod).add(startBlock);
-            blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
-            _lastRewardBlock = r;
-        }
-        blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
-        return blockReward;
+        return IEBEToken(ebe).getEbeReward(ebePerBlock, _lastRewardBlock);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!

@@ -32,6 +32,10 @@ interface IDeBankFactory {
 
     function anchorToken() external view returns (address);
 
+    function feeRateOf(address to) external view returns (uint);
+
+    function mintFreeAddress(address addr) external view returns (bool);
+
     function getPair(address tokenA, address tokenB) external view returns (address pair);
 
     function allPairs(uint) external view returns (address pair);
@@ -76,4 +80,6 @@ interface IDeBankFactory {
     function getAmountOutFeeRateAnchorToken(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) external pure returns (uint amountOut);
 
     function setAnchorToken(address _token) external;
+
+    function setUserFeeRate(address user, uint feeRate) external;
 }

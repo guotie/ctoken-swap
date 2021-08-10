@@ -217,7 +217,7 @@ async function deployEbeHecoPool() {
     let ebe = await deployEbe()
     let pool = await deployHecoPool(ebe.address, 10, 0)
     let ebec = new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
-    await ebec.setMinter(pool.address)
+    await ebec.setMinter(pool.address, true)
 }
 
 // deploy javascript vm env

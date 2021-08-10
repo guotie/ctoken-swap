@@ -47,6 +47,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     // 由于0值与不存在无法区分，因此，设置的时候都在原值的基础上+1
     mapping(address => uint) public feeRateOf; // 用于设定特定用户的费率
     mapping(address => mapping(address => address)) public getPair;
+    mapping(address => bool) public mintFreeAddress;  // 转账到这些地址不影响LP挖矿权
     address[] public allPairs;
 
     // event PairCreated(address indexed token0, address indexed token1, address pair, uint);
@@ -66,6 +67,11 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
     function allPairsLength() external view returns (uint) {
         return allPairs.length;
+    }
+
+    // 设置这些地址的转账不影响LP挖矿权
+    function setMintFreeAddress(address _addr, bool _mintable) external onlyOwner {
+        mintFreeAddress[_addr] = _mintable;
     }
 
     // function setAnchorToken(address _anchorToken) external {

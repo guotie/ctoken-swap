@@ -96,6 +96,7 @@ interface IDeBankPair {
     // function initializeCTokenAddress(address, address) external;
 
     function getFee(uint256 amt) external view returns (uint256);
+    function getFee(uint256 amt, uint fr) external view returns (uint256);
 
     // function updateFeeRate(_feeRate) external;
 }

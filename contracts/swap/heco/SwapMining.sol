@@ -9,7 +9,7 @@ import "../library/SafeMath.sol";
 import "../interface/IDeBankFactory.sol";
 import "../interface/IDeBankPair.sol";
 
-import "../interface/IEbe.sol";
+import "../../ebe/IEBEToken.sol";
 
 // interface IOracle {
 //     function update(address tokenA, address tokenB) external;
@@ -38,14 +38,14 @@ contract SwapMining is Ownable {
     // factory address
     // IDeBankFactory public factory;
     // ebe token address
-    IEbe public ebe;
+    IEBEToken public ebe;
     // Calculate price based on HUSD
     // address public targetToken;
     // pair corresponding pid
     // mapping(address => uint256) public pairOfPid;
 
     constructor(
-        IEbe _ebe,
+        address _ebe,
         // IDeBankFactory _factory,
         // IOracle _oracle,
         address _router,
@@ -53,7 +53,7 @@ contract SwapMining is Ownable {
         uint256 _ebePerBlock,
         uint256 _startBlock
     ) public {
-        ebe = _ebe;
+        ebe = IEBEToken(_ebe);
         // factory = _factory;
         // oracle = _oracle;
         router = _router;
@@ -144,9 +144,9 @@ contract SwapMining is Ownable {
     //     return EnumerableSet.get(_whitelist, _index);
     // }
 
-    function setHalvingPeriod(uint256 _block) public onlyOwner {
-        halvingPeriod = _block;
-    }
+    // function setHalvingPeriod(uint256 _block) public onlyOwner {
+    //     halvingPeriod = _block;
+    // }
 
     function setRouter(address newRouter) public onlyOwner {
         require(newRouter != address(0), "SwapMining: new router is the zero address");
@@ -170,37 +170,37 @@ contract SwapMining is Ownable {
         return 0;
     }
 
-    function phase() public view returns (uint256) {
-        return phase(block.number);
-    }
+    // function phase() public view returns (uint256) {
+    //     return phase(block.number);
+    // }
 
-    function reward(uint256 blockNumber) public view returns (uint256) {
-        uint256 _phase = phase(blockNumber);
-        return ebePerBlock.div(2 ** _phase);
-    }
+    // function reward(uint256 blockNumber) public view returns (uint256) {
+    //     uint256 _phase = phase(blockNumber);
+    //     return ebePerBlock.div(2 ** _phase);
+    // }
 
-    function reward() public view returns (uint256) {
-        return reward(block.number);
-    }
+    // function reward() public view returns (uint256) {
+    //     return reward(block.number);
+    // }
 
-    // Rewards for the current block
-    function getEbeReward(uint256 _lastRewardBlock) public view returns (uint256) {
-        require(_lastRewardBlock <= block.number, "SwapMining: must little than the current block number");
-        uint256 blockReward = 0;
-        uint256 n = phase(_lastRewardBlock);
-        uint256 m = phase(block.number);
-        // If it crosses the cycle
-        while (n < m) {
-            n++;
-            // Get the last block of the previous cycle
-            uint256 r = n.mul(halvingPeriod).add(startBlock);
-            // Get rewards from previous periods
-            blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
-            _lastRewardBlock = r;
-        }
-        blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
-        return blockReward;
-    }
+    // // Rewards for the current block
+    // function getEbeReward(uint256 _lastRewardBlock) public view returns (uint256) {
+    //     require(_lastRewardBlock <= block.number, "SwapMining: must little than the current block number");
+    //     uint256 blockReward = 0;
+    //     uint256 n = phase(_lastRewardBlock);
+    //     uint256 m = phase(block.number);
+    //     // If it crosses the cycle
+    //     while (n < m) {
+    //         n++;
+    //         // Get the last block of the previous cycle
+    //         uint256 r = n.mul(halvingPeriod).add(startBlock);
+    //         // Get rewards from previous periods
+    //         blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
+    //         _lastRewardBlock = r;
+    //     }
+    //     blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
+    //     return blockReward;
+    // }
 
     // Update all pools Called when updating allocPoint and setting new blocks
     // function massMintPools() public {
@@ -214,7 +214,7 @@ contract SwapMining is Ownable {
         if (block.number <= pool.lastRewardBlock) {
             return false;
         }
-        uint256 blockReward = getEbeReward(pool.lastRewardBlock);
+        uint256 blockReward = ebe.getEbeReward(ebePerBlock, pool.lastRewardBlock);
         if (blockReward <= 0) {
             return false;
         }
@@ -315,7 +315,7 @@ contract SwapMining is Ownable {
         // PoolInfo memory pool = poolInfo[_pid];
         UserInfo memory user = userInfo[msg.sender];
         if (user.quantity > 0) {
-            uint256 blockReward = getEbeReward(pool.lastRewardBlock);
+            uint256 blockReward = ebe.getEbeReward(ebePerBlock, pool.lastRewardBlock);
             uint256 ebeReward = blockReward; // .mul(pool.allocPoint).div(totalAllocPoint);
             userSub = userSub.add((pool.allocEbeAmount.add(ebeReward)).mul(user.quantity).div(pool.quantity));
         }

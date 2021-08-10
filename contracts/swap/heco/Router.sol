@@ -23,6 +23,8 @@ import "../interface/IWHT.sol";
 import "../interface/LErc20DelegatorInterface.sol";
 import "../interface/ICToken.sol";
 
+import "../../ebe/IEBEToken.sol";
+
 // import "../../compound/LHT.sol";
 // import "hardhat/console.sol";
 
@@ -34,9 +36,9 @@ interface ISwapMining {
     function swap(address account, address input, address output, uint256 fee) external returns (bool);
 }
 
-interface IRewardToken {
-    function reward(uint256 blockNumber) external view returns (uint256);
-}
+// interface IRewardToken {
+//     function reward(uint256 blockNumber) external view returns (uint256);
+// }
 
 contract DeBankRouter is IDeBankRouter, Ownable {
     using SafeMath for uint256;
@@ -57,9 +59,10 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // 记录当前手续费的块数
     uint public currentBlock;
     // tokens created per block to all pair LP
-    uint256 public lpPerBlock;      // LP 每块收益
+    // uint256 public lpPerBlock;      // LP 每块收益
     // uint256 public traderPerBlock;  // 交易者每块收益
     address public rewardToken;     // 收益 token
+    uint public ebePerBlock;        // lp 每块分配多少个 ebe
     // address public lpDepositAddr;   // compound 流动性抵押
     // address public compAddr;        // compound unitroller
     uint256 public feeAlloc;        // 手续费分配方案: 0: 分配给LP; 1: 不分配给LP, 平台收取后兑换为 anchorToken
@@ -121,6 +124,11 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // set reward token address
     function setRewardToken(address _reword) external onlyOwner {
         rewardToken = _reword;
+        // ebePerBlock = _ebePerBlock;
+    }
+
+    function setEbePerBlock(uint256 _ebePerBlock) external onlyOwner {
+        ebePerBlock = _ebePerBlock;
     }
 
     // function phase(uint256 blockNumber) public view returns (uint256) {
@@ -138,30 +146,17 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         if (rewardToken == address(0) || feeAlloc == 0) {
             return 0;
         }
-        return IRewardToken(rewardToken).reward(blockNumber);
-        // todo totalSupply !!!
-        // if (IERC20(rewardToken).totalSupply() > 1e28) {
-        //     return 0;
-        // }
-        // uint256 _phase = phase(blockNumber);
-        // return lpPerBlock.div(2 ** _phase);
+        return IEBEToken(rewardToken).reward(ebePerBlock, blockNumber);
     }
 
+    // 只能 pair 地址调用该方法
+    function mintEBEToken(address token0, address token1, address _to, uint256 _amount) external returns (bool) {
+        //
+        address pair = pairFor(token0, token1);
+        require(msg.sender == pair, "pair not equal");
 
-    // todo to be removed
-    // function getBlockRewards(uint256 _lastRewardBlock) public view returns (uint256) {
-    //     uint256 blockReward = 0;
-    //     uint256 n = phase(_lastRewardBlock);
-    //     uint256 m = phase(block.number);
-    //     while (n < m) {
-    //         n++;
-    //         uint256 r = n.mul(halvingPeriod).add(startBlock);
-    //         blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(r)));
-    //         _lastRewardBlock = r;
-    //     }
-    //     blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
-    //     return blockReward;
-    // }
+        return IEBEToken(rewardToken).mint(_to, _amount);
+    }
 
     function _getOrCreateCtoken(address token) private returns (address ctoken) {
         // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddress(token);
@@ -651,10 +646,16 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // swap后得到的是 canchorToken, cUSDT
     function _swapToCAnchorToken(address input, address pair, address anchorToken) internal returns (uint fee) {
         address feeTo = IDeBankFactory(factory).feeTo();
-        require(feeTo != address(0), "feeTo is zero");
+        require(feeTo != address(0), "feeTo not set");
 
         uint amountIn = IERC20(_getCtoken(input)).balanceOf(pair);    // 输入转入
-        uint feeIn = IDeBankPair(pair).getFee(amountIn);
+        uint feeRate = IDeBankFactory(factory).feeRateOf(msg.sender);
+        uint feeIn;
+        if (feeRate == 0) {
+            feeIn = IDeBankPair(pair).getFee(amountIn);
+        } else {
+            feeIn = IDeBankPair(pair).getFee(amountIn, feeRate - 1);
+        }
         // console.log("amountIn: %d  feeIn: %d", amountIn, feeIn);
 
         if (input == anchorToken) {

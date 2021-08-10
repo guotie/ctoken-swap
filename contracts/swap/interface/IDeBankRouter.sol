@@ -26,6 +26,8 @@ interface IDeBankRouter {
 
     function rewardToken() external view returns (address);
 
+    function mintEBEToken(address token0, address token1, address _to, uint256 _amount) external returns (bool);
+
     // function lpDepositAddr() external view returns (address);
     
     // function compAddr() external view returns (address);
