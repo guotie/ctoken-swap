@@ -37,11 +37,11 @@ contract EBEToken is ERC20, Ownable {
         return true;
     }
 
-    function setMinter(address _newMinter) external {
+    function setMinter(address _newMinter, bool mintable) external {
         // require(minter == address(0), "has set up");
         require(_newMinter != address(0), "is zero address");
         // minter = _newMinter;
-        minters[_newMinter] = true;
+        minters[_newMinter] = mintable;
     }
 
     // At what phase

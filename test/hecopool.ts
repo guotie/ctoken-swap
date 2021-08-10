@@ -78,6 +78,10 @@ describe("heco pool 测试", function() {
         let pool = await hecopoolC.poolInfo(pid)
             , lpTokenC = getTokenContract(pool.lpToken, namedSigners[0])
             , lpSupply = await lpTokenC.balanceOf(hecopool)
+        if (lpSupply.eq(0)) {
+            return BigNumber.from(0)
+        }
+
         let totalAllocPoint = await hecopoolC.totalAllocPoint()
             , blockReward = await hecopoolC.getEbeBlockReward(pool.lastRewardBlock)
             , ebeReward = blockReward.mul(pool.allocPoint).div(totalAllocPoint)
@@ -121,11 +125,14 @@ describe("heco pool 测试", function() {
         let amt = await getUserPendReward(hecopoolC.address, 0, namedSigners[0].address)
         console.log('pending reward:', amt.toString())
 
-        tx = await hecopoolC.withdraw(pid, 100)
+        tx = await hecopoolC.withdraw(pid, bal)
         console.log('withdraw tx:', tx.blockNumber)
         await tx.wait()
         ebeBalance = await getBalance(ebe, maker.address)
         console.log('got ebe:', ebeBalance.toString())
+
+        amt = await getUserPendReward(hecopoolC.address, 0, namedSigners[0].address)
+        console.log('pending reward after withdraw:', amt.toString())
     })
 
 })

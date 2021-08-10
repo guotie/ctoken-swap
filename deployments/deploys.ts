@@ -134,7 +134,7 @@ export async function deployEbe() {
   let namedSigners = await ethers.getSigners()
       , deployer = namedSigners[0].address
 
-  return _deploy('EbeToken', {
+  return _deploy('EBEToken', {
         from: deployer,
         //
         args: [],
