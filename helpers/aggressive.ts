@@ -38,25 +38,25 @@ interface SwapReserveRates {
     // address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
     // address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
     // uint256[][] reserves;  // [routes][path]
-    isEToken:     boolean
-    allowBurnchi: boolean
-    allEbank:     boolean
-    ebankAmt:     BigNumber
-    amountIn:     BigNumber
-    swapRoutes:   number
-    tokenIn:      string
-    tokenOut:     string
-    etokenIn:     string
+    isEToken:     boolean    // tokenIn tokenOut是否是 etoken
+    allowBurnchi: boolean    // 暂时未使用 用来燃烧降低手续费的
+    allEbank:     boolean    // 最终计算出来的兑换，是否全部都由 ebank 来执行
+    ebankAmt:     BigNumber  // 在 ebank 中兑换的数量
+    amountIn:     BigNumber  // 输入
+    swapRoutes:   number     // 最终通过多个swap routes 来执行聚合交易
+    tokenIn:      string     // 输入 token
+    tokenOut:     string     // 输出 token
+    etokenIn:     string     // 
     etokenOut:    string
-    routes:       BigNumber
-    rateIn:       BigNumber
-    rateOut:      BigNumber
-    fees:         BigNumber[]
-    exchanges:    Exchange[]
-    paths:        string[][]
-    cpaths:       string[][]
-    reserves:     BigNumber[][][]
-    distributes:  BigNumber[]
+    routes:       BigNumber  // 一共有多少个 swap * path
+    rateIn:       BigNumber    //  tokenIn 对应的 etoken 的 exchangeRate
+    rateOut:      BigNumber    // tokenOut
+    fees:         BigNumber[]  // 各个 routes 对应的手续费比例
+    exchanges:    Exchange[]   // 对应各个交易所的合约地址
+    paths:        string[][]   // 兑换路径
+    cpaths:       string[][]   // paths 对应的 etoken 路径
+    reserves:     BigNumber[][][]  // LP池的reserve，用于计算amountOut
+    distributes:  BigNumber[]      // 合约中未计算，在服务端后台计算，最终计算的各个routes对应的兑换数量，传给合约，用来生成最终的交易参数
 }
 
 // 根据 x*y=K 计算 uniswap 的 amountOut
@@ -304,7 +304,7 @@ async function buildAggressiveSwapTx(
                     parts: number,
                 ) {
 
-    let routePath = await stepSwapC.getSwapReserveRates({
+    let routePath: SwapReserveRates = await stepSwapC.getSwapReserveRates({
                                 to: to,
                                 tokenIn: tokenIn,
                                 tokenOut: tokenOut,
