@@ -143,31 +143,31 @@ interface IDeBankRouter {
         uint deadline
     ) external returns (uint[] memory amounts);
 
-    function swapTokensForExactTokensUnderlying(
-        uint amountOut,
-        uint amountInMax,
-        address[] calldata path,
-        address to,
-        uint deadline
-    ) external returns (uint[] memory amounts);
+    // function swapTokensForExactTokensUnderlying(
+    //     uint amountOut,
+    //     uint amountInMax,
+    //     address[] calldata path,
+    //     address to,
+    //     uint deadline
+    // ) external returns (uint[] memory amounts);
 
     function swapExactETHForTokensUnderlying(uint amountOutMin, address[] calldata path, address to, uint deadline)
         external
         payable
         returns (uint[] memory amounts);
 
-    function swapTokensForExactETHUnderlying(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
-        external
-        returns (uint[] memory amounts);
+    // function swapTokensForExactETHUnderlying(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
+    //     external
+    //     returns (uint[] memory amounts);
 
     function swapExactTokensForETHUnderlying(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
         external
         returns (uint[] memory amounts);
 
-    function swapETHForExactTokensUnderlying(uint amountOut, address[] calldata path, address to, uint deadline)
-        external
-        payable
-        returns (uint[] memory amounts);
+    // function swapETHForExactTokensUnderlying(uint amountOut, address[] calldata path, address to, uint deadline)
+    //     external
+    //     payable
+    //     returns (uint[] memory amounts);
     // function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline)
     // external
     // payable

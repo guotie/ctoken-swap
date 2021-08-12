@@ -24,7 +24,7 @@ import "../../compound/CToken.sol";
 
 import "./PairStorage.sol";
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 interface IUnitroller {
     function compAccrued(address addr) external view returns (uint);
@@ -528,6 +528,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
     // 只允许 router 调用, fee 已经在外部扣除
     function swapNoFee(uint amount0Out, uint amount1Out, address to, uint fee) external lock {
         require(msg.sender == IDeBankFactory(factory).router(), "DeBankSwap: router only");
+        console.log("swapNoFee: amount0Out=%d amount1Out=%d fee=%d", amount0Out, amount1Out, fee);
         if (fee > 0) {
             _updateBlockFee(fee);
         }

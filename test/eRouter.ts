@@ -9,6 +9,7 @@ import { addressOf, getBalances, getCTokenFactoryContract, getEbankFactory, getE
 import { IToken, getMockToken, HTToken, readableTokenAmount, deadlineTs, getPairToken } from '../helpers/token';
 import { callWithEstimateGas } from '../helpers/estimateGas';
 import { deployMockContracts } from '../helpers/mock';
+import { getCTokenContract } from '../deployments/deploys';
 const hre = require('hardhat')
 const ethers = hre.ethers
 const network = hre.network
@@ -18,18 +19,19 @@ describe("Router 测试", function() {
     // let deployContracts: DeployContracts
     let namedSigners: SignerWithAddress[]
     // let unitroller: Contract
-    let delegatorFactory: Contract
-        , mdexFactory: Contract
+    let ctokenFactory: Contract
         , router: Contract
         , factory: Contract
         , ebec: Contract
 
     let maker: SignerWithAddress
         , taker: SignerWithAddress
+        , feeTo: string
+
     let usdt: IToken
         , sea: IToken
         , wht: IToken
-        , eUsdt: IToken
+        , eusdt: IToken
         , eSea: IToken
         , eWht: IToken
         , ht = HTToken
@@ -55,12 +57,13 @@ describe("Router 测试", function() {
         let namedSigners = await ethers.getSigners()
         maker = namedSigners[0]
         taker = namedSigners[1]
-        delegatorFactory = getCTokenFactoryContract(addressOf('CtokenFactory'), maker)
+        ctokenFactory = getCTokenFactoryContract(addressOf('CtokenFactory'), maker)
         router = getEbankRouter(undefined, maker)
 
-        let cfactory = await router.ctokenFactory()
+        // let cfactory = await router.ctokenFactory()
         factory = getEbankFactory(undefined, maker)
-        await factory.setFeeTo(namedSigners[2].address)
+        feeTo = namedSigners[2].address
+        await factory.setFeeTo(feeTo)
 
         usdt = await getMockToken('USDT')
         sea = await getMockToken('SEA')
@@ -84,18 +87,43 @@ describe("Router 测试", function() {
         }
     }
 
-    it('add Liquidity underlying: usdt/sea', async () => {
-        await printBalance('Balance ' + maker.address + ' before add liquidity', maker.address, [usdt, sea])
-        await usdt.contract!.approve(router.address, BigNumber.from('10000000000000000000000000000'))
-        await sea.contract!.approve(router.address, BigNumber.from('10000000000000000000000000000'))
+    const addLiquidityETH = async (t1: IToken, amt0: BigNumberish, amt1: BigNumberish) => {
+        await printBalance('Balance ' + maker.address + ' before add liquidity', maker.address, [ht, t1])
+        // await t0.contract!.approve(router.address, amt0)
+        await t1.contract!.approve(router.address, amt1)
+        let tx = await router.addLiquidityETHUnderlying(t1.address, amt1, 0, 0, maker.address, deadlineTs(100), {gasLimit: 6000000, value: amt0})
+        // callWithEstimateGas(
+        //         router,
+        //         'addLiquidityETHUnderlying',
+        //         [
+        //             t1.address,
+        //             amt1,
+        //             0,
+        //             0,
+        //             maker.address,
+        //             deadlineTs(100)
+        //         ],
+        //         true
+        //     )
+        // console.log('tx:', tx)
+        await tx.wait(0)
+        let pair = await factory.pairFor(wht.address, t1.address)
+            , pairToken = await getPairToken(pair)
+        await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [ht, t1, pairToken])
+    }
+
+    const addLiquidity = async (t0: IToken, t1: IToken, amt0: BigNumberish, amt1: BigNumberish) => {
+        await printBalance('Balance ' + maker.address + ' before add liquidity', maker.address, [t0, t1])
+        await t0.contract!.approve(router.address, amt0)
+        await t1.contract!.approve(router.address, amt1)
         let tx = await callWithEstimateGas(
                 router,
                 'addLiquidityUnderlying',
                 [
-                    usdt.address,
-                    sea.address,
-                    readableTokenAmount(usdt, 30),
-                    readableTokenAmount(sea, 2000),
+                    t0.address,
+                    t1.address,
+                    amt0,
+                    amt1,
                     0,
                     0,
                     maker.address,
@@ -105,39 +133,60 @@ describe("Router 测试", function() {
             )
         // console.log('tx:', tx)
         await tx.wait(0)
-        let pair = await factory.pairFor(usdt.address, sea.address)
+        let pair = await factory.pairFor(t0.address, t1.address)
             , pairToken = await getPairToken(pair)
-        await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [usdt, sea, pairToken])
+        await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [t0, t1, pairToken])
+    }
 
-        // second time
-        tx = await callWithEstimateGas(
-                router,
-                'addLiquidityUnderlying',
-                [
-                    usdt.address,
-                    sea.address,
-                    readableTokenAmount(usdt, 10),
-                    readableTokenAmount(sea, 667),
-                    0,
-                    0,
-                    maker.address,
-                    deadlineTs(100)
-                ],
-                true
-            )
-        // console.log('tx:', tx)
-        await tx.wait(0)
-        pair = await factory.pairFor(usdt.address, sea.address)
-        pairToken = await getPairToken(pair)
-        await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [usdt, sea, pairToken])
+    it('add Liquidity underlying: usdt/sea', async () => {
+        let amt0 = readableTokenAmount(usdt, 10)
+            , amt1 = readableTokenAmount(sea, 2000)
+        await addLiquidity(usdt, sea, amt0, amt1)
+
+        amt0 = readableTokenAmount(usdt, 20)
+        amt1 = readableTokenAmount(sea, 4000)
+        await addLiquidity(usdt, sea, amt0, amt1)
+        
+        let cusdt = await ctokenFactory.getCTokenAddressPure(usdt.address)
+            , usdtc = await getCTokenContract(cusdt, maker)
+        console.log('cusdt:', cusdt)
+        eusdt = {
+            name: "eUSDT",
+            symbol: "eUSDT",
+            decimals: 18,
+            totalSupply: BigNumber.from(0),
+            address: cusdt,
+            contract: usdtc
+        }
+    })
+
+    it('add Liquidity underlying: ht/sea', async () => {
+        let amt0 = readableTokenAmount(ht, 1)
+            , amt1 = readableTokenAmount(sea, 500)
+        await addLiquidityETH(sea, amt0, amt1)
+
+        amt0 = readableTokenAmount(ht, 2)
+        amt1 = readableTokenAmount(sea, 1000)
+        await addLiquidityETH(sea, amt0, amt1)
+    })
+
+    it('add Liquidity underlying: ht/usdt', async () => {
+        let amt0 = readableTokenAmount(ht, 2)
+            , amt1 = readableTokenAmount(usdt, 5)
+        await addLiquidityETH(usdt, amt0, amt1)
+
+        amt0 = readableTokenAmount(ht, 2)
+        amt1 = readableTokenAmount(usdt, 5)
+        await addLiquidityETH(usdt, amt0, amt1)
     })
 
     it('swap usdt->sea', async () => {
-        await usdt.contract!.transfer(taker.address, readableTokenAmount(usdt, 1000000))
         let usdtC = getTokenContract(usdt.address, taker)
             , routerC = getEbankRouter(undefined, taker)
+            , amt =  readableTokenAmount(usdt, 1)
+        await usdt.contract!.transfer(taker.address, amt)
 
-        await usdtC.approve(routerC.address, '1000000000000000000000000000000000000')
+        await usdtC.approve(routerC.address, amt)
         await routerC.swapExactTokensForTokensUnderlying(
                             readableTokenAmount(usdt, 1),
                             0,
@@ -145,6 +194,91 @@ describe("Router 测试", function() {
                             taker.address,
                             deadlineTs(60)
                         )
+        await printBalance('Balance feeTo after swap usdt->sea', feeTo, [eusdt])
+    })
+
+    it('swap sea->usdt', async () => {
+        let amt =  readableTokenAmount(sea, 100)
+        await sea.contract!.transfer(taker.address, amt)
+
+        let seaC = getTokenContract(sea.address, taker)
+            , routerC = getEbankRouter(undefined, taker)
+
+        await seaC.approve(routerC.address, amt)
+        await routerC.swapExactTokensForTokensUnderlying(
+                            amt,
+                            0,
+                            [sea.address, usdt.address],
+                            taker.address,
+                            deadlineTs(60)
+                        )
+        await printBalance('Balance feeTo after swap sea->usdt', feeTo, [eusdt])
+    })
+
+    it('swap ht->sea', async () => {
+        let amt =  e18.div(10)
+
+        await printBalance('HT Balance taker ', taker.address, [ht])
+        let routerC = getEbankRouter(undefined, taker)
+        await routerC.swapExactETHForTokensUnderlying(
+                            0,
+                            [wht.address, sea.address],
+                            taker.address,
+                            deadlineTs(60),
+                            {value: amt}
+                        )
+        await printBalance('Balance feeTo after swap ht->sea', feeTo, [eusdt])
+    })
+
+    it('swap ht->sea->usdt', async () => {
+        let amt =  e18.div(10)
+
+        await printBalance('HT Balance taker ', taker.address, [ht])
+        let routerC = getEbankRouter(undefined, taker)
+        await routerC.swapExactETHForTokensUnderlying(
+                            0,
+                            [wht.address, sea.address, usdt.address],
+                            taker.address,
+                            deadlineTs(60),
+                            {value: amt}
+                        )
+        await printBalance('Balance feeTo after swap ht->sea->usdt', feeTo, [eusdt])
+    })
+
+    it('swap sea->ht', async () => {
+        let amt =  readableTokenAmount(sea, 100)
+        await sea.contract!.transfer(taker.address, amt)
+
+        let seaC = getTokenContract(sea.address, taker)
+            , routerC = getEbankRouter(undefined, taker)
+
+        await seaC.approve(routerC.address, amt)
+        await routerC.swapExactTokensForETHUnderlying(
+                            amt,
+                            0,
+                            [sea.address, wht.address],
+                            taker.address,
+                            deadlineTs(60)
+                        )
+        await printBalance('Balance feeTo after swap sea->usdt', feeTo, [eusdt])
+    })
+
+    it('swap sea->ht->usdt', async () => {
+        let amt =  readableTokenAmount(sea, 100)
+        await sea.contract!.transfer(taker.address, amt)
+
+        let seaC = getTokenContract(sea.address, taker)
+            , routerC = getEbankRouter(undefined, taker)
+
+        await seaC.approve(routerC.address, amt)
+        await routerC.swapExactTokensForETHUnderlying(
+                            amt,
+                            0,
+                            [sea.address, wht.address],
+                            taker.address,
+                            deadlineTs(60)
+                        )
+        await printBalance('Balance feeTo after swap sea->usdt', feeTo, [eusdt])
     })
 })
 

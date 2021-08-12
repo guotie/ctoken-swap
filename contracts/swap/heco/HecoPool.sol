@@ -250,7 +250,7 @@ contract HecoPool is Ownable {
     }
 
     // View function to see pending EBEs on frontend.
-    function pending(uint256 _pid, address _user) external view returns (uint256, uint256){
+    function pending(uint256 _pid, address _user) external view returns (uint256, uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         if (isMultLP(address(pool.lpToken))) {
             (uint256 ebeAmount, uint256 tokenAmount) = _pendingEbeAndToken(_pid, _user);
@@ -261,7 +261,7 @@ contract HecoPool is Ownable {
         }
     }
 
-    function _pendingEbeAndToken(uint256 _pid, address _user) private view returns (uint256, uint256){
+    function _pendingEbeAndToken(uint256 _pid, address _user) private view returns (uint256, uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accEbePerShare = pool.accEbePerShare;

@@ -26,7 +26,7 @@ import "../interface/ICToken.sol";
 import "../../ebe/IEBEToken.sol";
 
 // import "../../compound/LHT.sol";
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 interface ILHT {
     function mint() external payable returns (uint, uint);
@@ -292,7 +292,9 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // uint er = _cTokenExchangeRate(ctoken);
         // uint amt = camt * er / 10**18;
 
+        console.log("before transfer");
         TransferHelper.safeTransferFrom(token, msg.sender, address(this), amt);
+        console.log("transfer done");
         // uint b0 = ICToken(ctoken).balanceOf(address(this));
         // mint 之前需要 approve
         ICToken(token).approve(address(ctoken), amt);
@@ -306,19 +308,22 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
         // console.log("_mintTransferCToken:", amt, mintCAmt);
 
-        TransferHelper.safeTransferFrom(ctoken, address(this), pair, mintCAmt);
+        if (address(this) != pair) {
+            TransferHelper.safeTransferFrom(ctoken, address(this), pair, mintCAmt);
+        }
     }
 
     function _mintTransferEth(address pair, uint amt) private {
         // uint b0 = ICToken(cWHT).balanceOf(address(this));
-        // todo
-        ILHT(cWHT).mint.value(amt)();
-        // require(ret == 0, "mint failed");
-        uint mintCAmt = ICToken(cWHT).balanceOf(address(this));
+        (uint ret, uint mintCAmt) = ILHT(cWHT).mint.value(amt)();
+        require(ret == 0, "mint failed");
+        console.log("mint eth:", mintCAmt);
+        // uint mintCAmt = ICToken(cWHT).balanceOf(address(this));
         // uint mintCAmt = b1 - b0;
-        TransferHelper.safeTransferFrom(cWHT, address(this), pair, mintCAmt);
+        if (address(this) != pair) {
+            TransferHelper.safeTransferFrom(cWHT, address(this), pair, mintCAmt);
+        }
     }
-
 
     function _amount2CAmount(uint amt, uint rate) private pure returns (uint) {
         return amt.mul(10**18).div(rate);
@@ -594,77 +599,62 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         (amountToken, amountETH) = removeLiquidityETHUnderlying(token, liquidity, amountTokenMin, amountETHMin, to, deadline);
     }
 
-    // **** REMOVE LIQUIDITY (supporting fee-on-transfer tokens) ****
-    // function removeLiquidityETHSupportingFeeOnTransferTokens(
-    //     address token,
-    //     uint liquidity,
-    //     uint amountTokenMin,
-    //     uint amountETHMin,
-    //     address to,
-    //     uint deadline
-    // ) public ensure(deadline) returns (uint amountETH) {
-    //     (, amountETH) = removeLiquidity(
-    //         token,
-    //         WHT,
-    //         liquidity,
-    //         amountTokenMin,
-    //         amountETHMin,
-    //         address(this),
-    //         deadline
-    //     );
-    //     TransferHelper.safeTransfer(token, to, IERC20(token).balanceOf(address(this)));
-    //     IWHT(WHT).withdraw(amountETH);
-    //     TransferHelper.safeTransferETH(to, amountETH);
-    // }
-
-    // function removeLiquidityETHWithPermitSupportingFeeOnTransferTokens(
-    //     address token,
-    //     uint liquidity,
-    //     uint amountTokenMin,
-    //     uint amountETHMin,
-    //     address to,
-    //     uint deadline,
-    //     bool approveMax, uint8 v, bytes32 r, bytes32 s
-    // ) external returns (uint amountETH) {
-    //     address pair = pairFor(token, WHT);
-    //     uint value = approveMax ? uint(- 1) : liquidity;
-    //     IDeBankPair(pair).permit(msg.sender, address(this), value, deadline, v, r, s);
-    //     amountETH = removeLiquidityETHSupportingFeeOnTransferTokens(
-    //         token, liquidity, amountTokenMin, amountETHMin, to, deadline
-    //     );
-    // }
-
     // 兑换手续费, 不收手续费
-    function _swapFee(address pair, uint feeIn, address feeTo) internal returns (uint feeOut) {
+    function _swapFee(address input, address pair, uint feeIn, address feeTo) internal returns (uint feeOut) {
         (uint reserve0, uint reserve1, ) = IDeBankPair(pair).getReserves();
-        feeOut = feeIn.mul(reserve1).div(reserve0.add(feeIn));
-        IDeBankPair(pair).swapNoFee(0, feeOut, feeTo, feeOut);
+        address token0 = IDeBankPair(pair).token0();
+        if (input == token0) {
+            feeOut = feeIn.mul(reserve1).div(reserve0.add(feeIn));
+            IDeBankPair(pair).swapNoFee(0, feeOut, feeTo, 0);
+        } else {
+            feeOut = feeIn.mul(reserve0).div(reserve1.add(feeIn));
+            IDeBankPair(pair).swapNoFee(feeOut, 0, feeTo, 0);
+        }
+        console.log("_swapFee: feeIn=%d feeOut=%d", feeIn, feeOut);
+    }
+
+    struct SwapAnchorParam {
+        uint fr;            // fee rate
+        address input;
+        address cinput;
+        address pair;
+        address feeTo;
+        address anchorToken;
     }
 
     // 将收到的手续费 token 转换为 anchorToken
     // input 为 token
     // swap后得到的是 canchorToken, cUSDT
-    function _swapToCAnchorToken(address input, address pair, address anchorToken) internal returns (uint fee) {
-        address feeTo = IDeBankFactory(factory).feeTo();
-        require(feeTo != address(0), "feeTo not set");
+    function _swapToCAnchorToken(
+                    SwapAnchorParam memory param,
+                    uint amountIn
+                )
+                internal
+                returns (uint feeIn, uint fee) {
+        // address feeTo = IDeBankFactory(factory).feeTo();
+        // uint amountIn = IERC20(_getCtoken(input)).balanceOf(pair);    // 输入转入
+        uint feeRate = param.fr;
+        address pair = param.pair;
+        address input = param.input;
+        address anchorToken = param.anchorToken;
+        address feeTo = param.feeTo;
 
-        uint amountIn = IERC20(_getCtoken(input)).balanceOf(pair);    // 输入转入
-        uint feeRate = IDeBankFactory(factory).feeRateOf(msg.sender);
-        uint feeIn;
+        // uint feeIn;
         if (feeRate == 0) {
             feeIn = IDeBankPair(pair).getFee(amountIn);
         } else {
             feeIn = IDeBankPair(pair).getFee(amountIn, feeRate - 1);
         }
-        // console.log("amountIn: %d  feeIn: %d", amountIn, feeIn);
+        console.log("amountIn: %d  feeIn: %d", amountIn, feeIn);
 
         if (input == anchorToken) {
             // 直接收
             fee = feeIn;
+            IERC20(param.cinput).transfer(feeTo, fee);
             // feeTotal = feeTotal.add(feeIn);
         } else {
             // 兑换成 anchorToken
-            // uint fee = _swapToCAnchorToken(input, amountIn);
+            address cinput = param.cinput; // _getCtoken(input);
             for (uint i; i < quoteTokens.length; i ++) {
                 address token = quoteTokens[i];
                 address tPair = IDeBankFactory(factory).getPair(input, token);
@@ -673,26 +663,24 @@ contract DeBankRouter is IDeBankRouter, Ownable {
                 if (tPair != address(0)) {
                     if (token == anchorToken) {
                         // 兑换成功
-                        IERC20(tPair).transfer(tPair, feeIn);
-                        fee = _swapFee(tPair, feeIn, feeTo);
+                        IERC20(cinput).transfer(tPair, feeIn);
+                        fee = _swapFee(input, tPair, feeIn, feeTo);
                     } else {
                         // 需要两步兑换
                         // 第一步, 兑换为中间币种 例如ht husd btc
                         address pair2 = IDeBankFactory(factory).getPair(token, anchorToken);
                         require(pair2 != address(0), "quote coin has no pair to anchorToken");
-                        IERC20(tPair).transfer(tPair, feeIn);
-                        uint fee1 = _swapFee(tPair, feeIn, pair2);
+                        IERC20(cinput).transfer(tPair, feeIn);
+                        uint fee1 = _swapFee(input, tPair, feeIn, pair2);
                         // 第二步
-                        fee = _swapFee(pair2, fee1, feeTo);
+                        fee = _swapFee(token, pair2, fee1, feeTo);
                     }
                     break;
                 }
             }
         }
 
-        // console.log("_swapToCAnchorToken: input: %s  fee: %d  ", input, fee);
-        // IERC20(anchorToken).transfer(feeTo, fee);
-        return fee;
+        // return fee;
     }
 
     function _updatePairFee(uint fee) private {
@@ -707,20 +695,120 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         }
     }
 
+
+    // 将手续费兑换为 anchor token
+    // 先将手续费收完 !!!
+    function _swap2(uint amtIn, address[] memory path, address _to) internal returns (uint256 amtOut) {
+        SwapAnchorParam memory param;
+
+        param.feeTo = IDeBankFactory(factory).feeTo();
+        require(param.feeTo != address(0), "feeTo not set");
+        param.anchorToken = IDeBankFactory(factory).anchorToken();
+        param.fr = IDeBankFactory(factory).feeRateOf(_to);
+
+        uint amountIn = amtIn;
+        uint feeTotal;
+        for (uint i; i < path.length - 1; i++) {
+            param.input = path[i];
+            param.cinput = _getCtoken(param.input);
+            param.pair = IDeBankFactory(factory).getPair(path[i], path[i+1]);
+            // address feeTo = IDeBankFactory(factory).feeTo();
+            // uint amountOut = amounts[i + 1];
+            
+            // (uint amount0Out, uint amount1Out) = input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
+            // (uint feeIn, uint fee) = _swapToCAnchorToken(amountIn, input, pair, anchorToken, feeTo, fr);
+            // console.log("fee:", fee);
+            // // if (fee > 0) {
+            //     feeTotal += fee;
+            // // }
+
+            // // transfer to pair
+
+            // amountIn = amountIn.sub(feeIn);
+            // // input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
+            // (uint amount0Out, uint amount1Out) = _calcAmountOut(input, pair, amountIn);
+            // IERC20(input).transfer(pair, amountIn);
+            address to = i < path.length - 2 ? address(this) : _to;
+            // IDeBankPair(pair).swapNoFee(
+            //     amount0Out, amount1Out, to, fee
+            // );
+            // amountIn = amount1Out;
+            (uint amtOut, uint fee) = _doSwapAnchorToken(param, amountIn, to);
+            feeTotal += fee;
+            amountIn = amtOut;
+        }
+
+        if (swapMining != address(0)) {
+            // 交易挖矿
+            ISwapMining(swapMining).swap(msg.sender, path[0], path[1], feeTotal);
+        }
+
+        if (feeTotal > 0) {
+            _updatePairFee(feeTotal);
+        }
+        return amountIn;
+    }
+
+    function _doSwapAnchorToken(
+                    SwapAnchorParam memory param,
+                    uint amountIn,
+                    address to
+                )
+                internal
+                returns (uint, uint) {
+        address input = param.input;
+        address pair = param.pair;
+        // address anchorToken = param.anchorToken;
+        // uint fr = param.fr;
+
+        console.log("before swapfee: balance: %d transfer: %d", IERC20(param.cinput).balanceOf(address(this)), amountIn);
+        (uint feeIn, uint fee) = _swapToCAnchorToken(param, amountIn);
+        // transfer to pair
+
+        amountIn = amountIn.sub(feeIn);
+        // input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
+        (uint amount0Out, uint amount1Out, uint amountOut) = _calcAmountOut(input, pair, amountIn);
+        console.log("amountIn: %d amount0Out: %d amount1Out: %d", amountIn, amount0Out, amount1Out);
+        console.log("balance: %d transfer: %d", IERC20(param.cinput).balanceOf(address(this)), amountIn);
+        IERC20(param.cinput).transfer(pair, amountIn);
+        console.log("before swap");
+        // address to = i < path.length - 2 ? address(this) : _to;
+        IDeBankPair(pair).swapNoFee(
+            amount0Out, amount1Out, to, fee
+        );
+        // amountIn = amount1Out;
+        // return ()
+        return (amountOut, fee);
+    }
+
+    function _calcAmountOut(address input, address pair, uint amtIn) internal returns (uint out0, uint out1, uint out) {
+        address token0 = IDeBankPair(pair).token0(); // IDeBankFactory(factory).sortTokens(input, output);
+        (uint reserve0, uint reserve1,) = IDeBankPair(pair).getReserves();
+        if (input == token0) {
+            out0 = 0;
+            out1 = amtIn.mul(reserve1) / (reserve0 + amtIn);
+            out = out1;
+        } else {
+            out1 = 0;
+            out0 = amtIn.mul(reserve0) / (reserve1 + amtIn);
+            out = out0;
+        }
+    }
+
     // **** SWAP ****
     // amounts 为 ctoken 的 amount
     // path 中的 token 均为 token, 调用前请转换！！！
     // requires the initial amount to have already been sent to the first pair
     function _swap(uint[] memory amounts, address[] memory path, address _to) internal {
         // uint feeTotal;  // by anchorToken
-        address anchorToken = IDeBankFactory(factory).anchorToken();
+        // address anchorToken = IDeBankFactory(factory).anchorToken();
         // address[] memory path = _cpath2path(cpath);
 
         // console.log("_swap ....");
         for (uint i; i < path.length - 1; i++) {
             (address input, address output) = (path[i], path[i + 1]);
             (address token0,) = IDeBankFactory(factory).sortTokens(input, output);
-            address pair = IDeBankFactory(factory).getPair(path[i], path[i + 1]);
+            // address pair = IDeBankFactory(factory).getPair(path[i], path[i + 1]);
             // address feeTo = IDeBankFactory(factory).feeTo();
             // uint feeRate = IDeBankPair(pair).feeRate();
             uint amountOut = amounts[i + 1];
@@ -735,26 +823,28 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             
             (uint amount0Out, uint amount1Out) = input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
             address to = i < path.length - 2 ? pairFor(output, path[i + 2]) : _to;
-            if (feeAlloc == 1) {
-                // 收手续费, 并将手续费兑换为 canchorToken(cUSDT)
-                uint fee = _swapToCAnchorToken(input, pair, anchorToken);
-                if (fee > 0) {
-                    _updatePairFee(fee);
-                }
+            // if (feeAlloc == 1) {
+            //     // 收手续费, 并将手续费兑换为 canchorToken(cUSDT)
+            //     uint fee = _swapToCAnchorToken(amounts[i], input, pair, anchorToken);
+            //     console.log("fee:", fee);
+            //     if (fee > 0) {
+            //         _updatePairFee(fee);
+            //     }
 
-                if (swapMining != address(0)) {
-                    // 交易挖矿
-                    ISwapMining(swapMining).swap(msg.sender, input, output, fee);
-                }
+            //     if (swapMining != address(0)) {
+            //         // 交易挖矿
+            //         ISwapMining(swapMining).swap(msg.sender, input, output, fee);
+            //     }
 
-                IDeBankPair(pairFor(input, output)).swapNoFee(
-                    amount0Out, amount1Out, to, fee
-                );
-            } else {
+            //     // transfer to pair
+            //     IDeBankPair(pairFor(input, output)).swapNoFee(
+            //         amount0Out, amount1Out, to, fee
+            //     );
+            // } else {
                 IDeBankPair(pairFor(input, output)).swap(
                     amount0Out, amount1Out, to, new bytes(0)
                 );
-            }
+            // }
         }
     }
 
@@ -790,8 +880,13 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // _safeTransferCtoken(
         //     path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
         // );
-        TransferHelper.safeTransferFrom(cpath[0], msg.sender, pairFor(path[0], path[1]), amounts[0]);
-        _swap(amounts, path, to);
+        if (feeAlloc == 0) {
+            TransferHelper.safeTransferFrom(cpath[0], msg.sender, pairFor(path[0], path[1]), amounts[0]);
+            _swap(amounts, path, to);
+        } else {
+            TransferHelper.safeTransferFrom(cpath[0], msg.sender, address(this), amounts[0]);
+            _swap2(amountIn, path, to);
+        }
     }
 
     // amount token 均为 ctoken
@@ -809,10 +904,14 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // _safeTransferCtoken(
         //     path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
         // );
-        TransferHelper.safeTransferFrom(cpath[0], msg.sender, pairFor(path[0], path[1]), amounts[0]);
-        _swap(amounts, path, to);
+        if (feeAlloc == 0) {
+            TransferHelper.safeTransferFrom(cpath[0], msg.sender, pairFor(path[0], path[1]), amounts[0]);
+            _swap(amounts, path, to);
+        } else {
+            TransferHelper.safeTransferFrom(cpath[0], msg.sender, address(this), amounts[0]);
+            _swap2(amounts[0], path, to);
+        }
     }
-
 
     function _swapExactTokensForTokensUnderlying(
         uint amountIn,
@@ -825,39 +924,56 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     ) private ensure(deadline) returns (uint[] memory amounts) {
         // console.log('_swapExactTokensForTokensUnderlying ....');
         address[] memory cpath = _path2cpath(path);
+        address mintTo;
+        if (feeAlloc == 0) {
+            mintTo = pairFor(path[0], path[1]);
+        } else {
+            mintTo = address(this);
+        }
+        if (ethIn) {
+            _mintTransferEth(mintTo, amountIn);
+        } else {
+            _mintTransferCToken(path[0], cpath[0], mintTo, amountIn);
+        }
+        console.log("mint transfer ok: %d", amountIn);
+
         SwapLocalVars memory vars;
         vars.amountIn = amountIn;
         vars.rate0 = _cTokenExchangeRate(cpath[0]);
         vars.rate1 = _cTokenExchangeRate(cpath[0]);
         uint camtIn = _amount2CAmount(amountIn, vars.rate0);
-        uint[] memory camounts = IDeBankFactory(factory).getAmountsOut(camtIn, path, to);
-        // console.log("_swapExactTokensForTokensUnderlying: in/out: %d %d", camounts[0], camounts[camounts.length-1]);
-
-        // console.log(camounts[0], camounts[1]);
-        vars.amountOut = _camount2Amount(camounts[camounts.length - 1], vars.rate1);
-        require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
+        uint camtOut;
         // _safeTransferCtoken(
         //     path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
         // );
-        if (ethIn) {
-            _mintTransferEth(pairFor(path[0], path[1]), amountIn);
-        } else {
-            _mintTransferCToken(path[0], cpath[0], pairFor(path[0], path[1]), vars.amountIn);
-        }
 
         // TransferHelper.safeTransferFrom(path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]);
         // 先将 ctoken 转给 router
-        _swap(camounts, path, address(this));
+        if (feeAlloc == 0) {
+            uint[] memory camounts = IDeBankFactory(factory).getAmountsOut(camtIn, path, to);
+            console.log("_swapExactTokensForTokensUnderlying: in/out: %d %d", camounts[0], camounts[camounts.length-1]);
+
+            console.log("camounts: ", camounts[0], camounts[1]);
+            camtOut = camounts[camounts.length-1];
+            vars.amountOut = _camount2Amount(camtOut, vars.rate1);
+            require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
+            _swap(camounts, path, address(this));
+        } else {
+            camtOut = _swap2(camtIn, path, address(this));
+            require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
+        }
+
+        // vars.amountOut = 
         uint idx = path.length - 1;
         if (ethOut) {
-            _redeemCETHTransfer(to, camounts[idx]);
+            _redeemCETHTransfer(to, camtOut);
         } else {
-            _redeemCTokenTransfer(cpath[idx], path[idx], to, camounts[idx]);
+            _redeemCTokenTransfer(cpath[idx], path[idx], to, camtOut);
         }
 
         amounts = new uint[](path.length);
         amounts[0] = amountIn;
-        amounts[idx] = vars.amountOut;
+        amounts[idx] = _camount2Amount(camtOut, vars.rate1);
     }
 
     // amount token 均为 token
@@ -900,6 +1016,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         uint amountOut;
     }
 
+    /*
     function _swapTokensForExactTokensUnderlying(
         uint amountOut,
         uint amountInMax,
@@ -917,7 +1034,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         vars.rate1 = _cTokenExchangeRate(cpath[path.length-1]);
         uint camtOut = _amount2CAmount(amountOut, vars.rate1);
         uint[] memory camounts = IDeBankFactory(factory).getAmountsIn(camtOut, path, to);
-        // console.log("camounts:", camounts[0], camounts[1], camtOut);
+        console.log("camounts:", camounts[0], camounts[1], camtOut);
         
         vars.amountIn = _camount2Amount(camounts[0], vars.rate0);
         // 上一步中舍去的 1
@@ -932,6 +1049,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         } else {
             _mintTransferCToken(path[0], cpath[0], pairFor(path[0], path[1]), vars.amountIn);
         }
+        console.log("mint transfer ok: %d", vars.amountIn);
         // TransferHelper.safeTransferFrom(path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]);
         // 先转给 router, 再由 router redeem 后, 转给 to
         _swap(camounts, path, address(this));
@@ -941,6 +1059,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         } else {
             _redeemCTokenTransfer(cpath[idx], path[idx], to, camounts[idx]);
         }
+        console.log("redeem transfer ok: %d", camounts[idx]);
 
         amounts = new uint[](path.length);
         amounts[0] = vars.amountIn;
@@ -978,6 +1097,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // amounts[0] = amountIn;
         // amounts[idx] = amountOut;
     }
+    */
 
     function swapExactETHForTokensUnderlying(uint amountOutMin, address[] calldata path, address to, uint deadline)
         external
@@ -985,7 +1105,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         ensure(deadline)
         returns (uint[] memory amounts)
     {
-        // console.log('swapExactETHForTokensUnderlying ....');
+        console.log('swapExactETHForTokensUnderlying: %d ....', msg.value);
         require(path[0] == WHT, 'Router: INVALID_PATH');
         amounts = _swapExactTokensForTokensUnderlying(msg.value, amountOutMin, path, to, deadline, true, false);
         // amounts = IDeBankFactory(factory).getAmountsOut(msg.value, path);
@@ -995,6 +1115,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // _swap(amounts, path, to);
     }
 
+    /*
     function swapTokensForExactETHUnderlying(uint amountOut, uint amountInMax, address[] calldata path, address to, uint deadline)
         external
         ensure(deadline)
@@ -1012,6 +1133,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // IWHT(WHT).withdraw(amounts[amounts.length - 1]);
         // TransferHelper.safeTransferETH(to, amounts[amounts.length - 1]);
     }
+    */
 
     function swapExactTokensForETHUnderlying(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline)
         external
@@ -1031,6 +1153,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // TransferHelper.safeTransferETH(to, amounts[amounts.length - 1]);
     }
 
+    /*
     function swapETHForExactTokensUnderlying(uint amountOut, address[] calldata path, address to, uint deadline)
         external
         payable
@@ -1048,6 +1171,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // // refund dust eth, if any
         // if (msg.value > amounts[0]) TransferHelper.safeTransferETH(msg.sender, msg.value - amounts[0]);
     }
+    */
 
     function adminTransfer(address token, address to, uint amt) external onlyOwner {
         if (token == address(0)) {
