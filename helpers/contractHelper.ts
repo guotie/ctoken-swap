@@ -10,6 +10,7 @@ import { abi as pairABI } from './abi/DeBankPair.json'
 import { abi as orderBookABI } from './abi/OrderBook.json'
 import { abi as ebeTokenABI } from './abi/EbeToken.json'
 import { abi as hecoPoolABI } from './abi/HecoPool.json'
+import { abi as stepSwapABI } from './abi/StepSwap.json'
 import { abi as ctokenFactoryABI } from './abi/LErc20DelegatorFactory.json'
 import { zeroAddress } from '../deployments/deploys';
 import { IToken } from './token';
@@ -58,7 +59,7 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'Router': '0xb18911609A5b9C7abDc7DBdA585Ae83F01ced0C5', // '0x9f186BC496e62dBd41d845f188eA1eA28C6EEF71', //'0xB83181Fca94A3aeE1B832A4EeF50f232D2AbE054', // '0xD70C027A1893f4A0fe3002c56AB63137942B5D6B',
         'SwapMining': '',
         'OrderBook': '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
-        'StepSwap': '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
+        'StepSwap': '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6', // '0xf01d1e989ac2ffe37cf6e894a16978c47142791e0' // 
     },
     'hardhat' : {
         'USDT': '',
@@ -200,6 +201,10 @@ function getHecoPollContract(address = contractAddress[NETWORK]['HecoPool'], sig
     return new Contract(address, hecoPoolABI, signer ?? getProvider())
 }
 
+function getStepSwapContract(address = contractAddress[NETWORK]['StepSwap'], signer?: Signer | Provider) {
+    return new Contract(address, stepSwapABI, signer ?? getProvider())
+}
+
 // 根据 abi 地址获取 Contract
 function getContractByAddressABI(addr: string, abi: string, signer?: Signer | Provider) {
     return new Contract(addr, abi, signer ?? getProvider())
@@ -266,6 +271,7 @@ export {
     getTokenContract,
     getCTokenContract,
     getOrderbookContract,
+    getStepSwapContract,
     getCTokenFactoryContract,
     getContractByAddressABI,
     getContractByAddressName
