@@ -398,6 +398,7 @@ export {
     FLAG_TOKEN_OUT_TOKEN,
     FLAG_TOKEN_OUT_CTOKEN,
 
+    SwapReserveRates,
     uniswapLikeSwap,
     calcExchangeListSwap,
     findBestDistribution,
