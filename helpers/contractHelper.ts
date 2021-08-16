@@ -10,10 +10,12 @@ import { abi as pairABI } from './abi/DeBankPair.json'
 import { abi as orderBookABI } from './abi/OrderBook.json'
 import { abi as ebeTokenABI } from './abi/EbeToken.json'
 import { abi as hecoPoolABI } from './abi/HecoPool.json'
+import { abi as mdexFactoryABI } from './abi/MdexFactory.json'
+import { abi as mdexRouterABI } from './abi/MdexRouter.json'
+import { abi as stepSwapABI } from './abi/StepSwap.json'
 import { abi as ctokenFactoryABI } from './abi/LErc20DelegatorFactory.json'
 import { zeroAddress } from '../deployments/deploys';
 import { IToken } from './token';
-import { boolean } from 'hardhat/internal/core/params/argumentTypes';
 
 const hre = require('hardhat')
 
@@ -21,6 +23,7 @@ type TokenContractName = 'USDT'
                     | 'SEA'
                     | 'DOGE'
                     | 'SHIB'
+                    | 'HBTC'
                     | 'WETH'
                     | 'WHT'
                     | 'CETH'
@@ -47,6 +50,7 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'WETH': '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
         'WHT':  '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
         'CETH': '0x042f1249297EF180f33d166828AC43e401E0FecA',
+        'HBTC': '0x1d8684e6cdd65383affd3d5cf8263fcda5001f13',
         // 0xa5142692F4B9ffa9FcC328aB92cFAb06C889f89F 不限制 router 地址
         'CtokenFactory': '0xF4CfC260cA8F68f3069FbEc534afbA21E0903b4b', // '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
         'Comptroller': '0xc16BB0ea6817BdC592a525208c19a9Aa43FdC0d1',
@@ -200,6 +204,10 @@ function getHecoPollContract(address = contractAddress[NETWORK]['HecoPool'], sig
     return new Contract(address, hecoPoolABI, signer ?? getProvider())
 }
 
+function getStepSwapContract(address?: string, signer?: Signer | Provider) {
+    return new Contract(address ?? contractAddress[NETWORK]['StepSwap'], stepSwapABI, signer ?? getProvider())
+}
+
 // 根据 abi 地址获取 Contract
 function getContractByAddressABI(addr: string, abi: string, signer?: Signer | Provider) {
     return new Contract(addr, abi, signer ?? getProvider())
@@ -211,6 +219,14 @@ async function getContractByAddressName(addr: string, name: string, signer?: Sig
     return new Contract(addr, art.abi, signer ?? getProvider())
 }
 
+function getMdexFactoryContract(addr: string, signer: Signer | Provider) {
+    return new Contract(addr, mdexFactoryABI, signer ?? getProvider())
+}
+
+function getMdexRouterContract(addr: string, signer: Signer | Provider) {
+    return new Contract(addr, mdexRouterABI, signer ?? getProvider())
+
+}
 
 async function getBalance(token: IToken, owner: string): Promise<BigNumber> {
     let balance
@@ -265,8 +281,11 @@ export {
     getTakerSigner,
     getTokenContract,
     getCTokenContract,
+    getStepSwapContract,
     getOrderbookContract,
     getCTokenFactoryContract,
     getContractByAddressABI,
-    getContractByAddressName
+    getContractByAddressName,
+    getMdexFactoryContract,
+    getMdexRouterContract,
 }

@@ -33,7 +33,7 @@ async function getMockToken(tokenName: string, total?: BigNumberish, decimals = 
 
     if (networkName === 'hardhat') {
         if (!tokenHasExist(tokenName as TokenContractName)) {
-            let token = await deployToken(tokenName, BigNumber.from(total!), decimals)
+            let token = await deployToken(tokenName, BigNumber.from(total ?? '100000000000000000000000000000'), decimals)
             setTokenAddress(token)
             return token
         }
