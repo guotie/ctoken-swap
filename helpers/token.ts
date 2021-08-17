@@ -91,7 +91,6 @@ function decimalsToBignumber(decimals: number): BigNumber {
     return base
 }
 
-
 const readableTokenAmount = (token: IToken, amt: BigNumberish) => {
     return BigNumber.from(amt).mul(decimalsToBignumber(token.decimals))        
 }

@@ -51,18 +51,24 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     LErc20DelegatorInterface public ctokenFactory;
 
     // 所有交易对产生的手续费收入, 各个交易对根据占比分配收益
-    uint public allPairFee;
+    // uint public allPairFee;
     // 上一个块的总手续费
-    uint public allPairFeeLastBlock;
+    // uint public allPairFeeLastBlock;
     // 开始分配收益的块
     // uint public startBlock;
     // 记录当前手续费的块数
-    uint public currentBlock;
+    // uint public currentBlock;
+
+    address public rewardToken;     // 收益 token
+
+    uint256 public swapFeeTotal;       // 累计交易手续费
+    uint256 public swapFeeCurrent;     // 累计交易手续费 - 已经提取了 reward 的
+    uint256 public swapFeeLastBlock;   // 最后一次 mint 的块
+    uint256 public ebeRewards;         // 待分配的 ebe
     // tokens created per block to all pair LP
     // uint256 public lpPerBlock;      // LP 每块收益
     // uint256 public traderPerBlock;  // 交易者每块收益
-    address public rewardToken;     // 收益 token
-    uint public ebePerBlock;        // lp 每块分配多少个 ebe
+    uint256 public ebePerBlock;        // lp 每块分配多少个 ebe
     // address public lpDepositAddr;   // compound 流动性抵押
     // address public compAddr;        // compound unitroller
     uint256 public feeAlloc;        // 手续费分配方案: 0: 分配给LP; 1: 不分配给LP, 平台收取后兑换为 anchorToken
@@ -149,13 +155,33 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         return IEBEToken(rewardToken).reward(ebePerBlock, blockNumber);
     }
 
+    function pendingEBE() public view returns (uint256) {
+        if (rewardToken == address(0)) {
+            return 0;
+        }
+        return IEBEToken(rewardToken).getEbeReward(ebePerBlock, swapFeeLastBlock);
+    }
+
     // 只能 pair 地址调用该方法
-    function mintEBEToken(address token0, address token1, address _to, uint256 _amount) external returns (bool) {
+    function mintEBEToken(address token0, address token1, uint256 _amount) external returns (uint) {
         //
         address pair = pairFor(token0, token1);
         require(msg.sender == pair, "pair not equal");
 
-        return IEBEToken(rewardToken).mint(_to, _amount);
+        if (swapFeeLastBlock < block.number) {
+            uint amt = IEBEToken(rewardToken).getEbeReward(ebePerBlock, swapFeeLastBlock);
+            IEBEToken(rewardToken).mint(address(this), amt);
+            swapFeeLastBlock = block.number;
+        }
+
+        // 将 pair 的收益转给 pair
+        uint totalEbe = IERC20(rewardToken).balanceOf(address(this));
+        if (swapFeeCurrent >= _amount) {
+            uint part = _amount.mul(totalEbe).div(swapFeeCurrent);
+            IEBEToken(rewardToken).transfer(pair, part);
+            return part;
+        }
+        return 0;
     }
 
     function _getOrCreateCtoken(address token) private returns (address ctoken) {
@@ -685,14 +711,16 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
     function _updatePairFee(uint fee) private {
         // 更新所有交易对的手续费
-        if (currentBlock == block.number) {
-            allPairFee += fee;
-        } else {
-            //
-            allPairFeeLastBlock = allPairFee;
-            allPairFee = fee;
-            currentBlock = block.number;
-        }
+        // if (currentBlock == block.number) {
+        //     allPairFee += fee;
+        // } else {
+        //     //
+        //     allPairFeeLastBlock = allPairFee;
+        //     allPairFee = fee;
+        //     currentBlock = block.number;
+        // }
+        swapFeeTotal += fee;
+        swapFeeCurrent += fee;
     }
 
 

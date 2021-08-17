@@ -75,6 +75,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
     // 更新上一块的手续费分成
     // 更新本块的手续费总和
     function _updateBlockFee(uint fee) private {
+        /*
         // console.log("_updateBlockFee: current block=%d fee=%d block.number=%d", currentBlock, fee, block.number);
         if (currentBlock == block.number) {
             blockFee = blockFee.add(fee);
@@ -105,14 +106,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         // 重新累计这个块的手续费
         currentBlock = block.number;
         blockFee = fee;
-    }
-    
-    function _updateRewardShare() internal {
-        _updateBlockFee(0);
-
-        // if (totalSupply > 0) {
-        //   accPerShare = rewards / totalSupply;
-        // }
+        */
     }
 
     // 更新 mintAccPerShare
@@ -138,7 +132,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         // if (to == address(0)) {
         //     return;
         // }
-        _updateRewardShare();
+        _updateBlockFee(0);
         // ctoken 挖矿, 负债, 在 totalSupply 增加之前更新
         _updateCtokenMintPerShare();
         // console.log("update ctoken mint share done");
@@ -152,7 +146,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         } else {
             lpReward.pendingReward += amt.mul(perShare);
             lpReward.amount += value;
-            lpReward.rewardDebt = amt.mul(perShare);
+            lpReward.rewardDebt = lpReward.amount.mul(perShare); // amt.mul(perShare);
         }
         // console.log("_mint %s LPReward.amount:", to, lpReward.amount);
 
@@ -238,8 +232,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         // 更改挖矿权
         // address addr = _getLPDepositAddr();
         if (_isMintExcludeAddr(from) == false && _isMintExcludeAddr(to) == false) {
-            _updateRewardShare();
-            // console.log("_updateRewardShare done");
+            _updateBlockFee(0);
             // ctoken 挖矿, 负债, 在 totalSupply 减少之前更新
             _updateCtokenMintPerShare();
             // console.log("_updateCtokenMintPerShare done");
@@ -468,6 +461,25 @@ contract DeBankPair is IDeBankPair, PairStorage {
 
     // }
 
+    function _mintUserEBE(address to, uint liquidity) internal {
+        IDeBankRouter router = IDeBankRouter(IDeBankFactory(factory).router());
+        address ebe = router.rewardToken();
+        
+        if (ebe != address(0)) {
+            if (currentFee > 0) {
+                router.mintEBEToken(token0, token1, currentFee);
+                currentFee = 0;
+            }
+
+            uint ebeAmt = IERC20(ebe).balanceOf(address(this));
+            // 
+            if (ebeAmt > 0) {
+                uint userAmt = liquidity.mul(ebeAmt).div(totalSupply);
+                IERC20(ebe).transfer(to, userAmt);
+            }
+        }
+    }
+
     // 操作的是 ctoken 2021/05/25
     // this low-level function should be called from a contract which performs important safety checks
     function burn(address to) external lock returns (uint amount0, uint amount1) {
@@ -500,7 +512,8 @@ contract DeBankPair is IDeBankPair, PairStorage {
 
         // console.log("after _mintFee:", amount0, amount1);
 
-        _updateRewardShare();
+        _updateBlockFee(0);
+        _mintUserEBE(to, liquidity);
         // ctoken 挖矿, 负债, 在 totalSupply 减少之前更新
         _updateCtokenMintPerShare();
 

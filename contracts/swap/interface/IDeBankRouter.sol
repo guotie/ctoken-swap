@@ -26,7 +26,12 @@ interface IDeBankRouter {
 
     function rewardToken() external view returns (address);
 
-    function mintEBEToken(address token0, address token1, address _to, uint256 _amount) external returns (bool);
+    // 当前平台所有未分配手续费总数
+    function swapFeeCurrent() external view returns(uint256);
+
+    function pendingEBE() external view returns (uint256);
+
+    function mintEBEToken(address token0, address token1, uint256 _amount) external returns (uint);
 
     // function lpDepositAddr() external view returns (address);
     

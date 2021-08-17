@@ -220,6 +220,30 @@ async function deployEbeHecoPool() {
     await ebec.setMinter(pool.address, true)
 }
 
+async function deployStepSwap() {
+    let namedSigners = await ethers.getSigners()
+    , deployer = namedSigners[0].address
+
+  let e = await _deployMock('Exchanges', { args: [] })
+    , p = await _deployMock('PathFinder', { args: [] })
+    , s = await _deployMock('SwapFlag', { args: [], })
+    , wethAddr = addressOf('WETH')
+    , ceth = addressOf('CETH')
+    , ctokenFactory = addressOf('CtokenFactory')
+    , result = await _deployMock('StepSwap', {
+      args: [wethAddr, ceth, ctokenFactory],
+      libraries: {
+          // DataTypes: d.address,
+          Exchanges: e.address,
+          PathFinder: p.address,
+          SwapFlag: s.address,
+      },
+      // deterministicDeployment: false, // new Date().toString()
+    })
+
+    setContractAddress('StepSwap', result.address)
+}
+
 // deploy javascript vm env
 export async function deployMockContracts() {
     await deployTokens()
@@ -234,6 +258,7 @@ export async function deployMockContracts() {
     await deploySwap()
     await deployOrderBook()
     await deployEbeHecoPool()
+    await deployStepSwap()
 
     console.log('contracts:', dumpAddresses())
 }

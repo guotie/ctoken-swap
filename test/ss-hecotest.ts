@@ -104,7 +104,7 @@ describe("聚合交易测试", function() {
     // })
 
     it('print selector', async () => {
-        let selector = stepSwapC.functions['buildSwapRouteSteps']
+        let selector = stepSwapC.functions // ['buildSwapRouteSteps']
         console.log(selector)
     })
     // it('add liquidity usdt-hbtc', async () => {
