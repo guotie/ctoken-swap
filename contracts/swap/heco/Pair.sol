@@ -458,7 +458,6 @@ contract DeBankPair is IDeBankPair, PairStorage {
     //     // LP 抵押需要使用专门的方法
     //     address lpDepositAddr;
     //     require(msg.sender == lpDepositAddr, "LP burn");
-
     // }
 
     function _mintUserEBE(address to, uint liquidity) internal {
@@ -474,6 +473,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
             uint ebeAmt = IERC20(ebe).balanceOf(address(this));
             // 
             if (ebeAmt > 0) {
+                // todo 按照 rewardDebt 分配平台币
                 uint userAmt = liquidity.mul(ebeAmt).div(totalSupply);
                 IERC20(ebe).transfer(to, userAmt);
             }
