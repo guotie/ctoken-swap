@@ -75,6 +75,8 @@ contract DeBankPair is IDeBankPair, PairStorage {
     // 更新上一块的手续费分成
     // 更新本块的手续费总和
     function _updateBlockFee(uint fee) private {
+        totalFee += fee;
+        currentFee += fee;
         /*
         // console.log("_updateBlockFee: current block=%d fee=%d block.number=%d", currentBlock, fee, block.number);
         if (currentBlock == block.number) {
@@ -109,44 +111,140 @@ contract DeBankPair is IDeBankPair, PairStorage {
         */
     }
 
-    // 更新 mintAccPerShare
-    function _updateCtokenMintPerShare() internal {
-        if (ctokenRewordBlock == block.number) {
+    // 从 router 那里 mint 手续费ebe: router 首先 mint 全平台的 ebe 分成，然后把 pair 的那部分转给 pair
+    function _mintPairEBE() private returns (uint amt) {
+        IDeBankRouter router = IDeBankRouter(IDeBankFactory(factory).router());
+        amt = router.mintEBEToken(token0, token1, currentFee);
+        
+        currentFee = 0;
+    }
+
+    // 领取交易对两个 ctoken 的存币挖矿收益
+    function _claimPairComp() private returns (uint) {
+        address lhbToken = IDeBankRouter(IDeBankFactory(factory).router()).rewardToken();
+        uint bal0 = IERC20(lhbToken).balanceOf(address(this));
+
+        address unitroller = IDeBankFactory(factory).compAddr();    // 从 factory/router 中获取
+        CToken[] memory cTokens = new CToken[](2); // memory cTokens
+        cTokens[0] = CToken(cToken0);
+        cTokens[1] = CToken(cToken1);
+
+        IUnitroller(unitroller).claimComp(address(this), cTokens);
+        uint bal1 = IERC20(lhbToken).balanceOf(address(this));
+        return bal1.sub(bal0);
+    }
+
+    // 更新收益
+    function _updateEBEPerShare() private {
+        if (lastBlock == block.number) {
             return;
         }
-        // console.log("before _lhbTotalBlance");
-        uint curr = _lhbTotalBlance();
-        // console.log("curr=%d", curr, ctokenMintRewards);
-        if (curr > ctokenMintRewards) {
-            uint per = curr.sub(ctokenMintRewards);
-            if (totalSupply > 0) {
-                mintAccPerShare = mintAccPerShare.add(per.div(totalSupply));
-            }
+        lastBlock = block.number;
+        // 手续费所得 ebe 分成
+        uint feeAmt = _mintPairEBE();
+        uint compAmt = _claimPairComp();
+        uint total = feeAmt + compAmt;
+        if (total > 0) {
+            // 更新 per share
+            mintAccPerShare += total.mul(1e18).div(totalSupply);
         }
-        ctokenMintRewards = curr;
-        ctokenRewordBlock = block.number;
-        // console.log("_updateCtokenMintPerShare done");
+    }
+
+    // 地址是否没有挖矿权. true: 没有挖矿权; false: 有挖矿权
+    // HecoPool 合约地址不能挖矿
+    // LP 转给抵押合约时
+    function _isMintDisable(address addr) internal returns (bool) {
+        // 调用 factory 来判断
+        return IDeBankFactory(factory).mintFreeAddress(addr);
+    }
+
+    // // 更新 mintAccPerShare
+    // function _updateCtokenMintPerShare() internal {
+    //     if (ctokenRewordBlock == block.number) {
+    //         return;
+    //     }
+    //     // console.log("before _lhbTotalBlance");
+    //     uint curr = _lhbTotalBlance();
+    //     // console.log("curr=%d", curr, ctokenMintRewards);
+    //     if (curr > ctokenMintRewards) {
+    //         uint per = curr.sub(ctokenMintRewards);
+    //         if (totalSupply > 0) {
+    //             mintAccPerShare = mintAccPerShare.add(per.div(totalSupply));
+    //         }
+    //     }
+    //     ctokenMintRewards = curr;
+    //     ctokenRewordBlock = block.number;
+    //     // console.log("_updateCtokenMintPerShare done");
+    // }
+
+    // 更新 用户 的 ebe 数量, 如果需要转账, 将 ebe 转给用户
+    function withdrawEBEReward(address to) public returns (uint) {
+        if (_isMintDisable(to)) {
+            return 0;
+        }
+
+        // 更新 pair 的每股收益
+        _updateEBEPerShare();
+        // 更新用户的
+        return _updateUserEBEReward(to, 0, true, true);
+    }
+
+    function _updateUserEBEReward(address to, uint value, bool incVal, bool transfer) internal returns (uint transfered) {
+        LPReward storage lpReward = mintRewardOf[to];
+        uint amt = lpReward.amount;
+        uint _perShare = mintAccPerShare;
+        
+        if (amt == 0) {
+            // 待发放收益为 0
+            require(incVal == true, "no amt to dec");
+            lpReward.amount = value;
+            lpReward.rewardDebt = value.mul(_perShare);
+            return 0;
+        }
+
+        if (value > 0) {
+            // 更新 pending 收益 及 负债收益
+            lpReward.pendingReward += amt.mul(_perShare).sub(lpReward.rewardDebt);
+            if (incVal) {
+                amt = amt.add(value);
+            } else {
+                amt = amt.sub(value);
+            }
+            lpReward.amount = amt;
+            lpReward.rewardDebt = amt.mul(_perShare); // amt.mul(perShare);
+        }
+
+        if (transfer) {
+            address rewardToken = IDeBankRouter(IDeBankFactory(factory).router()).rewardToken();
+            require(rewardToken != address(0), "rewardToken not set");
+
+            transfered = lpReward.pendingReward.add(amt.mul(_perShare).sub(lpReward.rewardDebt)).div(1e18);
+            lpReward.rewardDebt = amt.mul(_perShare);
+            // 转给 to
+            IERC20(rewardToken).transfer(to, transfered);
+            lpReward.pendingReward = 0;
+        }
     }
 
     function _mint(address to, uint value) internal {
-        // if (to == address(0)) {
-        //     return;
-        // }
-        _updateBlockFee(0);
-        // ctoken 挖矿, 负债, 在 totalSupply 增加之前更新
-        _updateCtokenMintPerShare();
-        // console.log("update ctoken mint share done");
+        if (to != address(0)) {
+            _updateEBEPerShare();
 
-        LPReward storage lpReward = mintRewardOf[to];
-        uint amt = lpReward.amount;
-        uint perShare = accPerShare.add(mintAccPerShare);
-        if (amt == 0) {
-            lpReward.amount = value;
-            lpReward.rewardDebt = value.mul(perShare);
-        } else {
-            lpReward.pendingReward += amt.mul(perShare);
-            lpReward.amount += value;
-            lpReward.rewardDebt = lpReward.amount.mul(perShare); // amt.mul(perShare);
+            // 更新用户的 ebe reward
+            _updateUserEBEReward(to, value, true, false);
+
+            // LPReward storage lpReward = mintRewardOf[to];
+            // uint amt = lpReward.amount;
+            // uint _perShare = mintAccPerShare;
+            // if (amt == 0) {
+            //     lpReward.amount = value;
+            //     lpReward.rewardDebt = value.mul(_perShare);
+            // } else {
+            //     lpReward.pendingReward += amt.mul(_perShare);
+            //     amt += value;
+            //     lpReward.amount += amt;
+            //     lpReward.rewardDebt = amt.mul(_perShare); // amt.mul(perShare);
+            // }
         }
         // console.log("_mint %s LPReward.amount:", to, lpReward.amount);
 
@@ -157,59 +255,11 @@ contract DeBankPair is IDeBankPair, PairStorage {
         emit Transfer(address(0), to, value);
     }
 
-    // 挖矿收益转账给用户
-    function _transferMintReword(address rewardToken, address to, uint reward) private {
-        uint total = _lhbBalance();
-        if (total < reward) {
-            _claimPairComp();
-            total = _lhbBalance();
-            if (total < reward) {
-                // should not reach here
-                mintRewardDebt = mintRewardDebt.add(reward).sub(total); // 记录不够的数量
-                reward = total;
-                // return;
-            }
-        }
-
-        if (reward > 0) {
-            _safeTransfer(rewardToken, to, reward);
-        }
-    }
-
-    /// @dev 计算用户的挖矿收益, 已有的挖矿收益转给用户, 重新设置用户的负债
-    /// @param from 用户地址
-    /// @param value 用户 LP 数量增加或减少的数量
-    /// @param inc 增加: true; 减少: false
-    function _updateUserMintReward(address from, uint value, bool inc) internal {
-        // 记录 owner 只有 owner 可以提取流动性
-        LPReward storage lpReward = mintRewardOf[from];
-        uint perShare = accPerShare + mintAccPerShare;
-        // require(lpReward.amount >= value, "Not enough");
-        // perShare * lpReward.amount + lpReward.pendingReward - lpReward.rewardDebt;
-        uint amt = lpReward.amount;
-        if (amt > 0) {
-            uint reward = perShare.mul(amt).add(lpReward.pendingReward).sub(lpReward.rewardDebt);
-            if (reward > 0) {
-                // todo transfer
-                // console.log("reward: from=%s amt=%d reward=%d", from, amt, reward);
-                address rewardToken = IDeBankRouter(IDeBankFactory(factory).router()).rewardToken();
-                if (rewardToken != address(0)) {
-                    _transferMintReword(rewardToken, from, reward);
-                }
-            }
-        }
-        // console.log("_updateUserMintReward: from=%s amt=%d value=%d", from, amt, value);
-        uint newVal = inc ? amt.add(value) : amt.sub(value);
-        lpReward.amount = newVal;
-        lpReward.pendingReward = 0;
-        lpReward.rewardDebt = perShare.mul(newVal);
-    }
-
     function _burn(address from, uint value) internal {
         // console.log("balanceOf[from]=%d value=%d totalSupply=%d", balanceOf[from], value, totalSupply);
         balanceOf[from] = balanceOf[from].sub(value);
         totalSupply = totalSupply.sub(value);
-        _updateUserMintReward(from, value, false);
+
         emit Transfer(from, address(0), value);
     }
 
@@ -218,27 +268,17 @@ contract DeBankPair is IDeBankPair, PairStorage {
         emit Approval(owner, spender, value);
     }
 
-    // 获取 LP 抵押合约地址
-    function _isMintExcludeAddr(address addr) private view returns (bool) {
-        // addr;
-        // todo 判断那些地址是杠杆代持合约地址
-        return IDeBankFactory(factory).mintFreeAddress(addr); //false;
-        // return IDeBankRouter(IDeBankFactory(factory).router()).lpDepositAddr();
-    }
-
     function _transfer(address from, address to, uint value) private {
         balanceOf[from] = balanceOf[from].sub(value);
         balanceOf[to] = balanceOf[to].add(value);
         // 更改挖矿权
         // address addr = _getLPDepositAddr();
-        if (_isMintExcludeAddr(from) == false && _isMintExcludeAddr(to) == false) {
-            _updateBlockFee(0);
-            // ctoken 挖矿, 负债, 在 totalSupply 减少之前更新
-            _updateCtokenMintPerShare();
+        if (_isMintDisable(from) == false && _isMintDisable(to) == false) {
+            _updateEBEPerShare();
             // console.log("_updateCtokenMintPerShare done");
-            _updateUserMintReward(from, value, false);
+            _updateUserEBEReward(from, value, false, true);
             // console.log("_updateUserMintReward from done");
-            _updateUserMintReward(to, value, true);
+            _updateUserEBEReward(to, value, true, false);
             // console.log("_updateUserMintReward to done");
 
             // mintOf[from] = mintOf[from].sub(value);
@@ -419,16 +459,6 @@ contract DeBankPair is IDeBankPair, PairStorage {
         emit Mint(msg.sender, amount0, amount1);
     }
 
-    // 领取交易对两个 ctoken 的存币挖矿收益
-    function _claimPairComp() private {
-        address unitroller = IDeBankFactory(factory).compAddr();    // 从 factory/router 中获取
-        CToken[] memory cTokens = new CToken[](2); // memory cTokens
-
-        cTokens[0] = CToken(cToken0);
-        cTokens[1] = CToken(cToken1);
-        IUnitroller(unitroller).claimComp(address(this), cTokens);
-    }
-
     // 用户移除流动性时， 将 ctoken 存币挖矿收益转给用户
     // function _transferCtokenMint(address from, address to, uint liquidity) internal {
     //     address lhb = IDeBankRouter(IDeBankFactory(factory).router()).rewardToken();        // 从 factory/router 中获取
@@ -460,25 +490,25 @@ contract DeBankPair is IDeBankPair, PairStorage {
     //     require(msg.sender == lpDepositAddr, "LP burn");
     // }
 
-    function _mintUserEBE(address to, uint liquidity) internal {
-        IDeBankRouter router = IDeBankRouter(IDeBankFactory(factory).router());
-        address ebe = router.rewardToken();
+    // function _mintUserEBE(address to, uint liquidity) internal {
+    //     IDeBankRouter router = IDeBankRouter(IDeBankFactory(factory).router());
+    //     address ebe = router.rewardToken();
         
-        if (ebe != address(0)) {
-            if (currentFee > 0) {
-                router.mintEBEToken(token0, token1, currentFee);
-                currentFee = 0;
-            }
+    //     if (ebe != address(0)) {
+    //         if (currentFee > 0) {
+    //             router.mintEBEToken(token0, token1, currentFee);
+    //             currentFee = 0;
+    //         }
 
-            uint ebeAmt = IERC20(ebe).balanceOf(address(this));
-            // 
-            if (ebeAmt > 0) {
-                // todo 按照 rewardDebt 分配平台币
-                uint userAmt = liquidity.mul(ebeAmt).div(totalSupply);
-                IERC20(ebe).transfer(to, userAmt);
-            }
-        }
-    }
+    //         uint ebeAmt = IERC20(ebe).balanceOf(address(this));
+    //         // 
+    //         if (ebeAmt > 0) {
+    //             // todo 按照 rewardDebt 分配平台币
+    //             uint userAmt = liquidity.mul(ebeAmt).div(totalSupply);
+    //             IERC20(ebe).transfer(to, userAmt);
+    //         }
+    //     }
+    // }
 
     // 操作的是 ctoken 2021/05/25
     // this low-level function should be called from a contract which performs important safety checks
@@ -512,12 +542,11 @@ contract DeBankPair is IDeBankPair, PairStorage {
 
         // console.log("after _mintFee:", amount0, amount1);
 
-        _updateBlockFee(0);
-        _mintUserEBE(to, liquidity);
+        // 更新每股收益
+        _updateEBEPerShare();
+        // (to, liquidity);
         // ctoken 挖矿, 负债, 在 totalSupply 减少之前更新
-        _updateCtokenMintPerShare();
-
-        // console.log("before _burn");
+        _updateUserEBEReward(to, liquidity, false, true);
 
         _burn(address(this), liquidity);
         _safeTransfer(_token0, to, amount0);

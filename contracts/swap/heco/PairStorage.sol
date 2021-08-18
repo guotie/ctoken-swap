@@ -59,7 +59,7 @@ contract PairStorage is IDeBankPair {
     mapping(address => mapping(address => uint)) public allowance;
 
     // 挖矿权
-    // 挖矿权与所有权(balanceOf) 分离. 当用户把LP转给compound抵押时, 转给LP挖矿合约时, 挖矿权依然归用户
+    // 挖矿权与所有权(balanceOf) 分离. 当用户把LP转给 compound 抵押 时, 转给LP挖矿合约时, 挖矿权依然归用户
     // 
     struct LPReward {
         uint amount;            // LP amount
@@ -70,21 +70,22 @@ contract PairStorage is IDeBankPair {
     }
     // 只有 owner 可以 burn, 其他不可以 burn
     mapping(address => LPReward) public mintRewardOf;
-    uint public accPerShare;
+    // uint public accPerShare;
     // uint public rewards;
     // uint public totalFee;
-    uint public currentBlock;       // blockFee对应的块数
-    uint public blockFee;           // 当前块的手续费, 下一个块的第一笔交易触发计算上个块的reward, 然后重新累计
+    // uint public currentBlock;       // blockFee对应的块数
+    // uint public blockFee;           // 当前块的手续费, 下一个块的第一笔交易触发计算上个块的reward, 然后重新累计
 
     // ctoken 挖矿收益
     // mapping(address => uint) public ctokenMintDebt;
     uint public mintAccPerShare;
     uint public ctokenMintRewards;
     uint public ctokenRewordBlock; // 上一次更新的块数
-    uint public mintRewardDebt;    // 给用户转挖矿收益不足的情况
+    uint public mintRewardDebt;    // 给用户转挖矿收益不足的情况, 测试时统计, 上线可以去掉
 
-    uint public currentFee;
-    uint public totalFee;
+    uint public currentFee;   // pair 当前未结算的手续费
+    uint public totalFee;     // pair 总手续费
+    uint public lastBlock;    // 最后一次提取收益时的 block
 
     // struct OrderItem {
     //     address owner;

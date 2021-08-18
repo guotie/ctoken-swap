@@ -75,6 +75,9 @@ interface IDeBankPair {
 
     function kLast() external view returns (uint);
 
+    // 更新用户的 ebe 收益
+    function withdrawEBEReward(address to) external returns (uint);
+
     function mint(address to) external returns (uint liquidity);
     // function mintCToken(address to) external returns (uint liquidity);
 

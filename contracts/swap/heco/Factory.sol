@@ -31,7 +31,7 @@ import "./Pair.sol";
 contract DeBankFactory is IDeBankFactory, Ownable {
     using SafeMath for uint256;
     using SafeMath for uint;
-    address public feeTo;       
+    address public feeTo;
     // address public feeToSetter;
     uint256 public lpFeeRate = 0;    // 分配给LP的比例: 0: 0; n: (n/(n+1))
     // address public anchorUnderlying;
