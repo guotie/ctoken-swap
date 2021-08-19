@@ -1360,6 +1360,36 @@ library SwapExchangeRate {
         return cpath;
     }
 
+
+    // 获取添加流动性的数量
+    function getLiquidityAmountUnderlying(
+                    address factory,
+                    address ctokenFactory,
+                    uint256 amountA,
+                    address tokenA,
+                    address tokenB
+                )
+                public
+                view
+                returns (uint256) {
+        (uint ra, uint rb) = IDeBankFactory(factory).getReserves(tokenA, tokenB);
+        uint rateA;
+        uint rateB;
+        {
+            // avoid stack too deep
+            address ctokenA = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(tokenA);
+            address ctokenB = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(tokenB);
+            rateA = getCurrentExchangeRate(ctokenA);
+            rateB = getCurrentExchangeRate(ctokenB);
+        }
+        // uint cAmtA = amountA.mul(e18).div(rateA);
+        // uint cAmtB = cAmtA.mul(rb).div(ra);
+        // uint amtB = cAmtB.mul(rateB).div(e18);
+        // return amtB;
+
+        return amountA.mul(rb).mul(rateB).div(rateA).div(ra);
+    }
+
     /// @dev 给定 amountIn, 计算能够兑换得到的amountOut
     /// @param path token 数组, 注意: 必须是token的地址!!!
     function getAmountsOutUnderlying(

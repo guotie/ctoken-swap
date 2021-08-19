@@ -114,8 +114,10 @@ describe("LP 手续费挖平台币 测试", function() {
         await doSwap(taker, 'USDT', 'SEA', amt)
 
         // 再次增加流动性
-        let seaAmt = await swapRate.getAmountsOutUnderlying(factory.address, ctokenFactory.address, amt, [usdt.address, sea.address], maker.address)
-        console.log('getAmountsOutUnderlying sea: %s', seaAmt.toString())
+        amt = readableTokenAmount(usdt, 200)
+        let seaAmt = await swapRate.getLiquidityAmountUnderlying(factory.address, ctokenFactory.address, amt, usdt.address, sea.address)
+        console.log('getLiquidityAmountUnderlying sea: %s', seaAmt.toString())
+        await addLiquidity(router, usdt, sea, amt, seaAmt, maker.address)
     })
 
     it('ExchangeRate', async () => {

@@ -2,6 +2,44 @@ import { IToken, printBalance, deadlineTs } from "./token"
 import { BigNumberish, Contract } from "ethers"
 import { getPairToken } from "./token"
 import { callWithEstimateGas } from "./estimateGas"
+import { getEbankRouter, getTokenContract } from "./contractHelper"
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
+
+
+const addLiquidityWithSigner = async (maker: SignerWithAddress, router: string, t0: string, t1: string, amt0: BigNumberish, amt1: BigNumberish) => {
+    const routerC = getEbankRouter(undefined, maker)
+        , t0c = getTokenContract(t0, maker)
+        , t1c = getTokenContract(t1, maker)
+        , to = maker.address
+        , b0 = await t0c.balanceOf(to)
+        , b1 = await t1c.balanceOf(to)
+    
+    if (b0.lt(amt0)) {
+        throw new Error('not enought asset: ' + t0 + ' balance: ' + b0.toString() + ' expect: ' + amt0.toString())
+    }
+    if (b1.lt(amt1)) {
+        throw new Error('not enought asset: ' + t1 + ' balance: ' + b1.toString() + ' expect: ' + amt1.toString())
+    }
+    
+    await t0c.approve(router, amt0)
+    await t1c.approve(router, amt1)
+    let tx = await callWithEstimateGas(
+            routerC,
+            'addLiquidityUnderlying',
+            [
+                t0,
+                t1,
+                amt0,
+                amt1,
+                0,
+                0,
+                to,
+                deadlineTs(100)
+            ],
+            true
+        )
+    await tx.wait(0)
+}
 
 const addLiquidity = async (router: Contract, t0: IToken, t1: IToken, amt0: BigNumberish, amt1: BigNumberish, to: string) => {
     await printBalance('Balance ' + to + ' before add liquidity', to, [t0, t1])
@@ -52,5 +90,6 @@ const swapExactTokensForTokens = async (router: Contract, from: IToken, to: ITok
 
 export {
     addLiquidity,
+    addLiquidityWithSigner,
     swapExactTokensForTokens
 }
