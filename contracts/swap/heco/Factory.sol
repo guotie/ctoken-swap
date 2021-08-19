@@ -26,7 +26,7 @@ import "../interface/ICToken.sol";
 
 import "./Pair.sol";
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 contract DeBankFactory is IDeBankFactory, Ownable {
     using SafeMath for uint256;
@@ -273,9 +273,10 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     // }
 
     // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
-    function getAmountOutFeeRate(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) public pure returns (uint amountOut) {
+    function getAmountOutFeeRate(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) public view returns (uint amountOut) {
         require(amountIn > 0, 'SwapFactory: INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'SwapFactory: INSUFFICIENT_LIQUIDITY');
+        console.log("getAmountOutFeeRate: amountIn=%d", amountIn, feeRate);
         uint amountInWithFee = amountIn.mul(10000-feeRate);
         uint numerator = amountInWithFee.mul(reserveOut);
         uint denominator = reserveIn.mul(10000).add(amountInWithFee);
@@ -364,13 +365,16 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
     // path 中的 address 应该都是 token, 因为 sortToken 用的是 token
     // performs chained getAmountOut calculations on any number of pairs
+    // path[] 数组中必须是 token 而非 ctoken
     function getAmountsOut(uint amountIn, address[] memory path, address to) public view returns (uint[] memory amounts) {
         require(path.length >= 2, 'SwapFactory: INVALID_PATH');
         amounts = new uint[](path.length);
         amounts[0] = amountIn;
         for (uint i; i < path.length - 1; i++) {
             (uint reserveIn, uint reserveOut, uint feeRate, bool outAnchorToken) = getReservesFeeRate(path[i], path[i + 1], to);
+            // console.log("reserveIn: %d  reserveOut: %d  feeRate: %d", reserveIn, reserveOut, feeRate);
             if (outAnchorToken) {
+                console.log("out is AnchorToken");
                 amounts[i + 1] = getAmountOutFeeRateAnchorToken(amounts[i], reserveIn, reserveOut, feeRate);
             } else {
                 amounts[i + 1] = getAmountOutFeeRate(amounts[i], reserveIn, reserveOut, feeRate);

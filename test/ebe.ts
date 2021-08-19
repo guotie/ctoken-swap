@@ -4,7 +4,7 @@ import { BigNumber, BigNumberish, Contract } from 'ethers'
 
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import sleep from '../utils/sleep';
-import { addressOf, getBalances, getCTokenFactoryContract, getEbankFactory, getEbankRouter, getEbeTokenContract, getTokenContract } from '../helpers/contractHelper'
+import { addressOf, getBalance, getBalances, getCTokenFactoryContract, getEbankFactory, getEbankRouter, getEbeTokenContract, getSwapExchangeRateContract, getTokenContract } from '../helpers/contractHelper'
 import { IToken, getMockToken, HTToken, readableTokenAmount, deadlineTs, getPairToken, printBalance, getMockTokenWithSigner } from '../helpers/token';
 import { callWithEstimateGas } from '../helpers/estimateGas';
 import { deployMockContracts } from '../helpers/mock';
@@ -23,6 +23,7 @@ describe("LP 手续费挖平台币 测试", function() {
         , router: Contract
         , factory: Contract
         , ebec: Contract
+        , swapRate: Contract
 
     let maker: SignerWithAddress
         , taker: SignerWithAddress
@@ -62,11 +63,12 @@ describe("LP 手续费挖平台币 测试", function() {
         console.log('    maker: %s\n    taker: %s\n    feeTo: %s\n    receiver: %s',
             maker.address, taker.address, feeTo, receiver)
 
-        // ctokenFactory = getCTokenFactoryContract(addressOf('CtokenFactory'), maker)
+        ctokenFactory = getCTokenFactoryContract(addressOf('CtokenFactory'), maker)
         router = getEbankRouter(undefined, maker)
         console.info('router factory:', await router.factory())
         // let cfactory = await router.ctokenFactory()
         factory = getEbankFactory(undefined, maker)
+        swapRate = getSwapExchangeRateContract(undefined, maker)
 
         await factory.setFeeTo(feeTo)
 
@@ -110,9 +112,31 @@ describe("LP 手续费挖平台币 测试", function() {
         let amt = readableTokenAmount(usdt, 2)
         await usdt.contract!.transfer(taker.address, amt)
         await doSwap(taker, 'USDT', 'SEA', amt)
+
+        // 再次增加流动性
+        let seaAmt = await swapRate.getAmountsOutUnderlying(factory.address, ctokenFactory.address, amt, [usdt.address, sea.address], maker.address)
+        console.log('getAmountsOutUnderlying sea: %s', seaAmt.toString())
+    })
+
+    it('ExchangeRate', async () => {
+        let cusdt = await ctokenFactory.getCTokenAddressPure(usdt.address)
+        console.log('cusdt: ', cusdt)
+        let rate = await swapRate.getCurrentExchangeRate(cusdt)
+        console.log('usdt exchange rate:', rate.toString())
+    })
+
+    it('LP withdraw EBE', async () => {
+
     })
 
     it('transfer LP', async () => {
+        let pair = await factory.pairFor(usdt.address, sea.address)
+            , pairc = await getPairToken(pair, maker)
+            , balance = await getBalance(pairc, maker.address)
+        console.log('pair: %s balance: %s', pair, balance.toString())
+        await pairc.contract!.transfer(taker.address, balance)
 
+        let ebeBal = await ebec.balanceOf(maker.address)
+        console.log('after transfer, maker EBE: %s pairs current fee: %s', ebeBal.toString(), (await pairc.contract!.currentFee()).toString())
     })
 })

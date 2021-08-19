@@ -154,6 +154,11 @@ export async function deploySwap() {
         args: [factory.address, wht, ceth, ctokenFactory],
       })
     setContractAddress('Router', router.address)
+
+    // SwapExchangeRate
+    const rate = await _deployMock('SwapExchangeRate', { args: []} )
+    setContractAddress('SwapExchangeRate', rate.address)
+
     // set factory router !!!
     let fc = new ethers.Contract(factory.address, factory.abi, namedSigners[0])
     await fc.setRouter(router.address)
@@ -171,9 +176,6 @@ export async function deployTokens() {
 }
 
 async function deployOrderBook() {
-//   let namedSigners = await ethers.getSigners()
-//   , deployer = namedSigners[0].address
-
     let l = await _deployMock('OBPriceLogic', { args: [] })
     let c = await _deployMock('OBPairConfig', { args: [] })
     let ctokenFactory = addressOf('CtokenFactory')

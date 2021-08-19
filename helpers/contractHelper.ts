@@ -13,6 +13,7 @@ import { abi as hecoPoolABI } from './abi/HecoPool.json'
 import { abi as mdexFactoryABI } from './abi/MdexFactory.json'
 import { abi as mdexRouterABI } from './abi/MdexRouter.json'
 import { abi as stepSwapABI } from './abi/StepSwap.json'
+import { abi as rateABI } from './abi/SwapExchangeRate.json'
 import { abi as ctokenFactoryABI } from './abi/LErc20DelegatorFactory.json'
 import { zeroAddress } from '../deployments/deploys';
 import { IToken } from './token';
@@ -40,6 +41,7 @@ type TokenContractName = 'USDT'
                     | 'InterestRateModel'
                     | 'EBEToken'
                     | 'HecoPool'
+                    | 'SwapExchangeRate'
 
 let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hecotest': {
@@ -63,6 +65,7 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'SwapMining': '',
         'OrderBook': '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
         'StepSwap': '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
+        'SwapExchangeRate': '',
     },
     'hardhat' : {
         'USDT': '',
@@ -82,6 +85,8 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'Router': '',
         'OrderBook': '',
         'SwapMining': '',
+        'StepSwap': '',
+        'SwapExchangeRate': '',
     }
 }
 
@@ -208,6 +213,10 @@ function getStepSwapContract(address?: string, signer?: Signer | Provider) {
     return new Contract(address ?? contractAddress[NETWORK]['StepSwap'], stepSwapABI, signer ?? getProvider())
 }
 
+function getSwapExchangeRateContract(address?: string, signer?: Signer | Provider) {
+    return new Contract(address ? address : contractAddress[NETWORK]['SwapExchangeRate'], rateABI, signer ?? getProvider())
+}
+
 // 根据 abi 地址获取 Contract
 function getContractByAddressABI(addr: string, abi: string, signer?: Signer | Provider) {
     return new Contract(addr, abi, signer ?? getProvider())
@@ -284,6 +293,7 @@ export {
     getStepSwapContract,
     getOrderbookContract,
     getCTokenFactoryContract,
+    getSwapExchangeRateContract,
     getContractByAddressABI,
     getContractByAddressName,
     getMdexFactoryContract,

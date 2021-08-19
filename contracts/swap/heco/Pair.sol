@@ -78,38 +78,6 @@ contract DeBankPair is IDeBankPair, PairStorage {
         totalFee += fee;
         currentFee += fee;
         console.log("_updateBlockFee: fee=%d totalFee=%d currentFee=%d", fee, totalFee, currentFee);
-        /*
-        // console.log("_updateBlockFee: current block=%d fee=%d block.number=%d", currentBlock, fee, block.number);
-        if (currentBlock == block.number) {
-            blockFee = blockFee.add(fee);
-            return;
-        }
-
-        // 计算之前块的手续费分成
-        if (blockFee > 0) {
-            if (currentBlock == block.number - 1) {
-                // 计算上一个块的奖励
-                IDeBankRouter router = IDeBankRouter(IDeBankFactory(factory).router());
-                uint denominator = router.allPairFeeLastBlock();    // 上一个块所有交易对的手续费
-                uint reward = router.reward(currentBlock);
-                if (totalSupply > 0) {
-                    uint share = reward.mul(blockFee).div(denominator);
-                    accPerShare = accPerShare.add(share.div(totalSupply));   // 需要有一个乘数, 否则归 0
-                }
-                // rewards += ;
-            } else {
-                // 中间有若干个块没有交易的情况 将 本交易对之前的块手续费算在 上一个的所有交易对手续费之和 里
-                // 距离上一次交易的块越远, 收益越低
-                // uint multor = 1 + (block.number - currentBlock) / 100;
-                blockFee = fee + blockFee; //.mul(currentBlock).div(block.number); // / multor;
-                currentBlock = block.number;
-                return;
-            }
-        }
-        // 重新累计这个块的手续费
-        currentBlock = block.number;
-        blockFee = fee;
-        */
     }
 
     // 从 router 那里 mint 手续费ebe: router 首先 mint 全平台的 ebe 分成，然后把 pair 的那部分转给 pair

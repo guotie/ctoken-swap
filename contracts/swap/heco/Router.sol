@@ -743,6 +743,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         param.fr = IDeBankFactory(factory).feeRateOf(_to);
 
         uint amountIn = amtIn;
+        uint fee;
         // uint feeTotal;
         for (uint i; i < path.length - 1; i++) {
             param.input = path[i];
@@ -769,7 +770,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             //     amount0Out, amount1Out, to, fee
             // );
             // amountIn = amount1Out;
-            (uint amtOut, uint fee) = _doSwapAnchorToken(param, amountIn, to);
+            (amtOut, fee) = _doSwapAnchorToken(param, amountIn, to);
             feeTotal += fee;
             amountIn = amtOut;
         }
@@ -1328,7 +1329,9 @@ library SwapExchangeRate {
     using SafeMath for uint;
     using SafeMath for uint256;
 
-    function getCurrentExchangeRate(ICToken ctoken) public view returns (uint256) {
+    function getCurrentExchangeRate(address _ctoken) public view returns (uint256) {
+        ICToken ctoken = ICToken(_ctoken);
+
         uint rate = ctoken.exchangeRateStored();
         uint supplyRate = ctoken.supplyRatePerBlock();
         uint lastBlock = ctoken.accrualBlockNumber();
@@ -1371,10 +1374,11 @@ library SwapExchangeRate {
                 returns (uint256[] memory amounts, uint256 amountOut) {
         //
         address[] memory cpath = path2cpath(ctokenFactory, path);
-        uint256 rateIn = getCurrentExchangeRate(ICToken(cpath[0]));
+        uint256 rateIn = getCurrentExchangeRate(cpath[0]);
         uint256 cAmtIn = amountIn.mul(1e18).div(rateIn);
-        amounts = IDeBankFactory(factory).getAmountsOut(cAmtIn, cpath, to);
-        uint256 rateOut = getCurrentExchangeRate(ICToken(cpath[cpath.length-1]));
+        amounts = IDeBankFactory(factory).getAmountsOut(cAmtIn, path, to);
+        // console.log("cAmtIn: %d amountOut: %d", cAmtIn, amounts[1]);
+        uint256 rateOut = getCurrentExchangeRate(cpath[cpath.length-1]);
         amountOut = amounts[amounts.length-1].mul(rateOut).div(1e18);
     }
 
@@ -1392,10 +1396,10 @@ library SwapExchangeRate {
                 returns (uint256[] memory amounts, uint256 amountIn) {
         //
         address[] memory cpath = path2cpath(ctokenFactory, path);
-        uint256 rateOut = getCurrentExchangeRate(ICToken(cpath[cpath.length-1]));
+        uint256 rateOut = getCurrentExchangeRate(cpath[cpath.length-1]);
         uint256 cAmtOut = amountOut.mul(1e18).div(rateOut);
-        amounts = IDeBankFactory(factory).getAmountsIn(cAmtOut, cpath, to);
-        uint256 rateIn = getCurrentExchangeRate(ICToken(cpath[0]));
+        amounts = IDeBankFactory(factory).getAmountsIn(cAmtOut, path, to);
+        uint256 rateIn = getCurrentExchangeRate(cpath[0]);
         amountIn = amounts[0].mul(rateIn).div(1e18);
     }
 }

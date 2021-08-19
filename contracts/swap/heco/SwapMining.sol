@@ -159,16 +159,16 @@ contract SwapMining is Ownable {
     // }
 
     // At what phase
-    function phase(uint256 blockNumber) public view returns (uint256) {
-        if (halvingPeriod == 0) {
-            return 0;
-        }
+    // function phase(uint256 blockNumber) public view returns (uint256) {
+    //     if (halvingPeriod == 0) {
+    //         return 0;
+    //     }
 
-        if (blockNumber > startBlock) {
-            return (blockNumber.sub(startBlock).sub(1)).div(halvingPeriod);
-        }
-        return 0;
-    }
+    //     if (blockNumber > startBlock) {
+    //         return (blockNumber.sub(startBlock).sub(1)).div(halvingPeriod);
+    //     }
+    //     return 0;
+    // }
 
     // function phase() public view returns (uint256) {
     //     return phase(block.number);
