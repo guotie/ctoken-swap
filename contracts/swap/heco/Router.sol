@@ -734,7 +734,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
     // 将手续费兑换为 anchor token
     // 先将手续费收完 !!!
-    function _swap2(uint amtIn, address[] memory path, address _to) internal returns (uint256 amtOut) {
+    function _swap2(uint amtIn, address[] memory path, address _to) internal returns (uint256 amtOut, uint feeTotal) {
         SwapAnchorParam memory param;
 
         param.feeTo = IDeBankFactory(factory).feeTo();
@@ -743,7 +743,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         param.fr = IDeBankFactory(factory).feeRateOf(_to);
 
         uint amountIn = amtIn;
-        uint feeTotal;
+        // uint feeTotal;
         for (uint i; i < path.length - 1; i++) {
             param.input = path[i];
             param.cinput = _getCtoken(param.input);
@@ -782,7 +782,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         if (feeTotal > 0) {
             _updatePairFee(feeTotal);
         }
-        return amountIn;
+        // return amountIn;
     }
 
     function _doSwapAnchorToken(
@@ -907,7 +907,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         address[] calldata cpath,
         address to,
         uint deadline
-    ) external ensure(deadline) returns (uint[] memory amounts) {
+    ) external ensure(deadline) returns (uint[] memory amounts, uint fee) {
         // console.log('swapExactTokensForTokens ....');
         address[] memory path = _cpath2path(cpath);
         amounts = IDeBankFactory(factory).getAmountsOut(amountIn, path, to);
@@ -921,7 +921,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             _swap(amounts, path, to);
         } else {
             TransferHelper.safeTransferFrom(cpath[0], msg.sender, address(this), amounts[0]);
-            _swap2(amountIn, path, to);
+            (, fee) = _swap2(amountIn, path, to);
         }
     }
 
@@ -995,7 +995,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
             _swap(camounts, path, address(this));
         } else {
-            camtOut = _swap2(camtIn, path, address(this));
+            (camtOut, ) = _swap2(camtIn, path, address(this));
             require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
         }
 
