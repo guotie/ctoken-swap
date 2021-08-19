@@ -315,9 +315,10 @@ contract SwapMining is Ownable {
         // PoolInfo memory pool = poolInfo[_pid];
         UserInfo memory user = userInfo[msg.sender];
         if (user.quantity > 0) {
-            uint256 blockReward = ebe.getEbeReward(ebePerBlock, pool.lastRewardBlock);
-            uint256 ebeReward = blockReward; // .mul(pool.allocPoint).div(totalAllocPoint);
-            userSub = userSub.add((pool.allocEbeAmount.add(ebeReward)).mul(user.quantity).div(pool.quantity));
+            uint256 ebeReward = ebe.getEbeReward(ebePerBlock, pool.lastRewardBlock);
+            // uint256 ebeReward = blockReward; // .mul(pool.allocPoint).div(totalAllocPoint);
+            // userSub = userSub.add((pool.allocMdxAmount.add(mdxReward)).mul(user.quantity).div(pool.quantity));
+            userSub = (pool.allocEbeAmount.add(ebeReward)).mul(user.quantity).div(pool.quantity);
         }
         //Ebe available to users, User transaction amount
         return (userSub, user.quantity);
