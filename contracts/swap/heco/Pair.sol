@@ -77,6 +77,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
     function _updateBlockFee(uint fee) private {
         totalFee += fee;
         currentFee += fee;
+        console.log("_updateBlockFee: fee=%d totalFee=%d currentFee=%d", fee, totalFee, currentFee);
         /*
         // console.log("_updateBlockFee: current block=%d fee=%d block.number=%d", currentBlock, fee, block.number);
         if (currentBlock == block.number) {
@@ -113,15 +114,22 @@ contract DeBankPair is IDeBankPair, PairStorage {
 
     // 从 router 那里 mint 手续费ebe: router 首先 mint 全平台的 ebe 分成，然后把 pair 的那部分转给 pair
     function _mintPairEBE() private returns (uint amt) {
+        if (currentFee == 0) {
+            return 0;
+        }
         IDeBankRouter router = IDeBankRouter(IDeBankFactory(factory).router());
         amt = router.mintEBEToken(token0, token1, currentFee);
-        
+
+        console.log("_mintPairEBE: fee=%d reward=%d", currentFee, amt);
         currentFee = 0;
     }
 
     // 领取交易对两个 ctoken 的存币挖矿收益
     function _claimPairComp() private returns (uint) {
         address lhbToken = IDeBankRouter(IDeBankFactory(factory).router()).rewardToken();
+        if (lhbToken == address(0)) {
+            return 0;
+        }
         uint bal0 = IERC20(lhbToken).balanceOf(address(this));
 
         address unitroller = IDeBankFactory(factory).compAddr();    // 从 factory/router 中获取
@@ -129,9 +137,15 @@ contract DeBankPair is IDeBankPair, PairStorage {
         cTokens[0] = CToken(cToken0);
         cTokens[1] = CToken(cToken1);
 
+        return 0;
+        /*
+        // todo 等小王完善
+        console.log("_claimPairComp: %d", bal0);
         IUnitroller(unitroller).claimComp(address(this), cTokens);
+        console.log("_claimPairComp ok", bal0);
         uint bal1 = IERC20(lhbToken).balanceOf(address(this));
         return bal1.sub(bal0);
+        */
     }
 
     // 更新收益
@@ -139,12 +153,14 @@ contract DeBankPair is IDeBankPair, PairStorage {
         if (lastBlock == block.number) {
             return;
         }
+        console.log("start update pair share: %d", currentFee);
         lastBlock = block.number;
         // 手续费所得 ebe 分成
         uint feeAmt = _mintPairEBE();
         uint compAmt = _claimPairComp();
         uint total = feeAmt + compAmt;
-        if (total > 0) {
+        console.log("_updateEBEPerShare: feeAmt=%d compAmt=%d", feeAmt, compAmt);
+        if (total > 0 && totalSupply > 0) {
             // 更新 per share
             mintAccPerShare += total.mul(1e18).div(totalSupply);
         }
@@ -157,25 +173,6 @@ contract DeBankPair is IDeBankPair, PairStorage {
         // 调用 factory 来判断
         return IDeBankFactory(factory).mintFreeAddress(addr);
     }
-
-    // // 更新 mintAccPerShare
-    // function _updateCtokenMintPerShare() internal {
-    //     if (ctokenRewordBlock == block.number) {
-    //         return;
-    //     }
-    //     // console.log("before _lhbTotalBlance");
-    //     uint curr = _lhbTotalBlance();
-    //     // console.log("curr=%d", curr, ctokenMintRewards);
-    //     if (curr > ctokenMintRewards) {
-    //         uint per = curr.sub(ctokenMintRewards);
-    //         if (totalSupply > 0) {
-    //             mintAccPerShare = mintAccPerShare.add(per.div(totalSupply));
-    //         }
-    //     }
-    //     ctokenMintRewards = curr;
-    //     ctokenRewordBlock = block.number;
-    //     // console.log("_updateCtokenMintPerShare done");
-    // }
 
     // 更新 用户 的 ebe 数量, 如果需要转账, 将 ebe 转给用户
     function withdrawEBEReward(address to) public returns (uint) {

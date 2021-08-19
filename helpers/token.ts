@@ -1,7 +1,7 @@
 import { assert } from "console";
 import { BigNumber, BigNumberish, Contract, Signer } from "ethers";
 import { deployToken, zeroAddress } from "../deployments/deploys";
-import { getTokenContract, addressOf, TokenContractName, getEbankPair, setContractAddress, tokenHasExist } from './contractHelper'
+import { getTokenContract, addressOf, TokenContractName, getEbankPair, setContractAddress, tokenHasExist, getBalances } from './contractHelper'
 
 const hre = require('hardhat')
 const ethers = hre.ethers
@@ -25,6 +25,24 @@ const HTToken: IToken = {
 
 function setTokenAddress(token: IToken) {
     setContractAddress(token.name as TokenContractName, token.address)
+}
+
+async function getMockTokenWithSigner(tokenName: string, signer: Signer) {
+    let addr = addressOf(tokenName as TokenContractName)
+    if (!addr) {
+        throw new Error('token not found:' + tokenName)
+    }
+    const c = getTokenContract(addr, signer)
+    let supply = await c.totalSupply()
+        , _decimals = await c.decimals()
+    return {
+        name: tokenName,
+        symbol: tokenName,
+        decimals: _decimals,
+        totalSupply: supply,
+        address: addr,
+        contract: c,
+    }
 }
 
 async function getMockToken(tokenName: string, total?: BigNumberish, decimals = 18): Promise<IToken> {
@@ -62,12 +80,13 @@ async function getMockToken(tokenName: string, total?: BigNumberish, decimals = 
     if (networkName === 'hecotest') {
         setTokenAddress(token)
     }
+
     return token
 }
 
 // 交易对 token
 async function getPairToken(address: string, signer?: Signer): Promise<IToken> {
-    let pairc = await getEbankPair(address, signer)
+    let pairc = getEbankPair(address, signer)
         , totalSupply = await pairc.totalSupply()
 
     return {
@@ -91,19 +110,31 @@ function decimalsToBignumber(decimals: number): BigNumber {
     return base
 }
 
-const readableTokenAmount = (token: IToken, amt: BigNumberish) => {
-    return BigNumber.from(amt).mul(decimalsToBignumber(token.decimals))        
-}
-
 const deadlineTs = (second: number) => {
     return (new Date()).getTime() + second * 1000
+}
+
+const printBalance = async (title: string, owner: string, tokens: IToken[]) => {
+    console.info(title)
+    let balances = await getBalances(tokens, owner)
+    for (let i = 0; i < tokens.length; i ++) {
+        let token = tokens[i]
+        console.info('    %s balance: %s', token.name, balances[i].toString())
+    }
+    return balances
+}
+
+const readableTokenAmount = (token: IToken, amt: BigNumberish) => {
+    return BigNumber.from(amt).mul(decimalsToBignumber(token.decimals))        
 }
 
 export {
     IToken,
     HTToken,
     getMockToken,
+    getMockTokenWithSigner,
     deadlineTs,
     getPairToken,
+    printBalance,
     readableTokenAmount,
 }

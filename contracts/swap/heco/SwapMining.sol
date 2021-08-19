@@ -44,24 +44,6 @@ contract SwapMining is Ownable {
     // pair corresponding pid
     // mapping(address => uint256) public pairOfPid;
 
-    constructor(
-        address _ebe,
-        // IDeBankFactory _factory,
-        // IOracle _oracle,
-        address _router,
-        // address _targetToken,
-        uint256 _ebePerBlock,
-        uint256 _startBlock
-    ) public {
-        ebe = IEBEToken(_ebe);
-        // factory = _factory;
-        // oracle = _oracle;
-        router = _router;
-        // targetToken = _targetToken;
-        ebePerBlock = _ebePerBlock;
-        startBlock = _startBlock;
-    }
-
     struct UserInfo {
         uint256 quantity;       // How many LP tokens the user has provided
         uint256 blockNumber;    // Last transaction block
@@ -80,6 +62,24 @@ contract SwapMining is Ownable {
     // mapping(uint256 => mapping(address => UserInfo)) public userInfo;
     mapping(address => UserInfo) public userInfo;
 
+
+    constructor(
+        address _ebe,
+        // IDeBankFactory _factory,
+        // IOracle _oracle,
+        address _router,
+        // address _targetToken,
+        uint256 _ebePerBlock,
+        uint256 _startBlock
+    ) public {
+        ebe = IEBEToken(_ebe);
+        // factory = _factory;
+        // oracle = _oracle;
+        router = _router;
+        // targetToken = _targetToken;
+        ebePerBlock = _ebePerBlock;
+        startBlock = _startBlock;
+    }
 
     // function poolLength() public view returns (uint256) {
     //     return poolInfo.length;

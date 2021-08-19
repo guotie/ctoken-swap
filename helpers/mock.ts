@@ -1,5 +1,5 @@
 import deploy from './deploy'
-import { addressOf, dumpAddresses, NETWORK, setContractAddress } from './contractHelper'
+import { e18, addressOf, dumpAddresses, NETWORK, setContractAddress } from './contractHelper'
 import { getMockToken, IToken, readableTokenAmount, deadlineTs } from './token'
 
 import { BigNumber } from '@ethersproject/bignumber'
@@ -157,6 +157,9 @@ export async function deploySwap() {
     // set factory router !!!
     let fc = new ethers.Contract(factory.address, factory.abi, namedSigners[0])
     await fc.setRouter(router.address)
+
+    let rc = new ethers.Contract(router.address, router.abi, namedSigners[0])
+    console.info('router factory:', await rc.factory())
 }
 
 export async function deployTokens() {
@@ -200,14 +203,23 @@ export async function deployEbe() {
 }
 
 export async function deployHecoPool(ebe: string, ebePerBlock: number, startBlock: number) {
-
-  
     const e18 = BigNumber.from('1000000000000000000')
         , result = await _deployMock('HecoPool', {
             args: [ ebe, BigNumber.from(ebePerBlock).mul(e18), startBlock ],
             });
     setContractAddress('HecoPool', result.address)
     return result
+}
+
+async function deploySwapMining(perBlock: BigNumberish) {
+    let ebe = addressOf('EBEToken')
+        , router = addressOf('Router')
+        // , namedSigners = await ethers.getSigners()
+        // , deployer = namedSigners[0].address
+    
+    let swapMining = await _deployMock('SwapMining', { args: [ebe, router, perBlock, 0] })
+        // , c = new ethers.Contract(swapMining.address, swapMining.abi, namedSigners[0])
+    setContractAddress('SwapMining', swapMining.address)
 }
 
 async function deployEbeHecoPool() {
@@ -218,6 +230,12 @@ async function deployEbeHecoPool() {
     let pool = await deployHecoPool(ebe.address, 10, 0)
     let ebec = new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
     await ebec.setMinter(pool.address, true)
+
+    // 每个块 80 个
+    await deploySwapMining(BigNumber.from(80).mul(e18))
+
+    await ebec.setMinter(addressOf('Router'), true)
+    await ebec.setMinter(addressOf('SwapMining'), true)
 }
 
 async function deployStepSwap() {

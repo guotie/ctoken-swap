@@ -165,6 +165,10 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // 只能 pair 地址调用该方法
     function mintEBEToken(address token0, address token1, uint256 _amount) external returns (uint) {
         //
+        if (rewardToken == address(0) || feeAlloc == 0) {
+            return 0;
+        }
+
         address pair = pairFor(token0, token1);
         require(msg.sender == pair, "pair not equal");
 
@@ -174,10 +178,14 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             swapFeeLastBlock = block.number;
         }
 
+        if (_amount == 0) {
+            return 0;
+        }
+
         // 将 pair 的收益转给 pair
-        uint totalEbe = IERC20(rewardToken).balanceOf(address(this));
+        uint ebeBalance = IERC20(rewardToken).balanceOf(address(this));
         if (swapFeeCurrent >= _amount) {
-            uint part = _amount.mul(totalEbe).div(swapFeeCurrent);
+            uint part = _amount.mul(ebeBalance).div(swapFeeCurrent);
             IEBEToken(rewardToken).transfer(pair, part);
             return part;
         }
@@ -318,9 +326,9 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // uint er = _cTokenExchangeRate(ctoken);
         // uint amt = camt * er / 10**18;
 
-        console.log("before transfer");
+        // console.log("before transfer");
         TransferHelper.safeTransferFrom(token, msg.sender, address(this), amt);
-        console.log("transfer done");
+        console.log("transfer %s(%s) done: amt=%d", token, ctoken, amt);
         // uint b0 = ICToken(ctoken).balanceOf(address(this));
         // mint 之前需要 approve
         ICToken(token).approve(address(ctoken), amt);
@@ -799,7 +807,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         console.log("amountIn: %d amount0Out: %d amount1Out: %d", amountIn, amount0Out, amount1Out);
         console.log("balance: %d transfer: %d", IERC20(param.cinput).balanceOf(address(this)), amountIn);
         IERC20(param.cinput).transfer(pair, amountIn);
-        console.log("before swap");
+        // console.log("before swap");
         // address to = i < path.length - 2 ? address(this) : _to;
         IDeBankPair(pair).swapNoFee(
             amount0Out, amount1Out, to, fee

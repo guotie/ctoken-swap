@@ -4,6 +4,8 @@ pragma solidity ^0.5.16;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/ownership/Ownable.sol";
 
+import "hardhat/console.sol";
+
 contract EBEToken is ERC20, Ownable {
     string public name;
     string public symbol;
@@ -27,12 +29,13 @@ contract EBEToken is ERC20, Ownable {
         _;
     }
 
-    function setHalvingPeriod(uint256 _block) public onlyMinter {
+    function setHalvingPeriod(uint256 _block) public onlyOwner {
         halvingPeriod = _block;
     }
 
     // mint with max supply
     function mint(address _to, uint256 _amount) public onlyMinter returns (bool) {
+        console.log("EBE mint: msg.sender=%s to=%s amount=%d", msg.sender, _to, _amount);
         _mint(_to, _amount);
         return true;
     }
