@@ -137,7 +137,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
     // 地址是否没有挖矿权. true: 没有挖矿权; false: 有挖矿权
     // HecoPool 合约地址不能挖矿
     // LP 转给抵押合约时
-    function _isMintDisable(address addr) internal returns (bool) {
+    function _isMintDisable(address addr) internal view returns (bool) {
         // 调用 factory 来判断
         return IDeBankFactory(factory).mintFreeAddress(addr);
     }

@@ -3,6 +3,8 @@ const ethers = hre.ethers
 
 import { deployFactory, deployRouter } from '../../deployments/deploys'
 import { getWETH, getCTokenFactory, getCETH, getUSDT } from './network'
+import { deployEbe } from '../../deployments/deploys'
+import { deployHecoPool, deploySwapMining } from '../../deployments/deploys'
 
 // deploy hecotest contracts
 
@@ -19,6 +21,16 @@ import { getWETH, getCTokenFactory, getCETH, getUSDT } from './network'
     // set factory's router
     let factoryC = new ethers.Contract(factoryResult.address, factoryResult.abi, namedSigners[0])
     await factoryC.setRouter(routerResult.address)
+
+    // 
+    const ebe = await deployEbe()
+    const hecopool = await deployHecoPool(ebe.address, 10, 0)
+    const minter = await deploySwapMining(ebe.address, routerResult.address, '10000000000000000000') // 100
+
+    const ebeC = new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
+    await ebeC.setMinter(hecopool.address, true)
+    await ebeC.setMinter(routerResult.address, true)
+    await ebeC.setMinter(minter.address, true)
 })()
 
 // ctoken factory, ceth, weth, marginAddr, true, true

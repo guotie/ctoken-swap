@@ -485,7 +485,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     }
 
     // 赎回 ctoken
-    function _redeemCToken(address ctoken, address token, uint camt) private returns (uint) {
+    function _redeemCToken(address ctoken, uint camt) private returns (uint) {
         // uint b0 = IERC20(token).balanceOf(address(this));
         // console.log("ctoken balance:", ctoken, IERC20(ctoken).balanceOf(address(this)));
         (uint err, uint amt, ) = ICToken(ctoken).redeem(camt);
@@ -510,7 +510,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
     function _redeemCTokenTransfer(address ctoken, address token, address to, uint camt) private returns (uint)  {
         // console.log("_redeemCTokenTransfer: redeem amt: %d", camt);
-        uint amt = _redeemCToken(ctoken, token, camt);
+        uint amt = _redeemCToken(ctoken, camt);
         if (amt > 0) {
             TransferHelper.safeTransfer(token, to, amt);
         }
@@ -818,7 +818,14 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         return (amountOut, fee);
     }
 
-    function _calcAmountOut(address input, address pair, uint amtIn) internal returns (uint out0, uint out1, uint out) {
+    function _calcAmountOut(
+                    address input,
+                    address pair,
+                    uint amtIn
+                )
+                internal
+                view
+                returns (uint out0, uint out1, uint out) {
         address token0 = IDeBankPair(pair).token0(); // IDeBankFactory(factory).sortTokens(input, output);
         (uint reserve0, uint reserve1,) = IDeBankPair(pair).getReserves();
         if (input == token0) {

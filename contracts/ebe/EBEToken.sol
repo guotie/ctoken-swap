@@ -81,8 +81,10 @@ contract EBEToken is ERC20, Ownable {
     function getEbeReward(uint256 ebePerBlock, uint256 _lastRewardBlock) public view returns (uint256) {
         require(_lastRewardBlock <= block.number, "EBEToken: must little than the current block number");
         uint256 blockReward = 0;
+    
         uint256 n = phase(_lastRewardBlock);
         uint256 m = phase(block.number);
+        console.log("getEbeReward: n=%d m=%d _lastRewardBlock=%d", n, m, _lastRewardBlock);
         // If it crosses the cycle
         while (n < m) {
             n++;
@@ -92,7 +94,8 @@ contract EBEToken is ERC20, Ownable {
             blockReward = blockReward.add((r.sub(_lastRewardBlock)).mul(reward(ebePerBlock, r)));
             _lastRewardBlock = r;
         }
-        blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(block.number)));
+        blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(ebePerBlock, block.number)));
+        console.log("getEbeReward: %d ebePerBlock: %d", blockReward, ebePerBlock);
         return blockReward;
     }
 

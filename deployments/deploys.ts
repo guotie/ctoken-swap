@@ -154,6 +154,18 @@ export async function deployHecoPool(ebe: string, ebePerBlock: number, startBloc
       }, network.name !== 'hardhat');
 }
 
+export async function deploySwapMining(ebe: string, router: string, perBlock: string) {
+  let namedSigners = await ethers.getSigners()
+      , deployer = namedSigners[0].address
+  
+  return _deploy('SwapMining', {
+          from: deployer,
+          args: [ebe, router, perBlock, 0]
+        }, network.name !== 'hardhat')
+      // , c = new ethers.Contract(swapMining.address, swapMining.abi, namedSigners[0])
+  // setContractAddress('SwapMining', swapMining.address)
+}
+
 export async function deployUniswap(salt: string) {
   let namedSigners = await ethers.getSigners()
     , deployer = namedSigners[0].address
