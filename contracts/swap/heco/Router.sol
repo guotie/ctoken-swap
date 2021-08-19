@@ -932,7 +932,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         address[] calldata cpath,
         address to,
         uint deadline
-    ) external ensure(deadline) returns (uint[] memory amounts) {
+    ) external ensure(deadline) returns (uint[] memory amounts, uint fee) {
         // console.log('swapTokensForExactTokens ....');
         address[] memory path = _cpath2path(cpath);
         amounts = IDeBankFactory(factory).getAmountsIn(amountOut, path, to);
@@ -945,7 +945,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             _swap(amounts, path, to);
         } else {
             TransferHelper.safeTransferFrom(cpath[0], msg.sender, address(this), amounts[0]);
-            _swap2(amounts[0], path, to);
+            (, fee) = _swap2(amounts[0], path, to);
         }
     }
 
