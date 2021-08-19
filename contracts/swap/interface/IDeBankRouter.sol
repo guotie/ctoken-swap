@@ -136,7 +136,7 @@ interface IDeBankRouter {
         address[] calldata path,
         address to,
         uint deadline
-    ) external returns (uint[] memory amounts);
+    ) external returns (uint[] memory amounts, uint fee);
 
     function swapExactTokensForTokensUnderlying(
         uint amountIn,
