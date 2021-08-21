@@ -241,6 +241,15 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       return etoken;
     }
 
+    // 判断订单是否是 杠杆订单, 是否是close状态
+    function isOrderMarginClosed(uint id) external view returns (bool marginOrder, bool closed) {
+      require(id < orderId, "invalid id");
+
+      uint flag = orders[orderId].flag;
+      marginOrder = isMargin(flag);
+      closed = _orderClosed(flag);
+    }
+
     // 创建订单
     // 调用前需要 approve
     function createOrder(

@@ -26,7 +26,7 @@ import "../interface/ICToken.sol";
 import "../../ebe/IEBEToken.sol";
 
 // import "../../compound/LHT.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface ILHT {
     function mint() external payable returns (uint, uint);
@@ -328,7 +328,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
         // console.log("before transfer");
         TransferHelper.safeTransferFrom(token, msg.sender, address(this), amt);
-        console.log("transfer %s(%s) done: amt=%d", token, ctoken, amt);
+        // console.log("transfer %s(%s) done: amt=%d", token, ctoken, amt);
         // uint b0 = ICToken(ctoken).balanceOf(address(this));
         // mint 之前需要 approve
         ICToken(token).approve(address(ctoken), amt);
@@ -351,7 +351,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // uint b0 = ICToken(cWHT).balanceOf(address(this));
         (uint ret, uint mintCAmt) = ILHT(cWHT).mint.value(amt)();
         require(ret == 0, "mint failed");
-        console.log("mint eth:", mintCAmt);
+        // console.log("mint eth:", mintCAmt);
         // uint mintCAmt = ICToken(cWHT).balanceOf(address(this));
         // uint mintCAmt = b1 - b0;
         if (address(this) != pair) {
@@ -644,7 +644,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
             feeOut = feeIn.mul(reserve0).div(reserve1.add(feeIn));
             IDeBankPair(pair).swapNoFee(feeOut, 0, feeTo, 0);
         }
-        console.log("_swapFee: feeIn=%d feeOut=%d", feeIn, feeOut);
+        // console.log("_swapFee: feeIn=%d feeOut=%d", feeIn, feeOut);
     }
 
     struct SwapAnchorParam {
@@ -679,7 +679,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         } else {
             feeIn = IDeBankPair(pair).getFee(amountIn, feeRate - 1);
         }
-        console.log("amountIn: %d  feeIn: %d", amountIn, feeIn);
+        // console.log("amountIn: %d  feeIn: %d", amountIn, feeIn);
 
         if (input == anchorToken) {
             // 直接收
@@ -798,15 +798,15 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // address anchorToken = param.anchorToken;
         // uint fr = param.fr;
 
-        console.log("before swapfee: balance: %d transfer: %d", IERC20(param.cinput).balanceOf(address(this)), amountIn);
+        // console.log("before swapfee: balance: %d transfer: %d", IERC20(param.cinput).balanceOf(address(this)), amountIn);
         (uint feeIn, uint fee) = _swapToCAnchorToken(param, amountIn);
         // transfer to pair
 
         amountIn = amountIn.sub(feeIn);
         // input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
         (uint amount0Out, uint amount1Out, uint amountOut) = _calcAmountOut(input, pair, amountIn);
-        console.log("amountIn: %d amount0Out: %d amount1Out: %d", amountIn, amount0Out, amount1Out);
-        console.log("balance: %d transfer: %d", IERC20(param.cinput).balanceOf(address(this)), amountIn);
+        // console.log("amountIn: %d amount0Out: %d amount1Out: %d", amountIn, amount0Out, amount1Out);
+        // console.log("balance: %d transfer: %d", IERC20(param.cinput).balanceOf(address(this)), amountIn);
         IERC20(param.cinput).transfer(pair, amountIn);
         // console.log("before swap");
         // address to = i < path.length - 2 ? address(this) : _to;
@@ -979,7 +979,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         } else {
             _mintTransferCToken(path[0], cpath[0], mintTo, amountIn);
         }
-        console.log("mint transfer ok: %d", amountIn);
+        // console.log("mint transfer ok: %d", amountIn);
 
         SwapLocalVars memory vars;
         vars.amountIn = amountIn;
@@ -995,9 +995,9 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // 先将 ctoken 转给 router
         if (feeAlloc == 0) {
             uint[] memory camounts = IDeBankFactory(factory).getAmountsOut(camtIn, path, to);
-            console.log("_swapExactTokensForTokensUnderlying: in/out: %d %d", camounts[0], camounts[camounts.length-1]);
+            // console.log("_swapExactTokensForTokensUnderlying: in/out: %d %d", camounts[0], camounts[camounts.length-1]);
 
-            console.log("camounts: ", camounts[0], camounts[1]);
+            // console.log("camounts: ", camounts[0], camounts[1]);
             camtOut = camounts[camounts.length-1];
             vars.amountOut = _camount2Amount(camtOut, vars.rate1);
             require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
@@ -1149,7 +1149,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         ensure(deadline)
         returns (uint[] memory amounts)
     {
-        console.log('swapExactETHForTokensUnderlying: %d ....', msg.value);
+        // console.log('swapExactETHForTokensUnderlying: %d ....', msg.value);
         require(path[0] == WHT, 'Router: INVALID_PATH');
         amounts = _swapExactTokensForTokensUnderlying(msg.value, amountOutMin, path, to, deadline, true, false);
         // amounts = IDeBankFactory(factory).getAmountsOut(msg.value, path);

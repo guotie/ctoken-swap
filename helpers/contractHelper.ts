@@ -51,18 +51,22 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'SHIB': '0xf2b80eff2A06f46cA839CA77cCaf32aa820e78D1',
         'WETH': '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
         'WHT':  '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836',
-        'CETH': '0x042f1249297EF180f33d166828AC43e401E0FecA',
         'HBTC': '0x1d8684e6cdd65383affd3d5cf8263fcda5001f13',
         // 0xa5142692F4B9ffa9FcC328aB92cFAb06C889f89F 不限制 router 地址
+        // compound
+        'CETH': '0x042f1249297EF180f33d166828AC43e401E0FecA',
         'CtokenFactory': '0xF4CfC260cA8F68f3069FbEc534afbA21E0903b4b', // '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
         'Comptroller': '0xc16BB0ea6817BdC592a525208c19a9Aa43FdC0d1',
         'ComptrollerV2': '0x36a20ae2C88Fe9A946C61Cbf78Ec4be102558E57',
         'Unitroller': '0xcc968c5367EE946e4C73A90D2841C0Ec5D9ED10D',
         'LErc20Delegate': '0xF10e746138b93A1c07de20306C2e94E1EBFEB655',
         'InterestRateModel': '0x85C1740414A26655054946e78BEE75fC27707542',
+        // swap
         'Factory': '0x3182528c58c54DE504cE45B21c15e47f73d58F09',
         'Router': '0xb18911609A5b9C7abDc7DBdA585Ae83F01ced0C5', // '0x9f186BC496e62dBd41d845f188eA1eA28C6EEF71', //'0xB83181Fca94A3aeE1B832A4EeF50f232D2AbE054', // '0xD70C027A1893f4A0fe3002c56AB63137942B5D6B',
         'SwapMining': '',
+        'HecoPool': '',
+        'EBEToken': '',
         'OrderBook': '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
         'StepSwap': '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
         'SwapExchangeRate': '',
@@ -198,15 +202,15 @@ function getEbankPair(address: string, signer?: Signer | Provider) {
 }
 
 function getOrderbookContract(address = contractAddress[NETWORK]['OrderBook'], signer?: Signer | Provider) {
-    return new Contract(address, orderBookABI, signer ?? getProvider())
+    return new Contract(address ? address : contractAddress[NETWORK]['OrderBook'], orderBookABI, signer ?? getProvider())
 }
 
 function getEbeTokenContract(address = contractAddress[NETWORK]['EBEToken'], signer?: Signer | Provider) {
-    return new Contract(address, ebeTokenABI, signer ?? getProvider())
+    return new Contract(address ? address : contractAddress[NETWORK]['EBEToken'], ebeTokenABI, signer ?? getProvider())
 }
 
 function getHecoPollContract(address = contractAddress[NETWORK]['HecoPool'], signer?: Signer | Provider) {
-    return new Contract(address, hecoPoolABI, signer ?? getProvider())
+    return new Contract(address ? address : contractAddress[NETWORK]['HecoPool'], hecoPoolABI, signer ?? getProvider())
 }
 
 function getStepSwapContract(address?: string, signer?: Signer | Provider) {

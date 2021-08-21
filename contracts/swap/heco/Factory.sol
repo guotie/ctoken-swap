@@ -26,7 +26,7 @@ import "../interface/ICToken.sol";
 
 import "./Pair.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract DeBankFactory is IDeBankFactory, Ownable {
     using SafeMath for uint256;
@@ -276,7 +276,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
     function getAmountOutFeeRate(uint amountIn, uint reserveIn, uint reserveOut, uint feeRate) public view returns (uint amountOut) {
         require(amountIn > 0, 'SwapFactory: INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'SwapFactory: INSUFFICIENT_LIQUIDITY');
-        console.log("getAmountOutFeeRate: amountIn=%d", amountIn, feeRate);
+        // console.log("getAmountOutFeeRate: amountIn=%d", amountIn, feeRate);
         uint amountInWithFee = amountIn.mul(10000-feeRate);
         uint numerator = amountInWithFee.mul(reserveOut);
         uint denominator = reserveIn.mul(10000).add(amountInWithFee);
@@ -374,7 +374,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
             (uint reserveIn, uint reserveOut, uint feeRate, bool outAnchorToken) = getReservesFeeRate(path[i], path[i + 1], to);
             // console.log("reserveIn: %d  reserveOut: %d  feeRate: %d", reserveIn, reserveOut, feeRate);
             if (outAnchorToken) {
-                console.log("out is AnchorToken");
+                // console.log("out is AnchorToken");
                 amounts[i + 1] = getAmountOutFeeRateAnchorToken(amounts[i], reserveIn, reserveOut, feeRate);
             } else {
                 amounts[i + 1] = getAmountOutFeeRate(amounts[i], reserveIn, reserveOut, feeRate);

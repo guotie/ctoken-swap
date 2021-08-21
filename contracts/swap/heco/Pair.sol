@@ -24,7 +24,7 @@ import "../../compound/CToken.sol";
 
 import "./PairStorage.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface IUnitroller {
     function compAccrued(address addr) external view returns (uint);
@@ -77,7 +77,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
     function _updateBlockFee(uint fee) private {
         totalFee += fee;
         currentFee += fee;
-        console.log("_updateBlockFee: fee=%d totalFee=%d currentFee=%d", fee, totalFee, currentFee);
+        // console.log("_updateBlockFee: fee=%d totalFee=%d currentFee=%d", fee, totalFee, currentFee);
     }
 
     // 从 router 那里 mint 手续费ebe: router 首先 mint 全平台的 ebe 分成，然后把 pair 的那部分转给 pair
@@ -88,7 +88,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         IDeBankRouter router = IDeBankRouter(IDeBankFactory(factory).router());
         amt = router.mintEBEToken(token0, token1, currentFee);
 
-        console.log("_mintPairEBE: fee=%d reward=%d", currentFee, amt);
+        // console.log("_mintPairEBE: fee=%d reward=%d", currentFee, amt);
         currentFee = 0;
     }
 
@@ -121,13 +121,13 @@ contract DeBankPair is IDeBankPair, PairStorage {
         if (lastBlock == block.number) {
             return;
         }
-        console.log("start update pair share: %d", currentFee);
+        // console.log("start update pair share: %d", currentFee);
         lastBlock = block.number;
         // 手续费所得 ebe 分成
         uint feeAmt = _mintPairEBE();
         uint compAmt = _claimPairComp();
         uint total = feeAmt + compAmt;
-        console.log("_updateEBEPerShare: feeAmt=%d compAmt=%d", feeAmt, compAmt);
+        // console.log("_updateEBEPerShare: feeAmt=%d compAmt=%d", feeAmt, compAmt);
         if (total > 0 && totalSupply > 0) {
             // 更新 per share
             mintAccPerShare += total.mul(1e18).div(totalSupply);
@@ -535,7 +535,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
     // 只允许 router 调用, fee 已经在外部扣除
     function swapNoFee(uint amount0Out, uint amount1Out, address to, uint fee) external lock {
         require(msg.sender == IDeBankFactory(factory).router(), "DeBankSwap: router only");
-        console.log("swapNoFee: amount0Out=%d amount1Out=%d fee=%d", amount0Out, amount1Out, fee);
+        // console.log("swapNoFee: amount0Out=%d amount1Out=%d fee=%d", amount0Out, amount1Out, fee);
         if (fee > 0) {
             _updateBlockFee(fee);
         }
