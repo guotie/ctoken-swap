@@ -113,6 +113,10 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         swapMining = _swapMininng;
     }
 
+    function setCtokenFactory(address _ctokenFactory) public onlyOwner {
+        ctokenFactory = LErc20DelegatorInterface(_ctokenFactory);
+    }
+
     function resetQuoteTokens(address[] memory tokens) public onlyOwner {
         for (uint i; i < quoteTokens.length; i ++) {
             quoteTokens.pop();
