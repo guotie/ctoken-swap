@@ -3,7 +3,6 @@ const { expect } = require("chai");
 import { Contract } from 'ethers'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 // import sleep from '../utils/sleep';
-// import { deployContract } from 'ethereum-waffle';
 const hre = require('hardhat')
 const ethers = hre.ethers
 // const network = hre.network
