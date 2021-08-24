@@ -232,11 +232,11 @@ async function getContractByAddressName(addr: string, name: string, signer?: Sig
     return new Contract(addr, art.abi, signer ?? getProvider())
 }
 
-function getMdexFactoryContract(addr: string, signer: Signer | Provider) {
+function getMdexFactoryContract(addr: string, signer?: Signer | Provider) {
     return new Contract(addr, mdexFactoryABI, signer ?? getProvider())
 }
 
-function getMdexRouterContract(addr: string, signer: Signer | Provider) {
+function getMdexRouterContract(addr: string, signer?: Signer | Provider) {
     return new Contract(addr, mdexRouterABI, signer ?? getProvider())
 
 }
