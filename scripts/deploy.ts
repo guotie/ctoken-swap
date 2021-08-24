@@ -1,6 +1,26 @@
-import { deployAll } from "../deployments/deploys";
-const hre = require('hardhat')
+import { addressOf, TokenContractName } from '../helpers/contractHelper';
+import {
+    deployEBE,
+    deploySwap,
+    deployOrderBook,
+    deployStepSwap } from '../helpers/heco'
 
-hre.network.name = 'hecotest'
+;(async () => {
+    const hre = require('hardhat')
+    
+    // hre.network.name = 'hecotest'
+    await deployEBE()
+    await deploySwap()
+    await deployOrderBook()
+    await deployStepSwap()
 
-deployAll({}, true)
+    const printContrct = (name: TokenContractName)  => { console.log('%s: %s', name, addressOf(name)) }
+    printContrct('EBEToken')
+    printContrct('Factory')
+    printContrct('Router')
+    printContrct('SwapExchangeRate')
+    printContrct('HecoPool')
+    printContrct('SwapMining')
+    printContrct('OrderBook')
+    printContrct('StepSwap')
+})();

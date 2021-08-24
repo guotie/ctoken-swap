@@ -4,7 +4,7 @@
   "description": "debank with lend, borrow & swap",
   "main": "index.js",
   "scripts": {
-    "deploy": "hardhat --network hecotest clean && hardhat --network hecotest compile && ts-node --network hecotest scripts/deploy.ts",
+    "deploy:hecotest:all": "hardhat --network hecotest clean && hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploy.ts",
     "deploy:orderbook": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/orderbook.ts",
     "deploy:ebe": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/ebe.ts",
     "deploy:router": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/router.ts",

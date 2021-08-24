@@ -63,9 +63,17 @@ interface IDeBankPair {
 
     function feeRate() external view returns (uint);
 
+    // pair 的 token0 地址
     function token0() external view returns (address);
 
+    // pair 的 token1 地址
     function token1() external view returns (address);
+
+    // pair 的 cToken0 地址
+    function cToken0() external view returns (address);
+
+    // pair 的 cToken1 地址
+    function cToken1() external view returns (address);
 
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
 

@@ -1336,9 +1336,29 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
 }
 
+// 辅助合约
 library SwapExchangeRate {
     using SafeMath for uint;
     using SafeMath for uint256;
+
+    // 计算 burn 后得到的 etoken 数量
+    function getBurnETokenAmt(address _pair, uint liquidity) public view returns (uint amount0, uint amount1) {
+        IDeBankPair pair = IDeBankPair(_pair);
+        address _token0 = pair.cToken0();
+        // gas savings
+        address _token1 = pair.cToken1();
+        // gas savings
+        uint balance0 = IERC20(_token0).balanceOf(address(this));
+        uint balance1 = IERC20(_token1).balanceOf(address(this));
+        // uint liquidity = balanceOf[address(this)];
+
+        // bool feeOn = _mintFee(_reserve0, _reserve1);
+        uint _totalSupply = pair.totalSupply();
+        // gas savings, must be defined here since totalSupply can update in _mintFee
+        amount0 = liquidity.mul(balance0) / _totalSupply;
+        // using balances ensures pro-rata distribution
+        amount1 = liquidity.mul(balance1) / _totalSupply;
+    }
 
     function getCurrentExchangeRate(address _ctoken) public view returns (uint256) {
         ICToken ctoken = ICToken(_ctoken);
@@ -1350,11 +1370,6 @@ library SwapExchangeRate {
         uint inc = rate.mul(supplyRate).mul(blocks);
         return rate.add(inc);
     }
-
-    // function getCtoken(address ctokenFactory, address token) public view returns (address ctoken) {
-    //     // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
-    //     ctoken = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(token);
-    // }
 
     function path2cpath(
                     address ctokenFactory,
@@ -1444,7 +1459,6 @@ library SwapExchangeRate {
         amountIn = amounts[0].mul(rateIn).div(1e18);
     }
 }
-
 
 // helper methods for interacting with ERC20 tokens and sending ETH that do not consistently return true/false
 library TransferHelper {

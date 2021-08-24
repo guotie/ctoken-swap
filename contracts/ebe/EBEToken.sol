@@ -4,7 +4,7 @@ pragma solidity ^0.5.16;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/ownership/Ownable.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 contract EBEToken is ERC20, Ownable {
     string public name;
@@ -35,7 +35,7 @@ contract EBEToken is ERC20, Ownable {
 
     // mint with max supply
     function mint(address _to, uint256 _amount) public onlyMinter returns (bool) {
-        console.log("EBE mint: msg.sender=%s to=%s amount=%d", msg.sender, _to, _amount);
+        // console.log("EBE mint: msg.sender=%s to=%s amount=%d", msg.sender, _to, _amount);
         _mint(_to, _amount);
         return true;
     }
@@ -84,7 +84,7 @@ contract EBEToken is ERC20, Ownable {
     
         uint256 n = phase(_lastRewardBlock);
         uint256 m = phase(block.number);
-        console.log("getEbeReward: n=%d m=%d _lastRewardBlock=%d", n, m, _lastRewardBlock);
+        // console.log("getEbeReward: n=%d m=%d _lastRewardBlock=%d", n, m, _lastRewardBlock);
         // If it crosses the cycle
         while (n < m) {
             n++;
@@ -95,7 +95,7 @@ contract EBEToken is ERC20, Ownable {
             _lastRewardBlock = r;
         }
         blockReward = blockReward.add((block.number.sub(_lastRewardBlock)).mul(reward(ebePerBlock, block.number)));
-        console.log("getEbeReward: %d ebePerBlock: %d", blockReward, ebePerBlock);
+        // console.log("getEbeReward: %d ebePerBlock: %d", blockReward, ebePerBlock);
         return blockReward;
     }
 

@@ -5,6 +5,7 @@ const ethers = hre.ethers
 import deploy from './deploy'
 import { BigNumberish, BigNumber } from 'ethers'
 import { e18, addressOf, setContractAddress } from './contractHelper'
+import { zeroAddress } from '../deployments/deploys'
 
 // eth/bsc/heco/hecotest 链部署
 
