@@ -1,6 +1,6 @@
 import { addressOf, TokenContractName } from '../helpers/contractHelper';
 import {
-    deployEBE,
+    deployEbeHecoPool,
     deploySwap,
     deployOrderBook,
     deployStepSwap } from '../helpers/heco'
@@ -9,8 +9,8 @@ import {
     const hre = require('hardhat')
     
     // hre.network.name = 'hecotest'
-    await deployEBE()
     await deploySwap()
+    await deployEbeHecoPool()
     await deployOrderBook()
     await deployStepSwap()
 

@@ -148,6 +148,7 @@ async function deployOrderBook() {
 
 export {
     deployEBE,
+    deployEbeHecoPool,
     deploySwap,
     deployOrderBook,
     deployStepSwap,
