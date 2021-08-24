@@ -126,7 +126,23 @@ async function deployStepSwap() {
 
 // 挂单合约
 async function deployOrderBook() {
+    let l = await _deploy('OBPriceLogic', { args: [] })
+    let c = await _deploy('OBPairConfig', { args: [] })
+    let ctokenFactory = addressOf('CtokenFactory')
+        , ceth = addressOf('CETH')
+        , weth = addressOf('WHT')
+        , margin = zeroAddress
 
+    let ob = await _deploy('OrderBook', {
+        args: [ctokenFactory, ceth, weth, margin],
+        libraries: {
+            OBPriceLogic: l.address,
+            OBPairConfig: c.address
+        },
+    });
+
+    setContractAddress('OrderBook', ob.address)
+    return ob
 }
 
 export {

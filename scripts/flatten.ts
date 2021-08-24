@@ -7,6 +7,9 @@ flattenContract('Orderbook', './deploy/Orderbook.sol')
 flattenContract('Factory', './deploy/Factory.sol')
 flattenContract('Router', './deploy/Router.sol')
 flattenContract('StepSwap', './deploy/StepSwap.sol')
+flattenContract('EBEToken', './deploy/EBEToken.sol')
+flattenContract('HecoPool', './deploy/HecoPool.sol')
+flattenContract('SwapMining', './deploy/SwapMining.sol')
 
 
 // async function flat(src: string, to: string) {

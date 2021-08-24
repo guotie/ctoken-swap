@@ -3010,6 +3010,8 @@ library Exchanges {
 
 
 
+
+
 contract StepSwapStorage {
     mapping(uint => DataTypes.Exchange) public swaps;  
     uint public exchangeCount;  
@@ -3195,7 +3197,8 @@ contract StepSwap is Ownable, StepSwapStorage {
         ) = getRoutesPaths(args);
 
         console.log("routes: %d paths: %d exchanges: %d", params.routes, params.paths.length, params.exchanges.length);
-        if (isTokenToken(args.tokenIn) || isTokenToken(args.tokenOut)) {
+        if (isTokenToken(args.tokenIn)) {
+            require(isTokenToken(args.tokenOut), "tokenOut should be token too");
             address ctokenIn = _getCTokenAddressPure(args.tokenIn);
             address ctokenOut = _getCTokenAddressPure(args.tokenOut);
             params.isEToken  = false;
@@ -3206,6 +3209,7 @@ contract StepSwap is Ownable, StepSwapStorage {
             params.rateIn    = Exchanges.calcCTokenExchangeRate(ICToken(ctokenIn));
             params.rateOut   = Exchanges.calcCTokenExchangeRate(ICToken(ctokenOut));
         } else {
+            require(isTokenToken(args.tokenOut) == false, "tokenOut should be etoken too");
             params.isEToken  = true;
             params.etokenIn  = args.tokenIn;
             params.etokenOut = args.tokenOut;
