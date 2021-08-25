@@ -243,10 +243,24 @@ function getMdexRouterContract(addr: string, signer?: Signer | Provider) {
 
 }
 
-async function getBalance(token: IToken, owner: string): Promise<BigNumber> {
+// 获取 ht/token 余额
+async function getBalance(token: IToken | string, owner: string): Promise<BigNumber> {
     let balance
         , provider = getProvider()
-    if (token.address === zeroAddress) {
+        , addr: string
+
+    if (typeof token === 'string') {
+        addr = token
+        if (addr === zeroAddress || addr === '' || addr === '0x') {
+            balance = await provider.getBalance(owner)
+        }
+        let c = getTokenContract(addr)
+        return c.balanceOf(owner)
+    } else {
+        addr = token.address
+    }
+
+    if (addr === zeroAddress || addr === '' || addr === '0x') {
         balance = await provider.getBalance(owner)
     } else {
         balance = await token.contract!.balanceOf(owner)
