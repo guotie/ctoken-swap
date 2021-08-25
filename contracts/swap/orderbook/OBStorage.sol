@@ -22,17 +22,16 @@ import { OBPairConfig } from "./OBPairConfig.sol";
 contract OBStorage is Ownable {
     using OBPairConfig for DataTypes.OBPairConfigMap;
 
+    uint internal constant _ORDER_CLOSED  = 0x00000000000000000000000000000001;   // 128 bit
+    uint internal constant _HALF_MAX_UINT = uint(-1) >> 1;                        // 0x8fffffffffff...
+
     uint private constant _PAIR_INDEX_MASK = 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff;   // 128 bit
     uint private constant _ADDR_INDEX_MASK = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;   // 128 bit
     uint private constant _MARGIN_MASK     = 0x8000000000000000000000000000000000000000000000000000000000000000;
     uint private constant _EXPIRED_AT_MASK = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;   // 128 bit
     uint private constant _ADDR_INDEX_OFFSET = 128;
-    // uint private constant _EXPIRED_AT_OFFSET = 128;
 
     uint256 public constant DENOMINATOR = 10000;
-
-    // // 计算价格的乘数 price = token0 * priceRatio / token1, such as 1e30
-    // uint public priceRatio = 1e30; 
 
     uint public orderId;   // order Id 自增
 
@@ -87,16 +86,4 @@ contract OBStorage is Ownable {
     function isMargin(uint flag) public pure returns (bool) {
       return (flag & _MARGIN_MASK) != 0;
     }
-
-    // function getExpiredAt(uint ts) public pure returns (uint) {
-    //   return (ts & _EXPIRED_AT_MASK) >> _EXPIRED_AT_OFFSET;
-    // }
-
-    // function maskTimestamp(uint ts, uint expired) public pure returns (uint) {
-    //   return (ts) | (expired << _EXPIRED_AT_OFFSET);
-    // }
-    
-    // function setSwapMining(address _swapMininng) public onlyOwner {
-    //     swapMining = _swapMininng;
-    // }
 }

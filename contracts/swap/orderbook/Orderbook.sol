@@ -119,9 +119,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     using SafeMath for uint256;
     using OBPairConfig for DataTypes.OBPairConfigMap;
 
-    uint private constant _ORDER_CLOSED  = 0x00000000000000000000000000000001;   // 128 bit
-    uint private constant _HALF_MAX_UINT = uint(-1) >> 1;                            // 0x8fffffffffff...
-
     // _ctokenFactory: ctoken 工厂
     // _wETH: eth/bnb/ht
     // _margin: 代持合约地址
@@ -143,18 +140,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         //  cETH 中赎回
         // assert(msg.sender == cWHT);
         // only accept HT via fallback from the WHT contract
-    }
-
-    function closeOrderBook() external onlyOwner {
-      closed = true;
-    }
-
-    function openOrderBook() external onlyOwner {
-      closed = false;
-    }
-
-    function setMinOrderAmount(address token, uint amt) external onlyOwner {
-      minAmounts[token] = amt;
     }
 
     function _putOrder(DataTypes.OrderItem storage order) internal {
@@ -294,10 +279,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         TransferHelper.safeTransferFrom(srcToken, msg.sender, address(this), amountIn);
       }
 
-      {
-        // 最低挂单量限制
-        require(amountIn > minAmounts[srcToken], "less than min amount");
-      }
       idx = orderId ++;
       DataTypes.OrderItem storage order = orders[idx];
       order.orderId = idx;
@@ -332,6 +313,12 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
           order.tokenAmt.amountInMint = amountIn;
         }
       }
+
+      {
+        // 最低挂单量限制
+        require(order.tokenAmt.amountInMint > minAmounts[etoken], "less than min amount");
+      }
+
       order.tokenAmt.destToken = destToken;
       address destEToken = _getOrCreateETokenAddress(destToken);
       order.tokenAmt.destEToken = destEToken;
@@ -763,23 +750,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     function _withdrawUnderlying(address user, address token, address etoken, uint total, uint amt) private {
         balanceOf[etoken][user] = total.sub(amt);
 
-        // if (etoken == cETH) {
-        //   uint balanceBefore = address(this).balance;
-        //   // approve
-        //   IERC20(cETH).approve(cETH, amt);
-        //   uint ret = ICETH(cETH).redeem(amt);
-        //   require(ret == 0, "redeem eth failed");
-        //   uint redeemAmt = address(this).balance.sub(balanceBefore);
-        //   TransferHelper.safeTransferETH(user, redeemAmt);
-        // } else {
-        //   uint balanceBefore = IERC20(token).balanceOf(address(this));
-        //   // approve
-        //   IERC20(etoken).approve(etoken, amt);
-        //   uint ret = ICToken(etoken).redeem(amt);
-        //   require(ret == 0, "redeem failed");
-        //   uint redeemAmt = IERC20(token).balanceOf(address(this)).sub(balanceBefore);
-        //   TransferHelper.safeTransfer(token, user, redeemAmt);
-        // }
         _redeemTransfer(token, etoken, user, amt);
     }
 
@@ -811,6 +781,20 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         _withdrawUnderlying(msg.sender, token, etoken, total, amt);
     }
 
+    // 关闭 挂单 合约
+    function closeOrderBook() external onlyOwner {
+      closed = true;
+    }
+
+    function openOrderBook() external onlyOwner {
+      closed = false;
+    }
+
+    // 设置某个 token 的最低挂单量, 参数为 etoken, 非 token
+    function setMinOrderAmount(address etoken, uint amt) external onlyOwner {
+      minAmounts[etoken] = amt;
+    }
+
     /// @dev 设置 feeTo 地址
     function setFeeTo(address to) external onlyOwner {
       feeTo = to;
@@ -824,12 +808,14 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       return conf;
     }
 
+    // pair 吃单手续费
     function setPairTakerFee(address src, address dest, uint fee) external onlyOwner {
       DataTypes.OBPairConfigMap storage conf = _getPairFee(src, dest);
 
       conf.setFeeTaker(fee);
     }
     
+    // pair 挂单手续费
     function setPairMakerFee(address src, address dest, uint fee) external onlyOwner {
       DataTypes.OBPairConfigMap storage conf = _getPairFee(src, dest);
 

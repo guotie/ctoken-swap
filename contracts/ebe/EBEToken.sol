@@ -11,6 +11,8 @@ contract EBEToken is ERC20, Ownable {
     string public symbol;
     uint8 public decimals;
 
+    event SetMinter(address indexed minter, bool mintable);
+
     mapping(address => bool) public minters;
     // The block number when EBE mining starts.
     uint256 public startBlock;
@@ -45,6 +47,8 @@ contract EBEToken is ERC20, Ownable {
         require(_newMinter != address(0), "is zero address");
         // minter = _newMinter;
         minters[_newMinter] = mintable;
+        
+        emit SetMinter(_newMinter, mintable);
     }
 
     // At what phase

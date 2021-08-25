@@ -78,18 +78,6 @@ library OBPriceLogic {
         uint destRate = getCurrentExchangeRate(ICToken(dstEToken));
         uint destEAmt = data.guaranteeAmountOut.mul(1e18).div(destRate);
         return amtToTaken.mul(destEAmt).div(data.amountInMint);
-
-        // // 由于目前 create order已经限制了必须同时为 token 或者 etoken
-        // require(src != srcEToken && dst != dstEToken, "invalid orderbook tokens");
-        
-        // // price = amtOut/amtIn = eAmtOut*rateOut/(eAmtIn*rateIn)
-        // // eprice = (price*rateIn)/rateOut = (amtOut*rateIn)/(amtIn*rateOut)
-        // uint256 rateIn = getCurrentExchangeRate(ICToken(srcEToken));
-        // uint256 rateOut = getCurrentExchangeRate(ICToken(dstEToken));
-
-        // // 吃单者需要转入的币的数量
-        // return amtToTaken.mul(rateIn).mul(data.guaranteeAmountOut).div(data.amountIn).div(rateOut);
-        // // return (amtToSendByEToken, amtToTaken);
     }
 
 
