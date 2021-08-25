@@ -45,6 +45,8 @@ contract OBStorage is Ownable {
     address public marginAddr;  // 代持合约
     address public feeTo;       // 手续费地址
 
+    // 每个杠杆用户 每个pair 的最大订单量
+    uint public maxMarginOrder = 5;
     // maker 手续费 && taker 手续费
     uint public defaultFeeMaker = 30;
     uint public defaultFeeTaker = 30;
@@ -55,9 +57,10 @@ contract OBStorage is Ownable {
 
     // orders
     mapping (uint => DataTypes.OrderItem) public orders;
-    mapping (address => uint[]) public marginOrders;   // 杠杆合约代持的挂单
+    mapping (address => uint[]) public marginOrders;         // 杠杆合约代持的挂单
     mapping (address => uint[]) public addressOrders;
     mapping (uint => uint[]) public pairOrders;
+    mapping (address => mapping(uint => uint)) public marginUserOrderCount;   // 杠杆合约用户的挂单总数量, 每个交易对限制
 
     function pairIndex(uint id) public pure returns(uint) {
         return (id & _PAIR_INDEX_MASK);

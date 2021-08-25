@@ -78,25 +78,39 @@ interface IMarginHolding {
 // }
 
 interface IOrderBook {
-    event CreateOrder(address indexed owner,
+    event CreateOrder(
+          address indexed owner,
           address indexed srcToken,
           address indexed destToken,
           uint orderId,
           uint amountIn,
           uint minAmountOut,
-          uint flag);
+          uint flag
+        );
 
-    event FulFilOrder(address indexed maker,
+    event FulFilOrder(
+          address indexed maker,
           address indexed taker,
           uint orderId,
           uint amt,
-          uint amtOut);
+          uint amtOut
+        );
           // uint remaining);
 
-    event CancelOrder(address indexed owner,
+    event CancelOrder(
+          address indexed owner,
           address indexed srcToken,
           address indexed destToken,
-          uint orderId);
+          uint orderId
+        );
+    
+    event CancelPairMarginOrder(
+          address indexed to,
+          address indexed srcEToken,
+          address indexed dstEToken,
+          uint totalA,
+          uint totalB
+        );
 }
 
 // 挂单合约
@@ -192,6 +206,9 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
               orders[rIdx].pairAddrIdx = updateAddrIdx(orders[rIdx].pairAddrIdx, addrIdx);
             }
             marginOrders[owner].pop();
+
+            // 用户订单量减少1
+            marginUserOrderCount[owner][order.pair] --;
         } else {
             uint lastIdx = addressOrders[owner].length-1;
             if (addrIdx != lastIdx) {
@@ -323,15 +340,22 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       // src dest 必须同时为 token 或者 etoken
       require((srcToken == etoken) == (destToken == destEToken), "both token or etoken");
 
+      order.pair = _pairFor(etoken, destEToken);
+      // 严格限制
+      // margin 合约地址的挂单必须是 杠杆订单, 且, 杠杆订单必须是 margin 合约地址发起
       if (msg.sender == marginAddr) {
         require(isMargin(flag), "flag should be margin");
         // 代持合约只能挂 etoken
         require(etoken == srcToken, "src should be etoken");
         require(to != msg.sender, "to should be user's address");
         require(order.tokenAmt.destEToken == destToken, "dest should be etoken");
+        // 校验是否超过该用户的最大订单数量
+        uint count = marginUserOrderCount[to][order.pair];
+        require(count < maxMarginOrder, "order count");
+        marginUserOrderCount[to][order.pair] = count + 1;
+      } else {
+        require(isMargin(flag) == false, "should not be margin flag");
       }
-
-      order.pair = _pairFor(etoken, destEToken);
 
       // 授权 省去后续 cancel withdraw 授权的麻烦
       if (IERC20(destEToken).allowance(address(this), destEToken) < _HALF_MAX_UINT) {
@@ -362,10 +386,10 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     // 获取所有订单列表
-    function getAllOrders() external view returns(DataTypes.OrderItem[] memory allOrders) {
+    // 订单数过多的情况, 可能会爆掉
+    function getAllOrders(uint startIdx) external view returns(DataTypes.OrderItem[] memory allOrders) {
       uint total = 0;
-      uint id = 0;
-      for (uint i = 0; i < orderId; i ++) {
+      for (uint i = startIdx; i < orderId; i ++) {
         uint flag = orders[i].flag;
         if (_orderClosed(flag) == false) {
           total ++;
@@ -373,7 +397,8 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       }
 
       allOrders = new DataTypes.OrderItem[](total);
-      for (uint i = 0; i < orderId; i ++) {
+      uint id = 0;
+      for (uint i = startIdx; i < orderId; i ++) {
         DataTypes.OrderItem memory order = orders[i];
         if (_orderClosed(order.flag) == false) {
           allOrders[id] = order;
@@ -405,6 +430,57 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         }
     }
 
+    // 取消用户所有的杠杆订单
+    function cancelPairMarginOrders(address etokenA, address etokenB, address to) public nonReentrant {
+      require(msg.sender == marginAddr, "not margin addr");
+
+      uint pairA = _pairFor(etokenA, etokenB);
+      uint pairB = _pairFor(etokenB, etokenA);
+
+      // 状态变量赋值给 memory 局部变量, copy 操作
+      uint[] memory orderIds = marginOrders[to];
+      uint totalA;
+      uint totalB;
+
+      // 没有订单
+      if (orderIds.length == 0) {
+        return;
+      }
+
+      for (uint i = 0; i < orderIds.length; i ++) {
+        // 状态变量赋值给 storage 局部变量, 引用
+        DataTypes.OrderItem storage order = orders[orderIds[i]];
+        uint _pair = order.pair;
+        if (_pair == pairA) {
+          totalA += order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+          // totalA += amt;
+          order.flag |= _ORDER_CLOSED;
+          _removeOrder(order);
+        } else if (_pair == pairB) {
+          totalB += order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+          order.flag |= _ORDER_CLOSED;
+          _removeOrder(order);
+        }
+      }
+
+      if (totalA > 0) {
+        TransferHelper.safeTransfer(etokenA, marginAddr, totalA);
+        IMarginHolding(marginAddr).onCanceled(to, etokenA, etokenB, etokenA, totalA);
+      }
+      if (totalB > 0) {
+        TransferHelper.safeTransfer(etokenB, marginAddr, totalB);
+        IMarginHolding(marginAddr).onCanceled(to, etokenB, etokenA, etokenB, totalB);
+      }
+
+      emit CancelPairMarginOrder(
+                  to,
+                  etokenA,
+                  etokenB,
+                  totalA,
+                  totalB
+              );
+    }
+
     // 调用者判断是否有足够的 token 可以赎回
     function cancelOrder(uint orderId) public nonReentrant {
       DataTypes.OrderItem storage order = orders[orderId];
@@ -423,43 +499,13 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       uint amt = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
       console.log("cancel order: srcEToken amt=%d", amt);
 
-      if (srcToken != srcEToken) {
-        // redeem etoken
-        // 如果有足够多的 etoken 可以赎回, 则全部赎回; 否则尽可能多的赎回
-        // uint cash = ICToken(srcEToken).getCash();
-        // uint redeemAmt = amt;
-
-        if (amt > 0) {
+      if (amt > 0) {
+        if (srcToken != srcEToken) {
           _redeemTransfer(srcToken, srcEToken, order.owner, amt);
           console.log("redeem transfer ok");
-          /*
-          // redeem token
-          uint balanceBefore;
-          if (srcEToken == cETH) {
-            // console.log("redeem cETH:", cETH, order.owner);
-            // console.log("casH: %d redeemAmt: %d", ICToken(cETH).getCash(), redeemAmt);
-            balanceBefore = address(this).balance;
-            uint ret = ICToken(cETH).redeem(redeemAmt);
-            require(ret == 0, "redeem eth failed");
-            // console.log("redeem ceth:", ret, redeemAmt);
-            uint amtToSend = address(this).balance.sub(balanceBefore);
-            TransferHelper.safeTransferETH(order.owner, amtToSend);
-          } else {
-            // console.log("redeem token:", srcEToken, redeemAmt);
-            balanceBefore = IERC20(srcToken).balanceOf(address(this));
-            uint ret = ICToken(srcEToken).redeem(redeemAmt);
-            require(ret == 0, "redeem failed");
-            uint amtToSend = IERC20(srcToken).balanceOf(address(this)).sub(balanceBefore);
-            TransferHelper.safeTransfer(srcToken, order.owner, amtToSend);
-            // console.log("redeem token success", srcEToken, redeemAmt);
-          }
-          */
+        } else {
+          TransferHelper.safeTransfer(srcToken, order.owner, amt);
         }
-        // if (remainingEToken > 0) {
-        //   TransferHelper.safeTransfer(srcEToken, order.owner, remainingEToken);
-        // }
-      } else {
-        TransferHelper.safeTransfer(srcToken, order.owner, amt);
       }
 
       // 杠杆用户成交的币已经转给代持合约, 这里只处理非杠杆用户的币，还给用户
@@ -738,7 +784,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     // 用户成交后，资金由合约代管, 用户提现得到自己的 etoken
-    function withdraw(address etoken, uint amt) external {
+    function withdraw(address etoken, uint amt) external whenOpen {
         uint total = balanceOf[etoken][msg.sender];
         require(total > 0, "no asset");
         if (amt == 0) {
@@ -751,7 +797,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     // 用户成交后，资金由合约代管, 用户提现得到自己的 token
-    function withdrawUnderlying(address token, uint amt) external {
+    function withdrawUnderlying(address token, uint amt) external whenOpen {
         address etoken = _getETokenAddress(token);
         uint total = balanceOf[etoken][msg.sender];
 
@@ -769,15 +815,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     function setFeeTo(address to) external onlyOwner {
       feeTo = to;
     }
-
-    /// @dev TODO 需要关闭 转出手续费
-    // function adminTransfer(address token, address to, uint amt) external onlyOwner {
-    //     if (token == address(0)) {
-    //       TransferHelper.safeTransferETH(to, amt);
-    //     } else {
-    //       TransferHelper.safeTransfer(token, to, amt);
-    //     }
-    // }
 
     function _getPairFee(address src, address dest) internal view returns (DataTypes.OBPairConfigMap storage conf) {
       address srcEToken = _getETokenAddress(src);
@@ -797,6 +834,11 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       DataTypes.OBPairConfigMap storage conf = _getPairFee(src, dest);
 
       conf.setFeeMaker(fee);
+    }
+
+    // 杠杆用户单交易对最大挂单数量
+    function setMaxOrderCount(uint count) external onlyOwner {
+      maxMarginOrder = count;
     }
 }
 
