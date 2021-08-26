@@ -203,12 +203,18 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     }
 
     function _getCtoken(address token) private view returns (address ctoken) {
+        if (token == WHT) {
+            return cWHT;
+        }
         // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
         ctoken = ctokenFactory.getCTokenAddressPure(token);
         require(ctoken != address(0), "get etoken failed");
     }
 
     function _getTokenByCtoken(address ctoken) private view returns (address token) {
+        if (ctoken == cWHT) {
+            return WHT;
+        }
         // token = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getTokenAddress(ctoken);
         token = ctokenFactory.getTokenAddress(ctoken);
         require(token != address(0), "get token failed");
