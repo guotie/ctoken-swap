@@ -49,14 +49,14 @@ async function deploySwap() {
       });
     setContractAddress('Factory', factory.address)
     
-    const router = await _deploy('DeBankRouter', {
+    const router = await _deploy('contracts/flatten/Router.sol:DeBankRouter', {
         // factory wht lht startBlock
         args: [factory.address, wht, ceth, ctokenFactory],
       })
     setContractAddress('Router', router.address)
 
     // SwapExchangeRate
-    const rate = await _deploy('SwapExchangeRate', { args: []} )
+    const rate = await _deploy('contracts/flatten/Router.sol:SwapExchangeRate', { args: []} )
     setContractAddress('SwapExchangeRate', rate.address)
 
     // set factory router !!!
@@ -69,7 +69,7 @@ async function deploySwap() {
 
 export async function deployHecoPool(ebe: string, ebePerBlock: number, startBlock: number) {
     const e18 = BigNumber.from('1000000000000000000')
-        , result = await _deploy('HecoPool', {
+        , result = await _deploy('contracts/flatten/HecoPool.sol:HecoPool', {
             args: [ ebe, BigNumber.from(ebePerBlock).mul(e18), startBlock ],
             });
     setContractAddress('HecoPool', result.address)
@@ -82,7 +82,7 @@ async function deploySwapMining(perBlock: BigNumberish) {
         // , namedSigners = await ethers.getSigners()
         // , deployer = namedSigners[0].address
     
-    let swapMining = await _deploy('SwapMining', { args: [ebe, router, perBlock, 0] })
+    let swapMining = await _deploy('contracts/flatten/SwapMining.sol:SwapMining', { args: [ebe, router, perBlock, 0] })
         // , c = new ethers.Contract(swapMining.address, swapMining.abi, namedSigners[0])
     setContractAddress('SwapMining', swapMining.address)
 }
@@ -103,13 +103,13 @@ async function deployStepSwap() {
     // let namedSigners = await ethers.getSigners()
     // , deployer = namedSigners[0].address
 
-  let e = await _deploy('Exchanges', { args: [] })
-    , p = await _deploy('PathFinder', { args: [] })
-    , s = await _deploy('SwapFlag', { args: [], })
+  let e = await _deploy('contracts/flatten/StepSwap.sol:Exchanges', { args: [] })
+    , p = await _deploy('contracts/flatten/StepSwap.sol:PathFinder', { args: [] })
+    , s = await _deploy('contracts/flatten/StepSwap.sol:SwapFlag', { args: [], })
     , wethAddr = addressOf('WETH')
     , ceth = addressOf('CETH')
     , ctokenFactory = addressOf('CtokenFactory')
-    , result = await _deploy('StepSwap', {
+    , result = await _deploy('contracts/flatten/StepSwap.sol:StepSwap', {
       args: [wethAddr, ceth, ctokenFactory],
       libraries: {
           // DataTypes: d.address,
@@ -138,14 +138,14 @@ async function doSettings() {
 
 // 挂单合约
 async function deployOrderBook() {
-    let l = await _deploy('OBPriceLogic', { args: [] })
-    let c = await _deploy('OBPairConfig', { args: [] })
+    let l = await _deploy('contracts/flatten/OrderBook.sol:OBPriceLogic', { args: [] })
+    let c = await _deploy('contracts/flatten/OrderBook.sol:OBPairConfig', { args: [] })
     let ctokenFactory = addressOf('CtokenFactory')
         , ceth = addressOf('CETH')
         , weth = addressOf('WHT')
         , margin = zeroAddress
 
-    let ob = await _deploy('OrderBook', {
+    let ob = await _deploy('contracts/flatten/OrderBook.sol:OrderBook', {
         args: [ctokenFactory, ceth, weth, margin],
         libraries: {
             OBPriceLogic: l.address,
