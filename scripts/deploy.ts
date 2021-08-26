@@ -3,10 +3,11 @@ import {
     deployEbeHecoPool,
     deploySwap,
     deployOrderBook,
-    deployStepSwap } from '../helpers/heco'
+    deployStepSwap,
+    doSettings } from '../helpers/heco'
 
 ;(async () => {
-    const hre = require('hardhat')
+    // const hre = require('hardhat')
     
     // hre.network.name = 'hecotest'
     await deploySwap()
@@ -14,7 +15,9 @@ import {
     await deployOrderBook()
     await deployStepSwap()
 
-    const printContrct = (name: TokenContractName)  => { console.log('%s: %s', name, addressOf(name)) }
+    await doSettings()
+
+    const printContrct = (name: TokenContractName)  => { console.log("    '%s': '%s',", name, addressOf(name)) }
     printContrct('EBEToken')
     printContrct('Factory')
     printContrct('Router')
@@ -23,4 +26,6 @@ import {
     printContrct('SwapMining')
     printContrct('OrderBook')
     printContrct('StepSwap')
+
+    console.info('\n--------------------------------compelete--------------------------------\n')
 })();

@@ -2,14 +2,14 @@ const hre = require('hardhat')
 // const ethers = hre.ethers
 import { flattenContract } from '../helpers/flatten'
 
-// flattenContract('Orderbook', './deploy/Orderbook.sol')
-flattenContract('Orderbook', './deploy/Orderbook.sol')
-flattenContract('Factory', './deploy/Factory.sol')
-flattenContract('Router', './deploy/Router.sol')
-flattenContract('StepSwap', './deploy/StepSwap.sol')
-flattenContract('EBEToken', './deploy/EBEToken.sol')
-flattenContract('HecoPool', './deploy/HecoPool.sol')
-flattenContract('SwapMining', './deploy/SwapMining.sol')
+// flattenContract('Orderbook', './contracts/flatten/Orderbook.sol')
+flattenContract('Orderbook', './contracts/flatten/Orderbook.sol')
+flattenContract('Factory', './contracts/flatten/Factory.sol')
+flattenContract('Router', './contracts/flatten/Router.sol')
+flattenContract('StepSwap', './contracts/flatten/StepSwap.sol')
+flattenContract('EBEToken', './contracts/flatten/EBEToken.sol')
+flattenContract('HecoPool', './contracts/flatten/HecoPool.sol')
+flattenContract('SwapMining', './contracts/flatten/SwapMining.sol')
 
 
 // async function flat(src: string, to: string) {

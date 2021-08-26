@@ -4,12 +4,12 @@ const ethers = hre.ethers
 
 import deploy from './deploy'
 import { BigNumberish, BigNumber } from 'ethers'
-import { e18, addressOf, setContractAddress } from './contractHelper'
+import { e18, addressOf, setContractAddress, getEbeTokenContract } from './contractHelper'
 import { zeroAddress } from '../deployments/deploys'
 
 // eth/bsc/heco/hecotest 链部署
 
-const deterministic = '0x' + Math.ceil(new Date().getTime()).toString(16).slice(0, 8)
+const deterministic = true // '0x' + Math.ceil(new Date().getTime()).toString(16).slice(0, 8)
 console.log('opts.deterministicDeployment:', deterministic)
 
 async function _deploy(name: string, opts: any) {
@@ -29,7 +29,7 @@ async function _deploy(name: string, opts: any) {
 
 // 平台币
 async function deployEBE() {
-    const result = await _deploy('EBEToken', { args: [] });
+    const result = await _deploy('contracts/flatten/EEBEToken.sol:EBEToken', { args: [] });
 
     setContractAddress('EBEToken', result.address)
     return result
@@ -43,7 +43,7 @@ async function deploySwap() {
         , ctokenFactory = addressOf('CtokenFactory')
         , namedSigners = await ethers.getSigners()
 
-    const factory = await _deploy('DeBankFactory', {
+    const factory = await _deploy('contracts/flatten/Factory.sol:DeBankFactory', {
         // 10% 60% 稳定币 usdt 地址
         args: [ usdt ],
       });
@@ -63,8 +63,8 @@ async function deploySwap() {
     let fc = new ethers.Contract(factory.address, factory.abi, namedSigners[0])
     await fc.setRouter(router.address)
 
-    let rc = new ethers.Contract(router.address, router.abi, namedSigners[0])
-    console.info('router factory:', await rc.factory())
+    // let rc = new ethers.Contract(router.address, router.abi, namedSigners[0])
+    // console.info('router factory:', await rc.factory())
 }
 
 export async function deployHecoPool(ebe: string, ebePerBlock: number, startBlock: number) {
@@ -88,25 +88,20 @@ async function deploySwapMining(perBlock: BigNumberish) {
 }
 
 async function deployEbeHecoPool() {
-    let namedSigners = await ethers.getSigners()
+    // let namedSigners = await ethers.getSigners()
         // , deployer = namedSigners[0].address
     
     let ebe = await deployEBE()
-    let pool = await deployHecoPool(ebe.address, 10, 0)
-    let ebec = new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
-    await ebec.setMinter(pool.address, true)
+    await deployHecoPool(ebe.address, 10, 0)
 
     // 每个块 80 个
     await deploySwapMining(BigNumber.from(80).mul(e18))
-
-    await ebec.setMinter(addressOf('Router'), true)
-    await ebec.setMinter(addressOf('SwapMining'), true)
 }
 
 // 聚合器
 async function deployStepSwap() {
-    let namedSigners = await ethers.getSigners()
-    , deployer = namedSigners[0].address
+    // let namedSigners = await ethers.getSigners()
+    // , deployer = namedSigners[0].address
 
   let e = await _deploy('Exchanges', { args: [] })
     , p = await _deploy('PathFinder', { args: [] })
@@ -126,6 +121,19 @@ async function deployStepSwap() {
     })
 
     setContractAddress('StepSwap', result.address)
+}
+
+// todo: 完成一些设置
+async function doSettings() {
+    const namedSigners = await ethers.getSigners()
+    // factory mintFreeAddress
+
+
+    // ebe 设置
+    const ebec = getEbeTokenContract('', namedSigners[0]) // new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
+    await (await ebec.setMinter(addressOf('HecoPool'), true)).wait()
+    await ebec.setMinter(addressOf('Router'), true)
+    await ebec.setMinter(addressOf('SwapMining'), true)
 }
 
 // 挂单合约
@@ -155,4 +163,5 @@ export {
     deploySwap,
     deployOrderBook,
     deployStepSwap,
+    doSettings,
 }
