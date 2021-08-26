@@ -9,6 +9,8 @@ import { zeroAddress } from '../deployments/deploys'
 
 // eth/bsc/heco/hecotest 链部署
 
+const deterministic = '0x' + Math.ceil(new Date().getTime()).toString(16).slice(0, 8)
+console.log('opts.deterministicDeployment:', deterministic)
 
 async function _deploy(name: string, opts: any) {
     const networkName = hre.network.name
@@ -20,8 +22,7 @@ async function _deploy(name: string, opts: any) {
 
     opts.from = namedSigners[0].address
     opts.log = true
-    opts.deterministicDeployment = '0x' + Math.ceil(new Date().getTime()).toString(16)
-    console.log('opts.deterministicDeployment')
+    opts.deterministicDeployment = deterministic
 
     return deploy(name, opts, networkName !== 'hardhat')
 }
