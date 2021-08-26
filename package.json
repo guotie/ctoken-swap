@@ -21,6 +21,7 @@
     "test:all": "hardhat test",
     "test": "hardhat test",
     "clean": "hardhat clean",
+    "clean:flat": "hardhat clean && rimraf -rf contracts/flatten",
     "flatten": "ts-node scripts/flatten.ts",
     "compile": "hardhat clean && hardhat compile"
   },

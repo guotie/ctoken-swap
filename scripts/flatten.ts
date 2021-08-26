@@ -1,6 +1,11 @@
 const hre = require('hardhat')
+import * as fs from 'fs';
 // const ethers = hre.ethers
 import { flattenContract } from '../helpers/flatten'
+
+try {
+    fs.mkdirSync('./contracts/flatten')
+} catch{}
 
 // flattenContract('Orderbook', './contracts/flatten/Orderbook.sol')
 flattenContract('Orderbook', './contracts/flatten/Orderbook.sol')

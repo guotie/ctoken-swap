@@ -109,6 +109,7 @@ dist
 cache/
 /artifacts/
 deployments/artifacts/
+contracts/flatten/
 
 # only typescript is allowed
 *.js
