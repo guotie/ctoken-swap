@@ -20,7 +20,7 @@ async function _deploy(name: string, opts: any) {
 
     opts.from = namedSigners[0].address
     opts.log = true
-    opts.deterministicDeployment = false
+    opts.deterministicDeployment = Math.ceil(new Date().getTime()).toString(16)
 
     return deploy(name, opts, networkName !== 'hardhat')
 }
