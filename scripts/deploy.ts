@@ -38,6 +38,8 @@ import {
     await doSettings()
 
     const printContrct = (name: TokenContractName)  => { console.log("    '%s': '%s',", name, addressOf(name)) }
+    console.log('\n')
+    printContrct('CtokenFactory')
     printContrct('EBEToken')
     printContrct('Factory')
     printContrct('Router')
