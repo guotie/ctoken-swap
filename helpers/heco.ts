@@ -62,6 +62,7 @@ async function deploySwap() {
     // set factory router !!!
     let fc = new ethers.Contract(factory.address, factory.abi, namedSigners[0])
     await fc.setRouter(router.address)
+    console.log('set factory router address success')
 
     // let rc = new ethers.Contract(router.address, router.abi, namedSigners[0])
     // console.info('router factory:', await rc.factory())
