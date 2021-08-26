@@ -212,8 +212,8 @@ export default {
   //   project: 'v2',
   // },
   paths: {
-    deploy: 'deployments/migrations',
-    deployments: 'deployments/artifacts',
+    deploy: 'deploy',
+    deployments: 'artifacts',
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY
