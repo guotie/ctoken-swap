@@ -19,6 +19,7 @@ async function deploy(name: string, opts: any, verify: boolean) {
               await sleep(6500)
               await hre.run('verify:verify', {
                 address: c.address,
+                contract: name,
                 constructorArguments: opts.args
               })
           } catch (err) {
