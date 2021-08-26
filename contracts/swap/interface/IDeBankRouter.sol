@@ -17,6 +17,7 @@ interface IDeBankRouter {
     function factory() external view returns (address);
 
     function WHT() external view returns (address);
+    function cWHT() external view returns (address);
 
     function swapFeeTotal() external view returns (uint);
 

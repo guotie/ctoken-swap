@@ -1377,7 +1377,21 @@ library SwapExchangeRate {
         return rate.add(inc);
     }
 
+    function _getCtoken(address factory, address ctokenFactory, address token) private view returns (address ctoken) {
+        IDeBankRouter router = IDeBankRouter(IDeBankFactory(factory).router());
+        address wht = router.WHT();
+        address eht = router.cWHT();
+
+        if (token == address(0) || token == wht) {
+            return eht;
+        }
+        // ctoken = LErc20DelegatorInterface(IDeBankFactory(factory).lErc20DelegatorFactory()).getCTokenAddressPure(token);
+        ctoken = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(token);
+        require(ctoken != address(0), "get etoken failed");
+    }
+
     function path2cpath(
+                    address factory,
                     address ctokenFactory,
                     address[] memory path
                 )
@@ -1387,11 +1401,10 @@ library SwapExchangeRate {
         address[] memory cpath = new address[](path.length);
 
         for (uint i = 0; i < path.length; i ++) {
-            cpath[i] = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(path[i]);
+            cpath[i] = _getCtoken(factory, ctokenFactory, path[i]); // LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(path[i]);
         }
         return cpath;
     }
-
 
     // 获取添加流动性的数量
     function getLiquidityAmountUnderlying(
@@ -1409,8 +1422,8 @@ library SwapExchangeRate {
         uint rateB;
         {
             // avoid stack too deep
-            address ctokenA = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(tokenA);
-            address ctokenB = LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(tokenB);
+            address ctokenA = _getCtoken(factory, ctokenFactory, tokenA); // LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(tokenA);
+            address ctokenB = _getCtoken(factory, ctokenFactory, tokenA); // LErc20DelegatorInterface(ctokenFactory).getCTokenAddressPure(tokenB);
             rateA = getCurrentExchangeRate(ctokenA);
             rateB = getCurrentExchangeRate(ctokenB);
         }
@@ -1435,7 +1448,7 @@ library SwapExchangeRate {
                 view
                 returns (uint256[] memory amounts, uint256 amountOut) {
         //
-        address[] memory cpath = path2cpath(ctokenFactory, path);
+        address[] memory cpath = path2cpath(factory, ctokenFactory, path);
         uint256 rateIn = getCurrentExchangeRate(cpath[0]);
         uint256 cAmtIn = amountIn.mul(1e18).div(rateIn);
         amounts = IDeBankFactory(factory).getAmountsOut(cAmtIn, path, to);
@@ -1457,7 +1470,7 @@ library SwapExchangeRate {
                 view
                 returns (uint256[] memory amounts, uint256 amountIn) {
         //
-        address[] memory cpath = path2cpath(ctokenFactory, path);
+        address[] memory cpath = path2cpath(factory, ctokenFactory, path);
         uint256 rateOut = getCurrentExchangeRate(cpath[cpath.length-1]);
         uint256 cAmtOut = amountOut.mul(1e18).div(rateOut);
         amounts = IDeBankFactory(factory).getAmountsIn(cAmtOut, path, to);

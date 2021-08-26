@@ -17,13 +17,13 @@ pragma experimental ABIEncoderV2;
 import { DataTypes } from "./DataTypes.sol";
 
 library OBPairConfig {
-    uint constant internal MASK_FEE_MAKER  = 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff; // prettier-ignore
-    uint constant internal MASK_FEE_TAKER  = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000; // prettier-ignore
+    uint constant internal _MASK_FEE_MAKER  = 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff; // prettier-ignore
+    uint constant internal _MASK_FEE_TAKER  = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000; // prettier-ignore
     // uint constant internal FEE_DENOMINATOR = 10000;
 
-    uint constant internal MAX_FEE_RATE = 1000; // 10%
+    uint constant internal _MAX_FEE_RATE = 1000; // 10%
 
-    uint constant internal SHIFT_FEE_TAKER = 128;
+    uint constant internal _SHIFT_FEE_TAKER = 128;
 
     /**
     * @dev Gets the maker fee of order book pair
@@ -31,7 +31,7 @@ library OBPairConfig {
     * @return The maker fee + 1 if fee exist or else 0
     **/
     function feeMaker(DataTypes.OBPairConfigMap storage self) public view returns (uint256) {
-        return (self.data & MASK_FEE_MAKER);
+        return (self.data & _MASK_FEE_MAKER);
     }
 
     /**
@@ -40,7 +40,7 @@ library OBPairConfig {
     * @return The taker fee + 1 if fee exist or else 0
     **/
     function feeTaker(DataTypes.OBPairConfigMap storage self) public view returns (uint256) {
-        return ((self.data & MASK_FEE_TAKER) >> SHIFT_FEE_TAKER);
+        return ((self.data & _MASK_FEE_TAKER) >> _SHIFT_FEE_TAKER);
     }
     
     /**
@@ -49,8 +49,8 @@ library OBPairConfig {
     * @param fee taker fee to set
     **/
     function setFeeMaker(DataTypes.OBPairConfigMap storage self, uint fee) public {
-        require(fee < MAX_FEE_RATE, "maker fee invalid");
-        self.data = (self.data & ~MASK_FEE_MAKER) | (fee+1);
+        require(fee < _MAX_FEE_RATE, "maker fee invalid");
+        self.data = (self.data & ~_MASK_FEE_MAKER) | (fee+1);
     }
 
     /**
@@ -59,7 +59,7 @@ library OBPairConfig {
     * @param fee maker fee to set
     **/
     function setFeeTaker(DataTypes.OBPairConfigMap storage self, uint fee) public {
-        require(fee < MAX_FEE_RATE, "taker fee invalid");
-        self.data = (self.data & ~MASK_FEE_TAKER) | ((fee+1) << SHIFT_FEE_TAKER);
+        require(fee < _MAX_FEE_RATE, "taker fee invalid");
+        self.data = (self.data & ~_MASK_FEE_TAKER) | ((fee+1) << _SHIFT_FEE_TAKER);
     }
 }

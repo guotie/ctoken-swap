@@ -14,9 +14,8 @@
 pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "./Ownable.sol";
-import "./ReentrancyGuard.sol";
-import "./OBStorage.sol";
+// import "./Ownable.sol";
+import "./OBStorageV1.sol";
 import "./ICTokenFactory.sol";
 import "./ICToken.sol";
 import "./ICETH.sol";
@@ -114,7 +113,7 @@ interface IOrderBook {
 }
 
 // 挂单合约
-contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
+contract OrderBook is IOrderBook, OBStorageV1 {
     using SafeMath for uint;
     using SafeMath for uint256;
     using OBPairConfig for DataTypes.OBPairConfigMap;
@@ -269,6 +268,16 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
           returns (uint idx) {
       require(srcToken != destToken, "identical token");
 
+      idx = orderId ++;
+      DataTypes.OrderItem storage order = orders[idx];
+      order.orderId = idx;
+      order.owner = msg.sender;
+      order.to = to == address(0) ? msg.sender : to;
+      // solhint-disable-next-line
+      order.timestamp = block.timestamp; // maskTimestamp(block.timestamp, expiredAt);
+      order.flag = flag;
+      order.tokenAmt.fulfiled = 0;
+
       if (srcToken == address(0)) {
         // 转入 wETH
         require(msg.value >= amountIn, "not enough amountIn");
@@ -279,15 +288,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         TransferHelper.safeTransferFrom(srcToken, msg.sender, address(this), amountIn);
       }
 
-      idx = orderId ++;
-      DataTypes.OrderItem storage order = orders[idx];
-      order.orderId = idx;
-      order.owner = msg.sender;
-      order.to = to == address(0) ? msg.sender : to;
-      // solhint-disable-next-line
-      order.timestamp = block.timestamp; // maskTimestamp(block.timestamp, expiredAt);
-      order.flag = flag;
-      order.tokenAmt.fulfiled = 0;
       address etoken = _getOrCreateETokenAddress(srcToken);
       {
         order.tokenAmt.srcToken = srcToken;
