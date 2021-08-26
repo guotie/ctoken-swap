@@ -29,7 +29,7 @@ async function _deploy(name: string, opts: any) {
 
 // 平台币
 async function deployEBE() {
-    const result = await _deploy('contracts/flatten/EEBEToken.sol:EBEToken', { args: [] });
+    const result = await _deploy('contracts/flatten/EBEToken.sol:EBEToken', { args: [] });
 
     setContractAddress('EBEToken', result.address)
     return result
