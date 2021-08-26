@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 
 
 
@@ -450,9 +452,17 @@ interface IDeBankPair {
 
     function feeRate() external view returns (uint);
 
+    
     function token0() external view returns (address);
 
+    
     function token1() external view returns (address);
+
+    
+    function cToken0() external view returns (address);
+
+    
+    function cToken1() external view returns (address);
 
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
 
@@ -1016,12 +1026,18 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     }
 
     function _getCtoken(address token) private view returns (address ctoken) {
+        if (token == WHT) {
+            return cWHT;
+        }
         
         ctoken = ctokenFactory.getCTokenAddressPure(token);
         require(ctoken != address(0), "get etoken failed");
     }
 
     function _getTokenByCtoken(address ctoken) private view returns (address token) {
+        if (ctoken == cWHT) {
+            return WHT;
+        }
         
         token = ctokenFactory.getTokenAddress(ctoken);
         require(token != address(0), "get token failed");
@@ -2032,9 +2048,29 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
 }
 
+
 library SwapExchangeRate {
     using SafeMath for uint;
     using SafeMath for uint256;
+
+    
+    function getBurnETokenAmt(address _pair, uint liquidity) public view returns (uint amount0, uint amount1) {
+        IDeBankPair pair = IDeBankPair(_pair);
+        address _token0 = pair.cToken0();
+        
+        address _token1 = pair.cToken1();
+        
+        uint balance0 = IERC20(_token0).balanceOf(address(this));
+        uint balance1 = IERC20(_token1).balanceOf(address(this));
+        
+
+        
+        uint _totalSupply = pair.totalSupply();
+        
+        amount0 = liquidity.mul(balance0) / _totalSupply;
+        
+        amount1 = liquidity.mul(balance1) / _totalSupply;
+    }
 
     function getCurrentExchangeRate(address _ctoken) public view returns (uint256) {
         ICToken ctoken = ICToken(_ctoken);
@@ -2046,11 +2082,6 @@ library SwapExchangeRate {
         uint inc = rate.mul(supplyRate).mul(blocks);
         return rate.add(inc);
     }
-
-    
-    
-    
-    
 
     function path2cpath(
                     address ctokenFactory,
@@ -2140,7 +2171,6 @@ library SwapExchangeRate {
         amountIn = amounts[0].mul(rateIn).div(1e18);
     }
 }
-
 
 
 library TransferHelper {

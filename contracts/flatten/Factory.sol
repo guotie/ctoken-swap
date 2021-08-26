@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 
 
 
@@ -450,9 +452,17 @@ interface IDeBankPair {
 
     function feeRate() external view returns (uint);
 
+    
     function token0() external view returns (address);
 
+    
     function token1() external view returns (address);
+
+    
+    function cToken0() external view returns (address);
+
+    
+    function cToken1() external view returns (address);
 
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
 
@@ -4003,7 +4013,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
         
         anchorToken = _anchorToken; 
-        require(anchorToken != address(0), "eToken of anchorToken is 0");
+        require(anchorToken != address(0), "anchorToken is address 0");
     }
 
     function allPairsLength() external view returns (uint) {

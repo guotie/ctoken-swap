@@ -35,11 +35,16 @@ const removeLines = (text: string, matcher: string, keep = 0): string => {
     .join('\n');
 };
 
+const flattenExcludePath = 'flatten'
 // Try to find the path of a Contract by name of the file without ".sol"
 const findPath = async (id: string): Promise<string> => {
   const paths = await hre.run(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS);
   // console.log('paths:', paths)
   const path = paths.find((x: string) => {
+    if (x.indexOf(flattenExcludePath) !== -1) {
+      return false
+    }
+
     let t = x.split('/');
     t = t[t.length - 1].split('\\')
     // console.log('t:', t)
@@ -50,6 +55,7 @@ const findPath = async (id: string): Promise<string> => {
     throw Error('Missing path for contract name: ${id}');
   }
 
+  // console.log('found id: %s %s', id, path)
   return path;
 };
 
@@ -83,13 +89,15 @@ export const flattenContract = async (
   flattenSourceCode = removeComments(flattenSourceCode)
   // flattenSourceCode = removeBlankLines(flattenSourceCode)
   // Remove pragmas and license identifier after first match, required by block explorers like explorer-mainnet.maticgivil.com or Etherscan
-  const cleanedSourceCode = removeLines(
+  const cleanedSourceCode = '// SPDX-License-Identifier: GPL-3.0-or-later\n\n' + removeLines(
     removeLines(removeLines(flattenSourceCode, LICENSE_IDENTIFIER, 1), SOLIDITY_PRAGMA, 1),
     EXPERIMENTAL_ABIENCODER,
     1
   );
 
   writeFileSync(to, cleanedSourceCode)
+
+  console.info('flatten %s to %s success', id, to)
   return cleanedSourceCode
     // console.log(cleanedSourceCode)
 };

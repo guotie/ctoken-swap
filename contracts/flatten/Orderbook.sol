@@ -1,3 +1,18 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -217,17 +232,16 @@ library OBPairConfig {
 contract OBStorage is Ownable {
     using OBPairConfig for DataTypes.OBPairConfigMap;
 
+    uint internal constant _ORDER_CLOSED  = 0x00000000000000000000000000000001;   
+    uint internal constant _HALF_MAX_UINT = uint(-1) >> 1;                        
+
     uint private constant _PAIR_INDEX_MASK = 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff;   
     uint private constant _ADDR_INDEX_MASK = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;   
     uint private constant _MARGIN_MASK     = 0x8000000000000000000000000000000000000000000000000000000000000000;
     uint private constant _EXPIRED_AT_MASK = 0xffffffffffffffffffffffffffffffff00000000000000000000000000000000;   
     uint private constant _ADDR_INDEX_OFFSET = 128;
-    
 
     uint256 public constant DENOMINATOR = 10000;
-
-    
-    
 
     uint public orderId;   
 
@@ -241,6 +255,8 @@ contract OBStorage is Ownable {
     address public feeTo;       
 
     
+    uint public maxMarginOrder = 5;
+    
     uint public defaultFeeMaker = 30;
     uint public defaultFeeTaker = 30;
     mapping(uint256 => DataTypes.OBPairConfigMap) public pairFeeRate;
@@ -250,9 +266,10 @@ contract OBStorage is Ownable {
 
     
     mapping (uint => DataTypes.OrderItem) public orders;
-    mapping (address => uint[]) public marginOrders;   
+    mapping (address => uint[]) public marginOrders;         
     mapping (address => uint[]) public addressOrders;
     mapping (uint => uint[]) public pairOrders;
+    mapping (address => mapping(uint => uint)) public marginUserOrderCount;   
 
     function pairIndex(uint id) public pure returns(uint) {
         return (id & _PAIR_INDEX_MASK);
@@ -279,18 +296,6 @@ contract OBStorage is Ownable {
     function isMargin(uint flag) public pure returns (bool) {
       return (flag & _MARGIN_MASK) != 0;
     }
-
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
 }
 
 
@@ -651,18 +656,6 @@ library OBPriceLogic {
         uint destRate = getCurrentExchangeRate(ICToken(dstEToken));
         uint destEAmt = data.guaranteeAmountOut.mul(1e18).div(destRate);
         return amtToTaken.mul(destEAmt).div(data.amountInMint);
-
-        
-        
-        
-        
-        
-        
-        
-
-        
-        
-        
     }
 
 
@@ -2271,25 +2264,39 @@ interface IMarginHolding {
 
 
 interface IOrderBook {
-    event CreateOrder(address indexed owner,
+    event CreateOrder(
+          address indexed owner,
           address indexed srcToken,
           address indexed destToken,
           uint orderId,
           uint amountIn,
           uint minAmountOut,
-          uint flag);
+          uint flag
+        );
 
-    event FulFilOrder(address indexed maker,
+    event FulFilOrder(
+          address indexed maker,
           address indexed taker,
           uint orderId,
           uint amt,
-          uint amtOut);
+          uint amtOut
+        );
           
 
-    event CancelOrder(address indexed owner,
+    event CancelOrder(
+          address indexed owner,
           address indexed srcToken,
           address indexed destToken,
-          uint orderId);
+          uint orderId
+        );
+    
+    event CancelPairMarginOrder(
+          address indexed to,
+          address indexed srcEToken,
+          address indexed dstEToken,
+          uint totalA,
+          uint totalB
+        );
 }
 
 
@@ -2297,9 +2304,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     using SafeMath for uint;
     using SafeMath for uint256;
     using OBPairConfig for DataTypes.OBPairConfigMap;
-
-    uint private constant _ORDER_CLOSED  = 0x00000000000000000000000000000001;   
-    uint private constant _HALF_MAX_UINT = uint(-1) >> 1;                            
 
     
     
@@ -2322,18 +2326,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         
         
         
-    }
-
-    function closeOrderBook() external onlyOwner {
-      closed = true;
-    }
-
-    function openOrderBook() external onlyOwner {
-      closed = false;
-    }
-
-    function setMinOrderAmount(address token, uint amt) external onlyOwner {
-      minAmounts[token] = amt;
     }
 
     function _putOrder(DataTypes.OrderItem storage order) internal {
@@ -2385,6 +2377,9 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
               orders[rIdx].pairAddrIdx = updateAddrIdx(orders[rIdx].pairAddrIdx, addrIdx);
             }
             marginOrders[owner].pop();
+
+            
+            marginUserOrderCount[owner][order.pair] --;
         } else {
             uint lastIdx = addressOrders[owner].length-1;
             if (addrIdx != lastIdx) {
@@ -2470,10 +2465,6 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
         TransferHelper.safeTransferFrom(srcToken, msg.sender, address(this), amountIn);
       }
 
-      {
-        
-        require(amountIn > minAmounts[srcToken], "less than min amount");
-      }
       idx = orderId ++;
       DataTypes.OrderItem storage order = orders[idx];
       order.orderId = idx;
@@ -2508,6 +2499,12 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
           order.tokenAmt.amountInMint = amountIn;
         }
       }
+
+      {
+        
+        require(order.tokenAmt.amountInMint > minAmounts[etoken], "less than min amount");
+      }
+
       order.tokenAmt.destToken = destToken;
       address destEToken = _getOrCreateETokenAddress(destToken);
       order.tokenAmt.destEToken = destEToken;
@@ -2516,15 +2513,22 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       
       require((srcToken == etoken) == (destToken == destEToken), "both token or etoken");
 
+      order.pair = _pairFor(etoken, destEToken);
+      
+      
       if (msg.sender == marginAddr) {
         require(isMargin(flag), "flag should be margin");
         
         require(etoken == srcToken, "src should be etoken");
         require(to != msg.sender, "to should be user's address");
         require(order.tokenAmt.destEToken == destToken, "dest should be etoken");
+        
+        uint count = marginUserOrderCount[to][order.pair];
+        require(count < maxMarginOrder, "order count");
+        marginUserOrderCount[to][order.pair] = count + 1;
+      } else {
+        require(isMargin(flag) == false, "should not be margin flag");
       }
-
-      order.pair = _pairFor(etoken, destEToken);
 
       
       if (IERC20(destEToken).allowance(address(this), destEToken) < _HALF_MAX_UINT) {
@@ -2555,10 +2559,10 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     
-    function getAllOrders() external view returns(DataTypes.OrderItem[] memory allOrders) {
+    
+    function getAllOrders(uint startIdx) external view returns(DataTypes.OrderItem[] memory allOrders) {
       uint total = 0;
-      uint id = 0;
-      for (uint i = 0; i < orderId; i ++) {
+      for (uint i = startIdx; i < orderId; i ++) {
         uint flag = orders[i].flag;
         if (_orderClosed(flag) == false) {
           total ++;
@@ -2566,7 +2570,8 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       }
 
       allOrders = new DataTypes.OrderItem[](total);
-      for (uint i = 0; i < orderId; i ++) {
+      uint id = 0;
+      for (uint i = startIdx; i < orderId; i ++) {
         DataTypes.OrderItem memory order = orders[i];
         if (_orderClosed(order.flag) == false) {
           allOrders[id] = order;
@@ -2599,6 +2604,57 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     
+    function cancelPairMarginOrders(address etokenA, address etokenB, address to) public nonReentrant {
+      require(msg.sender == marginAddr, "not margin addr");
+
+      uint pairA = _pairFor(etokenA, etokenB);
+      uint pairB = _pairFor(etokenB, etokenA);
+
+      
+      uint[] memory orderIds = marginOrders[to];
+      uint totalA;
+      uint totalB;
+
+      
+      if (orderIds.length == 0) {
+        return;
+      }
+
+      for (uint i = 0; i < orderIds.length; i ++) {
+        
+        DataTypes.OrderItem storage order = orders[orderIds[i]];
+        uint _pair = order.pair;
+        if (_pair == pairA) {
+          totalA += order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+          
+          order.flag |= _ORDER_CLOSED;
+          _removeOrder(order);
+        } else if (_pair == pairB) {
+          totalB += order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+          order.flag |= _ORDER_CLOSED;
+          _removeOrder(order);
+        }
+      }
+
+      if (totalA > 0) {
+        TransferHelper.safeTransfer(etokenA, marginAddr, totalA);
+        IMarginHolding(marginAddr).onCanceled(to, etokenA, etokenB, etokenA, totalA);
+      }
+      if (totalB > 0) {
+        TransferHelper.safeTransfer(etokenB, marginAddr, totalB);
+        IMarginHolding(marginAddr).onCanceled(to, etokenB, etokenA, etokenB, totalB);
+      }
+
+      emit CancelPairMarginOrder(
+                  to,
+                  etokenA,
+                  etokenB,
+                  totalA,
+                  totalB
+              );
+    }
+
+    
     function cancelOrder(uint orderId) public nonReentrant {
       DataTypes.OrderItem storage order = orders[orderId];
       bool margin = isMargin(order.flag);
@@ -2616,22 +2672,13 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       uint amt = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
       console.log("cancel order: srcEToken amt=%d", amt);
 
-      if (srcToken != srcEToken) {
-        
-        
-        
-        
-
-        if (amt > 0) {
+      if (amt > 0) {
+        if (srcToken != srcEToken) {
           _redeemTransfer(srcToken, srcEToken, order.owner, amt);
           console.log("redeem transfer ok");
-          
+        } else {
+          TransferHelper.safeTransfer(srcToken, order.owner, amt);
         }
-        
-        
-        
-      } else {
-        TransferHelper.safeTransfer(srcToken, order.owner, amt);
       }
 
       
@@ -2889,28 +2936,11 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     function _withdrawUnderlying(address user, address token, address etoken, uint total, uint amt) private {
         balanceOf[etoken][user] = total.sub(amt);
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
         _redeemTransfer(token, etoken, user, amt);
     }
 
     
-    function withdraw(address etoken, uint amt) external {
+    function withdraw(address etoken, uint amt) external whenOpen {
         uint total = balanceOf[etoken][msg.sender];
         require(total > 0, "no asset");
         if (amt == 0) {
@@ -2923,7 +2953,7 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     
-    function withdrawUnderlying(address token, uint amt) external {
+    function withdrawUnderlying(address token, uint amt) external whenOpen {
         address etoken = _getETokenAddress(token);
         uint total = balanceOf[etoken][msg.sender];
 
@@ -2938,18 +2968,23 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
     }
 
     
-    function setFeeTo(address to) external onlyOwner {
-      feeTo = to;
+    function closeOrderBook() external onlyOwner {
+      closed = true;
+    }
+
+    function openOrderBook() external onlyOwner {
+      closed = false;
     }
 
     
+    function setMinOrderAmount(address etoken, uint amt) external onlyOwner {
+      minAmounts[etoken] = amt;
+    }
+
     
-    
-    
-    
-    
-    
-    
+    function setFeeTo(address to) external onlyOwner {
+      feeTo = to;
+    }
 
     function _getPairFee(address src, address dest) internal view returns (DataTypes.OBPairConfigMap storage conf) {
       address srcEToken = _getETokenAddress(src);
@@ -2959,16 +2994,23 @@ contract OrderBook is IOrderBook, OBStorage, ReentrancyGuard {
       return conf;
     }
 
+    
     function setPairTakerFee(address src, address dest, uint fee) external onlyOwner {
       DataTypes.OBPairConfigMap storage conf = _getPairFee(src, dest);
 
       conf.setFeeTaker(fee);
     }
     
+    
     function setPairMakerFee(address src, address dest, uint fee) external onlyOwner {
       DataTypes.OBPairConfigMap storage conf = _getPairFee(src, dest);
 
       conf.setFeeMaker(fee);
+    }
+
+    
+    function setMaxOrderCount(uint count) external onlyOwner {
+      maxMarginOrder = count;
     }
 }
 

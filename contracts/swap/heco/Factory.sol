@@ -62,7 +62,7 @@ contract DeBankFactory is IDeBankFactory, Ownable {
 
         // anchorUnderlying = _anchorToken;
         anchorToken = _anchorToken; // lErc20DelegatorFactory.getCTokenAddressPure(_anchorToken);
-        require(anchorToken != address(0), "eToken of anchorToken is 0");
+        require(anchorToken != address(0), "anchorToken is address 0");
     }
 
     function allPairsLength() external view returns (uint) {
