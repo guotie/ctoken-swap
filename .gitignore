@@ -108,6 +108,7 @@ dist
 # buidler output
 cache/
 /artifacts/
+deployments/artifacts/
 
 # only typescript is allowed
 *.js
