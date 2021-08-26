@@ -20,6 +20,7 @@ async function _deploy(name: string, opts: any) {
 
     opts.from = namedSigners[0].address
     opts.log = true
+    opts.deterministicDeployment = false
 
     return deploy(name, opts, networkName !== 'hardhat')
 }
