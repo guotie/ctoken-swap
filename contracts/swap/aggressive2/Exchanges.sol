@@ -83,10 +83,7 @@ library Exchanges {
                 address token1,
                 address[] memory midTokens,
                 address[] memory path
-            )
-            internal
-            pure
-            returns (uint) {
+            ) internal pure returns (uint) {
         if (complex == 0) {
             address[] memory npath = new address[](path.length+1);
             for (uint i = 0; i < path.length; i ++) {
@@ -121,8 +118,8 @@ library Exchanges {
                     midIdx ++;
                 }
             }
+            // 递归计算下一级复杂度
             idx = calcPathComplex(paths, idx, complex-1, token1, nMidTokens, npath);
-            // npath.pop();
         }
         return idx;
     }

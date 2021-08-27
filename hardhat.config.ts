@@ -213,7 +213,7 @@ export default {
   // },
   paths: {
     deploy: 'deploy',
-    deployments: 'artifacts',
+    deployments: 'deployments/artifacts',
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY

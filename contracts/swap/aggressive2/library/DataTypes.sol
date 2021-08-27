@@ -47,16 +47,16 @@ library DataTypes {
     }
 
     /// @dev 询价 计算最佳兑换路径的入参
-    struct RoutePathParams {
-        address tokenIn;
-        address tokenOut;
-        address[] midTokens;      // should always be token
-        uint256 mainRoutes;           // distributeCounts
-        uint256 complex;
-        uint256 parts;
-        bool allowPartial;
-        bool allowBurnchi;
-    }
+    // struct RoutePathParams {
+    //     address tokenIn;
+    //     address tokenOut;
+    //     address[] midTokens;      // should always be token
+    //     uint256 mainRoutes;           // distributeCounts
+    //     uint256 complex;
+    //     uint256 parts;
+    //     bool allowPartial;
+    //     bool allowBurnchi;
+    // }
 
     /// @dev 询价 计算最佳兑换路径的入参
     struct QuoteParams {
@@ -68,9 +68,9 @@ library DataTypes {
         uint256 mainRoutes;           // distributeCounts
         uint256 complex;
         uint256 parts;
-        // uint256 routes;           // distributeCounts
         bool allowPartial;
         bool allowBurnchi;
+        // uint256 routes;           // distributeCounts
         // uint256 tokenPriceGWei;
         // address fromAddress;
         // address dstReceiver;
@@ -125,59 +125,48 @@ library DataTypes {
     // struct 
     struct StepExecuteParams {
         uint256 flag;           // step execute flag 指示用哪种步骤去执行
-        bytes   data;
+        bytes   data;           // abi.encode 后的参数
     }
 
     /// @dev 兑换 入参
     struct SwapParams {
-        // address to;
-        // address tokenIn;
-        // address tokenOut;
-        // uint256 amountIn;
-        // uint256 amountOut;
-        // uint256 tokenPriceGWei;
-        // address fromAddress;
-        // address dstReceiver;
-        // address[] midTokens;  // should always be token
-        // SwapFlagMap flag;
-        // SwapFlagMap flag;
-        bool isEToken;
-        address tokenIn;
-        address tokenOut;
-        uint256 amountIn;
-        uint256 minAmt;
-        uint256 block;   // 计算结果的 block
-        StepExecuteParams[] steps;
+        bool isEToken;      // 是否是etoken
+        address tokenIn;    // 输入token/etoken地址
+        address tokenOut;   // 输出token/etoken地址
+        uint256 amountIn;   // 输入数量
+        uint256 minAmt;     // 最小数量
+        uint256 block;      // 计算结果的 block
+        StepExecuteParams[] steps;  // 聚合交易的步骤参数
     }
 
     /// @dev Exchange 交易所合约地址及交易所类型
     struct Exchange {
-        uint exFlag;
-        address contractAddr;
+        uint exFlag;              // 交易所类型
+        address contractAddr;     // 交易所合约地址
     }
 
 
     /// @dev 计算各个交易所的每个parts的return
-    struct SwapDistributes {
-        bool        isCtoken;     // 买入、卖出的币是否是 ctoken
-        // bool     ctokenOut;    // 买到的币是否是 ctoken
-        address     to;           // 交易者地址
-        address     tokenIn;
-        address     tokenOut;
-        uint256     parts;        // 交易量拆分为多少份
-        uint256     rateIn;       // token in exchange rate
-        uint256     rateOut;      // token out exchange rate
-        uint[]      amounts;      // split into parts
-        uint[]      cAmounts;     // mint to ctoken amounts
-        // address[]   midTokens;    // middle token list
-        // address[]   midCTokens;   // middle ctoken list
-        address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
-        address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
+    // struct SwapDistributes {
+    //     bool        isCtoken;     // 买入、卖出的币是否是 ctoken
+    //     // bool     ctokenOut;    // 买到的币是否是 ctoken
+    //     address     to;           // 交易者地址
+    //     address     tokenIn;
+    //     address     tokenOut;
+    //     uint256     parts;        // 交易量拆分为多少份
+    //     uint256     rateIn;       // token in exchange rate
+    //     uint256     rateOut;      // token out exchange rate
+    //     uint[]      amounts;      // split into parts
+    //     uint[]      cAmounts;     // mint to ctoken amounts
+    //     // address[]   midTokens;    // middle token list
+    //     // address[]   midCTokens;   // middle ctoken list
+    //     address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
+    //     address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
 
-        uint[]      gases;          // gas 费用估算
-        uint[]      pathIdx;        // 使用的 path 序号
-        uint[][]    distributes;    // 一级为交易路径, 二级为该交易路径的所有parts对应的return
-        int256[][]  netDistributes; // distributes - gases
-        Exchange[]  exchanges;
-    }
+    //     uint[]      gases;          // gas 费用估算
+    //     uint[]      pathIdx;        // 使用的 path 序号
+    //     uint[][]    distributes;    // 一级为交易路径, 二级为该交易路径的所有parts对应的return
+    //     int256[][]  netDistributes; // distributes - gases
+    //     Exchange[]  exchanges;
+    // }
 }

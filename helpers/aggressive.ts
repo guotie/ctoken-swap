@@ -30,14 +30,6 @@ interface Exchange {
 
 // calcExchangeListSwap 入参: 多个交易所的  SwapReserveRates
 interface SwapReserveRates {
-    // uint256 routes;           // distributeCounts
-    // uint256 rateIn;
-    // uint256 rateOut;
-    // uint256[]  fees;
-    // Exchange[]  exchanges;
-    // address[][] paths;        // 由 midTokens 和 复杂度计算得到的所有 path 列表
-    // address[][] cpaths;       // 由 midCTokens 和 复杂度计算得到的所有 cpath 列表
-    // uint256[][] reserves;  // [routes][path]
     isEToken:     boolean    // tokenIn tokenOut是否是 etoken
     allowBurnchi: boolean    // 暂时未使用 用来燃烧降低手续费的
     allEbank:     boolean    // 最终计算出来的兑换，是否全部都由 ebank 来执行
@@ -46,8 +38,8 @@ interface SwapReserveRates {
     swapRoutes:   number     // 最终通过多个swap routes 来执行聚合交易
     tokenIn:      string     // 输入 token
     tokenOut:     string     // 输出 token
-    etokenIn:     string     // 
-    etokenOut:    string
+    etokenIn:     string     // 输入的token对应的etoken
+    etokenOut:    string     // 输出的token对应的etoken
     routes:       BigNumber  // 一共有多少个 swap * path
     rateIn:       BigNumber    //  tokenIn 对应的 etoken 的 exchangeRate
     rateOut:      BigNumber    // tokenOut
@@ -240,7 +232,7 @@ function findBestDistribution(s: number, amounts: BigNumber[][]) {
         parent[0][j] = 0;
     }
 
-    // 逐层比较
+    // 核心计算 逐层比较 得到最佳路径
     for (let i = 1; i < n; i++) {
         for (let j = 0; j <= s; j++) {
             answer[i][j] = answer[i - 1][j];
