@@ -92,20 +92,7 @@ describe("Router 测试", function() {
         // await t0.contract!.approve(router.address, amt0)
         await t1.contract!.approve(router.address, amt1)
         let tx = await router.addLiquidityETHUnderlying(t1.address, amt1, 0, 0, maker.address, deadlineTs(100), {gasLimit: 6000000, value: amt0})
-        // callWithEstimateGas(
-        //         router,
-        //         'addLiquidityETHUnderlying',
-        //         [
-        //             t1.address,
-        //             amt1,
-        //             0,
-        //             0,
-        //             maker.address,
-        //             deadlineTs(100)
-        //         ],
-        //         true
-        //     )
-        // console.log('tx:', tx)
+
         await tx.wait(0)
         let pair = await factory.pairFor(wht.address, t1.address)
             , pairToken = await getPairToken(pair)
