@@ -374,9 +374,12 @@ contract OrderBook is IOrderBook, OBStorageV1 {
 
     // 获取所有订单列表
     // 订单数过多的情况, 可能会爆掉
-    function getAllOrders(uint startIdx) external view returns(DataTypes.OrderItem[] memory allOrders) {
+    function getAllOrders(uint startIdx, uint endIdx) external view returns(DataTypes.OrderItem[] memory allOrders) {
       uint total = 0;
-      for (uint i = startIdx; i < orderId; i ++) {
+      if (endIdx == 0) {
+        endIdx = orderId;
+      }
+      for (uint i = startIdx; i < endIdx; i ++) {
         uint flag = orders[i].flag;
         if (_orderClosed(flag) == false) {
           total ++;
@@ -385,7 +388,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
 
       allOrders = new DataTypes.OrderItem[](total);
       uint id = 0;
-      for (uint i = startIdx; i < orderId; i ++) {
+      for (uint i = startIdx; i < endIdx; i ++) {
         DataTypes.OrderItem memory order = orders[i];
         if (_orderClosed(order.flag) == false) {
           allOrders[id] = order;
@@ -544,11 +547,13 @@ contract OrderBook is IOrderBook, OBStorageV1 {
     }
 
     struct FulFilAmt {
-      bool isToken;      // 是否是 token
-      uint256 filled;    // 成交的 srcEToken
-      uint256 takerFee;  // taker 手续费
-      uint256 makerFee;  // maker 手续费
-      uint256 takerAmt;  // taker 得到的 srcEToken = amtDest - fee
+      bool isToken;        // 是否是 token
+      address srcEToken;   // 挂单的 src etoken, taker 得到的币, maker 付出的币
+      address destEToken;  // 挂单的 dest etoken, taker 付出的币, makeer 得到的币
+      uint256 filled;      // 成交的 srcEToken
+      uint256 takerFee;    // taker 手续费
+      uint256 makerFee;    // maker 手续费
+      uint256 takerAmt;    // taker 得到的 srcEToken = amtDest - fee
       uint256 takerAmtToken; // taker 得到的 srcToken = amtDestToken - fee
       uint256 makerAmt;      // maker 得到的 destEToken
       uint256 amtDest;       // taker 付出 srcEToken
@@ -610,6 +615,8 @@ contract OrderBook is IOrderBook, OBStorageV1 {
 
       fulFilAmt.isToken = isToken;
       fulFilAmt.filled  = amtToTaken;  // 挂单被吃的数量
+      fulFilAmt.srcEToken = order.tokenAmt.srcEToken;
+      fulFilAmt.destEToken = order.tokenAmt.destEToken;
       {
         uint left = tokenAmt.amountInMint.sub(tokenAmt.fulfiled);
         if (amtToTaken > left) {
