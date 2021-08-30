@@ -43,6 +43,7 @@ type TokenContractName = 'USDT'
                     | 'EBEToken'
                     | 'HecoPool'
                     | 'SwapExchangeRate'
+                    | 'OrderBookProxy'
 
 let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hecotest': {
@@ -64,14 +65,15 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'InterestRateModel': '0x85C1740414A26655054946e78BEE75fC27707542', // '0x85C1740414A26655054946e78BEE75fC27707542',
         'SimplePriceOracle': '0x4fD77Bb83C9B9e8A922F3923330557B2C12F8569',
         // swap
-        'Factory': '0x3182528c58c54DE504cE45B21c15e47f73d58F09',
-        'Router': '0xb18911609A5b9C7abDc7DBdA585Ae83F01ced0C5', // '0x9f186BC496e62dBd41d845f188eA1eA28C6EEF71', //'0xB83181Fca94A3aeE1B832A4EeF50f232D2AbE054', // '0xD70C027A1893f4A0fe3002c56AB63137942B5D6B',
-        'SwapMining': '',
-        'HecoPool': '',
-        'EBEToken': '',
-        'OrderBook': '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
-        'StepSwap': '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
-        'SwapExchangeRate': '',
+        'Factory': '0x42b40e3E1dfA17BC1A79a64efd7e5062b1222A73', // '0x3182528c58c54DE504cE45B21c15e47f73d58F09',
+        'Router': '0x38F610974213eD78ed6Df39855597766BF615873', // '0xb18911609A5b9C7abDc7DBdA585Ae83F01ced0C5', // '0x9f186BC496e62dBd41d845f188eA1eA28C6EEF71', //'0xB83181Fca94A3aeE1B832A4EeF50f232D2AbE054', // '0xD70C027A1893f4A0fe3002c56AB63137942B5D6B',
+        'SwapMining': '0xbE8395f1a9f9646c2ec907AEbe3C06694738De86',
+        'HecoPool': '0xbdF11AE094f35f08c97a15E214a0aeCe621f8CEF',
+        'EBEToken': '0xd66E77799cECa9702C2A478d8aB65397713b8236',
+        'OrderBook': '0x55CBA440809D979460A332BA929Fe552de839526', // '0x549442f42A18BFeA9cF4Cf68a0D8005483A6BdBc', // '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
+        'StepSwap': '0x9Bcb8DFF0F1aEB81a4927dE0118D1f42586aea02', // '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
+        'SwapExchangeRate': '0x491799Ebd6130b6A14081C65a7fC7BB1Ac298970',
+        'OrderBookProxy': ''
     },
     'hardhat' : {
         'USDT': '',
@@ -95,6 +97,7 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'SwapMining': '',
         'StepSwap': '',
         'SwapExchangeRate': '',
+        'OrderBookProxy': ''
     }
 }
 

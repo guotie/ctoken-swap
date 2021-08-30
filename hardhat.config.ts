@@ -212,7 +212,7 @@ export default {
   //   project: 'v2',
   // },
   paths: {
-    deploy: 'deploy',
+    deploy: 'deployments/migrations',
     deployments: 'deployments/artifacts',
   },
   etherscan: {

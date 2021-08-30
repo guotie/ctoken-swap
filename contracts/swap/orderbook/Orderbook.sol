@@ -23,7 +23,7 @@ import "./OBPriceLogic.sol";
 import "./OBPairConfig.sol";
 import "./SafeMath.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint value);
@@ -246,7 +246,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
     function isOrderMarginClosed(uint id) external view returns (bool marginOrder, bool closed) {
       require(id < orderId, "invalid id");
 
-      uint flag = orders[orderId].flag;
+      uint flag = orders[id].flag;
       marginOrder = isMargin(flag);
       closed = _orderClosed(flag);
     }
@@ -405,14 +405,14 @@ contract OrderBook is IOrderBook, OBStorageV1 {
                     address to,
                     uint256 redeemAmt
                 ) private {
-        console.log("redeemAmt:", redeemAmt);
+        // console.log("redeemAmt:", redeemAmt);
         (uint ret, , uint amt) = ICToken(etoken).redeem(redeemAmt);
         require(ret == 0, "redeem failed");
 
         if (token == address(0)) {
             TransferHelper.safeTransferETH(to, amt); // address(this).balance);
         } else {
-            console.log("redeem token amt:", redeemAmt, amt, IERC20(token).balanceOf(address(this)));
+            // console.log("redeem token amt:", redeemAmt, amt, IERC20(token).balanceOf(address(this)));
             TransferHelper.safeTransfer(token, to, amt); // IERC20(token).balanceOf(address(this)));
         }
     }
@@ -484,12 +484,12 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       address srcToken = order.tokenAmt.srcToken;
       address srcEToken = order.tokenAmt.srcEToken;
       uint amt = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
-      console.log("cancel order: srcEToken amt=%d", amt);
+      // console.log("cancel order: srcEToken amt=%d", amt);
 
       if (amt > 0) {
         if (srcToken != srcEToken) {
           _redeemTransfer(srcToken, srcEToken, order.owner, amt);
-          console.log("redeem transfer ok");
+          // console.log("redeem transfer ok");
         } else {
           TransferHelper.safeTransfer(srcToken, order.owner, amt);
         }
@@ -578,7 +578,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
     /// @dev fulfilOrder orderbook order, etoken in and etoken out
     // order 成交, 收取成交后的币的手续费, 普通订单, maker 成交的币由合约代持; taker 的币发给用户, amtToTaken 是 src EToken 的数量
     /// @param orderId order id
-    /// @param amtToTaken 成交多少量
+    /// @param amtToTaken 成交多少量 (etoken)
     /// @param to 合约地址或者 msg.sender
     /// @param isToken 用户输入 token 且得到 token, 调用者须 approve 且确保 srcEToken 的 cash 足够兑付
     /// @param partialFill 是否允许部分成交(正好此时部分被其他人taken)
@@ -825,6 +825,11 @@ contract OrderBook is IOrderBook, OBStorageV1 {
     // 杠杆用户单交易对最大挂单数量
     function setMaxOrderCount(uint count) external onlyOwner {
       maxMarginOrder = count;
+    }
+
+    // 设置杠杆合约地址
+    function setMarginAddr(address addr) external onlyOwner {
+      marginAddr = addr;
     }
 }
 

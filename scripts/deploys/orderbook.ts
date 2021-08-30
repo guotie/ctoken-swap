@@ -1,14 +1,8 @@
-const hre = require('hardhat')
+import { deployOrderBook, deployOrderBookProxy } from '../../helpers/heco'
 
-import { deployOrderBook } from '../../deployments/deploys'
-import { getCETH, getWETH, getCTokenFactory } from './network'
+;(async () => {
+    const hre = require('hardhat')
 
-// deploy hecotest contracts
-
-// ctoken factory, ceth, weth, marginAddr, true, true
-let ctokenFactory = getCTokenFactory()
-    , ceth = getCETH()
-    , marginAddr = '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836'
-    , weth = getWETH() // '0x7aF326B6351C8A9b8fb8CD205CBe11d4Ac5FA836'
-
-deployOrderBook(ctokenFactory, ceth, weth, marginAddr, true, true)
+    // await deployOrderBook()
+    await deployOrderBookProxy()
+})()

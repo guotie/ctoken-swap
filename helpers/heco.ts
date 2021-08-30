@@ -158,11 +158,23 @@ async function deployOrderBook() {
     return ob
 }
 
+async function deployOrderBookProxy() {
+    const namedSigners = await ethers.getSigners()
+        , ob = addressOf('OrderBook')
+        , admin = namedSigners[0].address
+
+    let result = await _deploy('contracts/proxy/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy', {
+        args: [ob, admin, []]
+    })
+    console.info('deploy orderbook proxy at: %s', result.address)
+}
+
 export {
     deployEBE,
     deployEbeHecoPool,
     deploySwap,
     deployOrderBook,
+    deployOrderBookProxy,
     deployStepSwap,
     doSettings,
 }
