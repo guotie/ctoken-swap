@@ -580,6 +580,23 @@ contract OrderBook is IOrderBook, OBStorageV1 {
         }
     }
 
+    /// @dev 根据 order id 返回该 order 的信息
+    /// @param id order id
+    /// @return srcEToken 对于挂单者来说, 卖出币种; 对于吃单者来说, 买入币种
+    /// @return destEToken 对于挂单者来说, 买入币种; 对于吃单者来说, 卖出币种
+    /// @return amtIn 对于挂单者来说, 卖出的 etoken 数量
+    /// @return fulfiled 对于挂单者来说, srcEToken 已成交的数量
+    /// @return amtOut 对于挂单者来说, 要得到的 etoken 数量(未扣除挂单手续费)
+    function getOrderTokens(uint id) external public returns (address srcEToken, address destEToken, uint amtIn, uint fulfiled, uint amtOut) {
+      DataTypes.OrderItem memory order = orders[id];
+
+      srcEToken = order.tokenAmt.srcEToken;
+      destEToken = order.tokenAmt.destEToken;
+      amtIn = order.tokenAmt.amountInMint;
+      fulfiled = order.tokenAmt.fulfiled;
+      amtOut = order.tokenAmt.guaranteeAmountOut;
+    }
+
     /// @dev fulfilOrder orderbook order, etoken in and etoken out
     // order 成交, 收取成交后的币的手续费, 普通订单, maker 成交的币由合约代持; taker 的币发给用户, amtToTaken 是 src EToken 的数量
     /// @param orderId order id
