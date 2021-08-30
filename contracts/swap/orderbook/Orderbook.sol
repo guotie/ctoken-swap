@@ -587,7 +587,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
     /// @return amtIn 对于挂单者来说, 卖出的 etoken 数量
     /// @return fulfiled 对于挂单者来说, srcEToken 已成交的数量
     /// @return amtOut 对于挂单者来说, 要得到的 etoken 数量(未扣除挂单手续费)
-    function getOrderTokens(uint id) external public returns (address srcEToken, address destEToken, uint amtIn, uint fulfiled, uint amtOut) {
+    function getOrderTokens(uint id) public view returns (address srcEToken, address destEToken, uint amtIn, uint fulfiled, uint amtOut) {
       DataTypes.OrderItem memory order = orders[id];
 
       srcEToken = order.tokenAmt.srcEToken;
