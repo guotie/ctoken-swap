@@ -24,7 +24,7 @@ import "../../compound/CToken.sol";
 
 import "./PairStorage.sol";
 
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface IUnitroller {
     function compAccrued(address addr) external view returns (uint);
@@ -159,12 +159,12 @@ contract DeBankPair is IDeBankPair, PairStorage {
         uint amt = lpReward.amount;
         uint _perShare = mintAccPerShare;
         
-        if (incVal) {
-            console.log("inc user %s ebe mint: %d", to, value);
-        } else {
-            console.log("sub user %s ebe mint:", to, value);
-        }
-        console.log("user now mint reward: amount=%d pendingReward=%d debt=%d", lpReward.amount, lpReward.pendingReward, lpReward.rewardDebt);
+        // if (incVal) {
+        //     console.log("inc user %s ebe mint: %d", to, value);
+        // } else {
+        //     console.log("sub user %s ebe mint:", to, value);
+        // }
+        // console.log("user now mint reward: amount=%d pendingReward=%d debt=%d", lpReward.amount, lpReward.pendingReward, lpReward.rewardDebt);
 
         if (amt == 0) {
             // 待发放收益为 0
@@ -252,11 +252,11 @@ contract DeBankPair is IDeBankPair, PairStorage {
             // console.log("_updateUserMintReward from done");
             _updateUserEBEReward(to, value, true, false);
             // console.log("_updateUserMintReward to done");
-            LPReward memory fromReward = mintRewardOf[from];
-            LPReward memory toReward = mintRewardOf[to];
-            console.log("after _transfer, LPReward:");
-            console.log("  from: amount=%d pending=%d debt=%d", fromReward.amount, fromReward.pendingReward, fromReward.rewardDebt);
-            console.log("  to:   amount=%d pending=%d debt=%d", toReward.amount, toReward.pendingReward, toReward.rewardDebt);
+            // LPReward memory fromReward = mintRewardOf[from];
+            // LPReward memory toReward = mintRewardOf[to];
+            // console.log("after _transfer, LPReward:");
+            // console.log("  from: amount=%d pending=%d debt=%d", fromReward.amount, fromReward.pendingReward, fromReward.rewardDebt);
+            // console.log("  to:   amount=%d pending=%d debt=%d", toReward.amount, toReward.pendingReward, toReward.rewardDebt);
         }
         // 计算已有的挖矿收益 重新计算 reward debt
         emit Transfer(from, to, value);
