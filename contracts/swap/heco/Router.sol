@@ -26,7 +26,8 @@ import "../interface/ICToken.sol";
 import "../../ebe/IEBEToken.sol";
 
 // import "../../compound/LHT.sol";
-// import "hardhat/console.sol";
+// import "./PairStorage.sol";
+import "hardhat/console.sol";
 
 interface ILHT {
     function mint() external payable returns (uint, uint);
@@ -551,7 +552,9 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // 确保只有owner可以移除流动性
         // require(IDeBankPair(pair).ownerAmountOf(to) >= liquidity, "not owner or not enough");
 
+        console.log("removeLiquidityUnderlying: liquidity=%d", liquidity);
         IDeBankPair(pair).transferFrom(msg.sender, pair, liquidity);
+        console.log("transferFrom liquidity success");
         LiquidityLocalVars memory vars;
         {
             vars.tokenA = tokenA;

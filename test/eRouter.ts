@@ -5,7 +5,7 @@ import { BigNumber, BigNumberish, Contract } from 'ethers'
 
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import sleep from '../utils/sleep';
-import { addressOf, getBalances, getCTokenFactoryContract, getEbankFactory, getEbankRouter, getEbeTokenContract, getTokenContract } from '../helpers/contractHelper'
+import { addressOf, getBalances, getCTokenFactoryContract, getEbankFactory, getEbankPair, getEbankRouter, getEbeTokenContract, getTokenContract } from '../helpers/contractHelper'
 import { IToken, getMockToken, HTToken, readableTokenAmount, deadlineTs, getPairToken } from '../helpers/token';
 import { callWithEstimateGas } from '../helpers/estimateGas';
 import { deployMockContracts } from '../helpers/mock';
@@ -266,6 +266,31 @@ describe("Router 测试", function() {
                             deadlineTs(60)
                         )
         await printBalance('Balance feeTo after swap sea->usdt', feeTo, [eusdt])
+    })
+
+    const removeLiquidityUnderlying = async (tokenA: IToken, tokenB: IToken, signer: SignerWithAddress) => {
+        let routerc = getEbankRouter(undefined, signer)
+            , pair = await router.pairFor(tokenA.address, tokenB.address)
+            , pairc = getEbankPair(pair, signer)
+            , liq = await pairc.balanceOf(signer.address)
+            , lpReward = await pairc.mintRewardOf(signer.address)
+            , toRemoved = liq.sub(0)
+
+        console.log('before removeLiquidityUnderlying: pair %s owner %s liquidity %s toRemoved: %s LPReward %s %s %s',
+            pair, signer.address, liq.toString(),
+            toRemoved.toString(),
+            lpReward.amount.toString(), lpReward.pendingReward.toString(), lpReward.rewardDebt.toString())
+        await pairc.approve(routerc.address, '1000000000000000000000000000')
+        await routerc.removeLiquidityUnderlying(usdt.address, sea.address, toRemoved, 0, 0, signer.address, deadlineTs(100))
+        liq = await pairc.balanceOf(signer.address)
+        lpReward = await pairc.mintRewardOf(signer.address)
+        console.log('after removeLiquidityUnderlying: liquidity %s LPReward %s %s %s', liq.toString(),
+            lpReward.amount.toString(), lpReward.pendingReward.toString(), lpReward.rewardDebt.toString())
+    }
+
+    it('removeLiquidity', async ()=> {
+        logHr('remove liquidity')
+        await removeLiquidityUnderlying(usdt, sea, maker)
     })
 })
 

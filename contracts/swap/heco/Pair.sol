@@ -24,7 +24,7 @@ import "../../compound/CToken.sol";
 
 import "./PairStorage.sol";
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 interface IUnitroller {
     function compAccrued(address addr) external view returns (uint);
@@ -159,6 +159,13 @@ contract DeBankPair is IDeBankPair, PairStorage {
         uint amt = lpReward.amount;
         uint _perShare = mintAccPerShare;
         
+        if (incVal) {
+            console.log("inc user %s ebe mint: %d", to, value);
+        } else {
+            console.log("sub user %s ebe mint:", to, value);
+        }
+        console.log("user now mint reward: amount=%d pendingReward=%d debt=%d", lpReward.amount, lpReward.pendingReward, lpReward.rewardDebt);
+
         if (amt == 0) {
             // 待发放收益为 0
             require(incVal == true, "no amt to dec");
@@ -245,9 +252,11 @@ contract DeBankPair is IDeBankPair, PairStorage {
             // console.log("_updateUserMintReward from done");
             _updateUserEBEReward(to, value, true, false);
             // console.log("_updateUserMintReward to done");
-
-            // mintOf[from] = mintOf[from].sub(value);
-            // mintOf[to] = mintOf[to].add(value);
+            LPReward memory fromReward = mintRewardOf[from];
+            LPReward memory toReward = mintRewardOf[to];
+            console.log("after _transfer, LPReward:");
+            console.log("  from: amount=%d pending=%d debt=%d", fromReward.amount, fromReward.pendingReward, fromReward.rewardDebt);
+            console.log("  to:   amount=%d pending=%d debt=%d", toReward.amount, toReward.pendingReward, toReward.rewardDebt);
         }
         // 计算已有的挖矿收益 重新计算 reward debt
         emit Transfer(from, to, value);
@@ -476,6 +485,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
     // }
 
     // 操作的是 ctoken 2021/05/25
+    // burn 不涉及到挖矿权的更新, 挖矿权的更新全部都在 mint 和 transfer 中
     // this low-level function should be called from a contract which performs important safety checks
     function burn(address to) external lock returns (uint amount0, uint amount1) {
         // LP 抵押需要使用专门的方法
@@ -511,7 +521,9 @@ contract DeBankPair is IDeBankPair, PairStorage {
         _updateEBEPerShare();
         // (to, liquidity);
         // ctoken 挖矿, 负债, 在 totalSupply 减少之前更新
-        _updateUserEBEReward(to, liquidity, false, true);
+        // console.log("burn: before _updateUserEBEReward");
+        // _updateUserEBEReward(to, liquidity, false, true);
+        // console.log("burn: after _updateUserEBEReward");
 
         _burn(address(this), liquidity);
         _safeTransfer(_token0, to, amount0);
