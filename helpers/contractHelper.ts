@@ -201,7 +201,7 @@ function getEbankRouter(address = contractAddress[NETWORK]['Router'], signer?: S
 }
 // 
 function getEbankFactory(address = contractAddress[NETWORK]['Factory'], signer?: Signer | Provider) {
-    return new Contract(address, factoryABI, signer ?? getProvider())
+    return new Contract(address ? address : contractAddress[NETWORK]['Factory'], factoryABI, signer ?? getProvider())
 }
 
 function getEbankPair(address: string, signer?: Signer | Provider) {

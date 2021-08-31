@@ -27,7 +27,7 @@ import "../../ebe/IEBEToken.sol";
 
 // import "../../compound/LHT.sol";
 // import "./PairStorage.sol";
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 interface ILHT {
     function mint() external payable returns (uint, uint);
@@ -333,7 +333,7 @@ contract DeBankRouter is IDeBankRouter, Ownable {
     // 2. mint ctoken
     // 3. transfer ctoken to pair
     // amt 是 Ctoken 流动性需要的 amount
-    function _mintTransferCToken(address token, address ctoken, address pair, uint amt) private {
+    function _mintTransferCToken(address token, address ctoken, address pair, uint amt) private returns (uint mintCAmt) {
         // uint er = _cTokenExchangeRate(ctoken);
         // uint amt = camt * er / 10**18;
 
@@ -343,7 +343,8 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // uint b0 = ICToken(ctoken).balanceOf(address(this));
         // mint 之前需要 approve
         ICToken(token).approve(address(ctoken), amt);
-        (uint ret, uint mintCAmt) = ICToken(ctoken).mint(amt);
+        uint ret;
+        (ret, mintCAmt) = ICToken(ctoken).mint(amt);
         ICToken(ctoken).approve(address(ctoken), 0);
         // console.log("mint token to ctoken %s, amt: %d ret: %d", ctoken, amt, ret);
         require(ret == 0, "mint failed");
@@ -358,9 +359,10 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         }
     }
 
-    function _mintTransferEth(address pair, uint amt) private {
+    function _mintTransferEth(address pair, uint amt) private returns (uint mintCAmt) {
         // uint b0 = ICToken(cWHT).balanceOf(address(this));
-        (uint ret, uint mintCAmt) = ILHT(cWHT).mint.value(amt)();
+        uint ret;
+        (ret, mintCAmt) = ILHT(cWHT).mint.value(amt)();
         require(ret == 0, "mint failed");
         // console.log("mint eth:", mintCAmt);
         // uint mintCAmt = ICToken(cWHT).balanceOf(address(this));
@@ -982,23 +984,23 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // console.log('_swapExactTokensForTokensUnderlying ....');
         address[] memory cpath = _path2cpath(path);
         address mintTo;
+        uint camtIn; //  = _amount2CAmount(amountIn, vars.rate0);
         if (feeAlloc == 0) {
             mintTo = pairFor(path[0], path[1]);
         } else {
             mintTo = address(this);
         }
         if (ethIn) {
-            _mintTransferEth(mintTo, amountIn);
+            camtIn = _mintTransferEth(mintTo, amountIn);
         } else {
-            _mintTransferCToken(path[0], cpath[0], mintTo, amountIn);
+            camtIn = _mintTransferCToken(path[0], cpath[0], mintTo, amountIn);
         }
         // console.log("mint transfer ok: %d", amountIn);
 
-        SwapLocalVars memory vars;
-        vars.amountIn = amountIn;
-        vars.rate0 = _cTokenExchangeRate(cpath[0]);
-        vars.rate1 = _cTokenExchangeRate(cpath[0]);
-        uint camtIn = _amount2CAmount(amountIn, vars.rate0);
+        // SwapLocalVars memory vars;
+        // vars.amountIn = amountIn;
+        // vars.rate0 = _cTokenExchangeRate(cpath[0]);
+        // vars.rate1 = _cTokenExchangeRate(cpath[0]);
         uint camtOut;
         // _safeTransferCtoken(
         //     path[0], msg.sender, pairFor(path[0], path[1]), amounts[0]
@@ -1012,25 +1014,35 @@ contract DeBankRouter is IDeBankRouter, Ownable {
 
             // console.log("camounts: ", camounts[0], camounts[1]);
             camtOut = camounts[camounts.length-1];
-            vars.amountOut = _camount2Amount(camtOut, vars.rate1);
-            require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
+            // vars.amountOut = _camount2Amount(camtOut, vars.rate1);
+            // uint camtOutMin = _amount2CAmount(amountOutMin, vars.rate1);
+            // require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
             _swap(camounts, path, address(this));
         } else {
+            // uint camtOutMin = _amount2CAmount(amountOutMin, vars.rate1);
             (camtOut, ) = _swap2(camtIn, path, address(this));
-            require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT');
+            // vars.amountOut = _camount2Amount(camtOut, vars.rate1);
+            // require(vars.amountOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT2');
         }
 
         // vars.amountOut = 
         uint idx = path.length - 1;
+        uint amtOut;
         if (ethOut) {
-            _redeemCETHTransfer(to, camtOut);
+            amtOut = _redeemCETHTransfer(to, camtOut);
         } else {
-            _redeemCTokenTransfer(cpath[idx], path[idx], to, camtOut);
+            amtOut = _redeemCTokenTransfer(cpath[idx], path[idx], to, camtOut);
         }
 
         amounts = new uint[](path.length);
         amounts[0] = amountIn;
-        amounts[idx] = _camount2Amount(camtOut, vars.rate1);
+        amounts[idx] = amtOut; //_camount2Amount(camtOut, vars.rate1);
+        if (amtOut < amountOutMin) {
+            console.log("!!!!!!!!!!! camtOut=%s", camtOut);
+            console.log("!!!!!!!!!!! amtOut=%s", amtOut);
+            console.log("!!!!!!!!!!! amountOutMin=%d", amountOutMin);
+        }
+        require(amtOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT2');
     }
 
     // amount token 均为 token
@@ -1378,6 +1390,11 @@ library SwapExchangeRate {
         uint blocks = block.number.sub(lastBlock);
         uint inc = rate.mul(supplyRate).mul(blocks);
         return rate.add(inc);
+    }
+
+    // 根据 token地址 获取 etoken 地址
+    function getETokenByToken(address factory, address ctokenFactory, address token) public view returns (address ctoken) {
+        return _getCtoken(factory, ctokenFactory, token);
     }
 
     function _getCtoken(address factory, address ctokenFactory, address token) private view returns (address ctoken) {

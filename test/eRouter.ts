@@ -5,7 +5,7 @@ import { BigNumber, BigNumberish, Contract } from 'ethers'
 
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import sleep from '../utils/sleep';
-import { addressOf, getBalances, getCTokenFactoryContract, getEbankFactory, getEbankPair, getEbankRouter, getEbeTokenContract, getTokenContract } from '../helpers/contractHelper'
+import { addressOf, getBalance, getBalances, getCTokenFactoryContract, getEbankFactory, getEbankPair, getEbankRouter, getEbeTokenContract, getSwapExchangeRateContract, getTokenContract } from '../helpers/contractHelper'
 import { IToken, getMockToken, HTToken, readableTokenAmount, deadlineTs, getPairToken } from '../helpers/token';
 import { callWithEstimateGas } from '../helpers/estimateGas';
 import { deployMockContracts } from '../helpers/mock';
@@ -23,6 +23,7 @@ describe("Router 测试", function() {
         , router: Contract
         , factory: Contract
         , ebec: Contract
+        , swapHelper: Contract
 
     let maker: SignerWithAddress
         , taker: SignerWithAddress
@@ -59,6 +60,7 @@ describe("Router 测试", function() {
         taker = namedSigners[1]
         ctokenFactory = getCTokenFactoryContract(addressOf('CtokenFactory'), maker)
         router = getEbankRouter(undefined, maker)
+        swapHelper = getSwapExchangeRateContract()
 
         // let cfactory = await router.ctokenFactory()
         factory = getEbankFactory(undefined, maker)
@@ -73,7 +75,8 @@ describe("Router 测试", function() {
         ebec = getEbeTokenContract(undefined, namedSigners[0])
         await router.setRewardToken(ebe)
         await router.setEbePerBlock(BigNumber.from(10).mul(e18))
-        await router.setFeeAlloc(1)
+        // 这里切换手续费方式 0 或者 1
+        await router.setFeeAlloc(0)
 
         console.info('contracts: router=%s factory=%s', router.address, factory.address)
     })
@@ -125,6 +128,14 @@ describe("Router 测试", function() {
         await printBalance('Balance ' + maker.address + ' after add liquidity', maker.address, [t0, t1, pairToken])
     }
 
+    // 计算最小输出
+    const getAmountOutMin = async (amtIn: BigNumberish, path: string[], to: string) => {
+        const factory = addressOf('Factory')
+            , ctokenFactory = addressOf('CtokenFactory')
+        const { amountOut } = await swapHelper.getAmountsOutUnderlying(factory, ctokenFactory, amtIn, path, to)
+        return amountOut
+    }
+
     it('add Liquidity underlying: usdt/sea', async () => {
         let amt0 = readableTokenAmount(usdt, 10)
             , amt1 = readableTokenAmount(sea, 2000)
@@ -171,16 +182,22 @@ describe("Router 测试", function() {
         let usdtC = getTokenContract(usdt.address, taker)
             , routerC = getEbankRouter(undefined, taker)
             , amt =  readableTokenAmount(usdt, 1)
-        await usdt.contract!.transfer(taker.address, amt)
+            , amtIn = readableTokenAmount(usdt, 1)
+            , path = [usdt.address, sea.address]
+            , b0 = await getBalance(sea, taker.address)
+            , min = await getAmountOutMin(amtIn, path, taker.address)
 
+        await usdt.contract!.transfer(taker.address, amt)
         await usdtC.approve(routerC.address, amt)
         await routerC.swapExactTokensForTokensUnderlying(
-                            readableTokenAmount(usdt, 1),
-                            0,
-                            [usdt.address, sea.address],
+                            amtIn,
+                            min,
+                            path,
                             taker.address,
                             deadlineTs(60)
                         )
+        let b1 = await getBalance(sea, taker.address)
+        expect(b1.sub(b0).gte(min)).to.be.ok // , "amtOut less than amountOutMin")
         await printBalance('Balance feeTo after swap usdt->sea', feeTo, [eusdt])
     })
 
@@ -190,12 +207,14 @@ describe("Router 测试", function() {
 
         let seaC = getTokenContract(sea.address, taker)
             , routerC = getEbankRouter(undefined, taker)
+            , path = [sea.address, usdt.address]
+            , amtOutMin = await getAmountOutMin(amt, path, taker.address)
 
         await seaC.approve(routerC.address, amt)
         await routerC.swapExactTokensForTokensUnderlying(
                             amt,
-                            0,
-                            [sea.address, usdt.address],
+                            amtOutMin,
+                            path,
                             taker.address,
                             deadlineTs(60)
                         )

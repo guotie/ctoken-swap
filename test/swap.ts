@@ -6,10 +6,13 @@ import { getContractAt, getContractBy } from '../utils/contracts'
 // import { getCreate2Address } from '@ethersproject/address'
 // import { pack, keccak256 } from '@ethersproject/solidity'
 
-import { DeployContracts, deployAll, deployTokens, Tokens, getTokenContract, getCTokenContract } from '../deployments/deploys'
+// import { DeployContracts, deployAll, deployTokens, Tokens, getTokenContract, getCTokenContract } from '../deployments/deploys'
+import { deployMockContracts } from '../helpers/mock'
 import createCToken from './shared/ctoken'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import sleep from '../utils/sleep';
+import { getMockToken, HTToken, IToken } from '../helpers/token';
+import { getEbankFactory, getEbankRouter } from '../helpers/contractHelper';
 const hre = require('hardhat')
 const ethers = hre.ethers
 const network = hre.network
@@ -18,22 +21,24 @@ const e18 = BigNumber.from('1000000000000000000')
 
 // 测试 swap pair
 describe("ctoken swap 测试", function() {
-  let tokens: Tokens
-  let deployContracts: DeployContracts
+  // let tokens: Tokens
+  // let deployContracts: DeployContracts
   let namedSigners: SignerWithAddress[]
-  let unitroller: Contract
-  let delegatorFactory: Contract
+  // let unitroller: Contract
+  // let delegatorFactory: Contract
   let mdexFactory: Contract
   let router: Contract
   let pairABI: any
   let deployer: string
   let buyer: SignerWithAddress
-  let usdt: string
-  let sea: string
-  let doge: string
-  let cusdt: string
-  let csea: string
-  let cdoge: string
+  let usdt: IToken
+    , sea: IToken
+    , doge: IToken
+    , ht = HTToken
+
+  // let cusdt: string
+  // let csea: string
+  // let cdoge: string
 
   // e18 是 18位数
   const e18 = BigNumber.from('1000000000000000000')
@@ -45,46 +50,40 @@ describe("ctoken swap 测试", function() {
 
     console.log('deployer: %s buyer: %s', deployer, buyer.address)
 
-    tokens = await deployTokens()
-    let addresses: string[] = []
-    for (let key of tokens.addresses.keys()) {
-      addresses.push(tokens.addresses.get(key)!)
-    }
+    await deployMockContracts()
+    usdt = await getMockToken('USDT')
+    sea = await getMockToken('SEA')
+    doge = await getMockToken('DOGE')
 
-    deployContracts = await deployAll({log: true, anchorToken: tokens.addresses.get('USDT'), addresses: addresses})
-    // console.log('deploy contracts', deployTokens())
-    unitroller = await getContractAt(deployContracts.unitroller)
-    delegatorFactory = await getContractAt(deployContracts.lErc20DelegatorFactory)
-    mdexFactory = await getContractAt(deployContracts.mdexFactory)
-    router = await getContractAt(deployContracts.router)
-
-    const pairArt = await hre.artifacts.readArtifact('contracts/swap/heco/Factory.sol:MdexPair')
-    pairABI = pairArt.abi
+    mdexFactory = getEbankFactory(undefined, namedSigners[0])
+    router = getEbankRouter('', namedSigners[0])
+    // const pairArt = await hre.artifacts.readArtifact('contracts/swap/heco/Factory.sol:MdexPair')
+    // pairABI = pairArt.abi
 
     // create ctoken
-    usdt = tokens.addresses.get('USDT')!
-    sea = tokens.addresses.get('SEA')!
-    doge = tokens.addresses.get('DOGE')!
+    // usdt = tokens.addresses.get('USDT')!
+    // sea = tokens.addresses.get('SEA')!
+    // doge = tokens.addresses.get('DOGE')!
 
-    console.info('USDT:', usdt, 'SEA:', sea)
+    console.info('USDT:', usdt.address, 'SEA:', sea.address)
     expect(usdt).to.not.be.empty
     expect(sea).to.not.be.empty
-    await expect(createCToken(deployContracts.lErc20DelegatorFactory, usdt))
+    // await expect(createCToken(deployContracts.lErc20DelegatorFactory, usdt))
       // .to.emit(delegatorFactory, 'NewDelegator').withArgs(delegatorFactory, '0x340d6d7ea30fb8fcc82d906d0232eb65243b0b87')
       // .to.emit(unitroller, 'MarketListed') //.withArgs(usdt, '')
-    let tx = await createCToken(deployContracts.lErc20DelegatorFactory, sea)
+    // let tx = await createCToken(deployContracts.lErc20DelegatorFactory, sea)
 
     // const delegatorFactoryContract = await getCon
-    cusdt = await delegatorFactory.getCTokenAddressPure(usdt)
-    console.log('cusdt address:', cusdt)
-    csea = await delegatorFactory.getCTokenAddressPure(sea)
-    console.log('csea address:', csea)
+    // cusdt = await delegatorFactory.getCTokenAddressPure(usdt)
+    // console.log('cusdt address:', cusdt)
+    // csea = await delegatorFactory.getCTokenAddressPure(sea)
+    // console.log('csea address:', csea)
 
-    await tx.wait(2)
+    // await tx.wait(2)
 
     // create pair
-    await createPair(usdt, sea)
-    await createPair(doge, sea)
+    // await createPair(usdt, sea)
+    // await createPair(doge, sea)
   })
 
   // create pair
@@ -115,8 +114,8 @@ describe("ctoken swap 测试", function() {
 
   // mint 流动性代币
   const swapMint = async () => {
-    const usdtc = await getTokenContract(usdt)
-      , seac = await getTokenContract(sea)
+    const usdtc = usdt.contract! // await getTokenContract(usdt)
+      , seac = sea.contract! //  await getTokenContract(sea)
       , cusdtCt = await getCTokenContract(cusdt)
       , cseaCt = await getCTokenContract(csea)
       , mintAmt = '2500000000000000000000'

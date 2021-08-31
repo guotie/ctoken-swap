@@ -373,6 +373,13 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     log: log,
   }, verify);
 
+  // console.log('log:', log)
+  let compv2 = await _deploy('ComptrollerV2', {
+    from: deployer,
+    args: [],
+    log: log,
+  }, verify);
+
   let uni = await _deploy('Unitroller', {
     from: deployer,
     args: [],
@@ -382,7 +389,14 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   // 设置 unitroller 的 implement 为 comp.address
   let unitroller = new ethers.Contract(uni.address, uni.abi, namedSigners[0])
   let comptroller = new ethers.Contract(comp.address, comp.abi, namedSigners[0])
+  let comptrollerv2 = new ethers.Contract(compv2.address, compv2.abi, namedSigners[0])
+  let methods = ["0x3e3158d7","0x27efe3cb","0x26634e4c","0x1d3a86df","0xa29e154d","0xc1abfaa3","0xd7f4f30f","0x929fe9a1","0x31975b69","0xabfceffc","0x9d1b5a0a","0x1e80e9e4","0x2f52e595","0x007e3dd2","0x7df0f767","0xaf0801b6","0x8708ec63"]
+    , addr = ["1","1","1","1","1","1","1","1","1","1","1","1","1","1","1","1","1"]
 
+    await (await unitroller._setMethodId(methods, addr)).wait()
+    await (await unitroller._setImplementation(0, comp.address)).wait()
+    await (await unitroller._setImplementation(1, compv2.address)).wait()
+  /*
   let comptrollerImplementation = await unitroller.comptrollerImplementation()
   if (comptrollerImplementation !== comp.address) {
     console.log('comptroller implemention is %s, set to %s ...', comptrollerImplementation, comp.address)
@@ -391,6 +405,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     // await unitroller.functions._acceptImplementation()
     await (await comptroller._become(uni.address)).wait(1)
   }
+  */
 
   // 利率合约
   const interest = await _deploy('WhitePaperInterestRateModel', {
@@ -404,12 +419,12 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   }, verify);
   
   // 价格预言机
-  const priceOrace = await _deploy('SimplePriceOracle', {
-    from: deployer,
-    // 10% 60%
-    args: [opts.baseSymbol ?? 'USDT'],
-    log: log,
-  }, verify);
+  // const priceOrace = await _deploy('SimplePriceOracle', {
+  //   from: deployer,
+  //   // 10% 60%
+  //   args: [opts.baseSymbol ?? 'USDT'],
+  //   log: log,
+  // }, verify);
 
   // LErc20Delegate erc20 implement
   let lerc20Implement = await _deploy('LErc20Delegate', {
@@ -429,16 +444,18 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
   //
   console.log('list markt LHT ...', lht.address)
   // let cunitroller = await ethers.getContractAt(unitroller.abi, unitroller.address, namedSigners[0]);
-  await comptroller._supportMarket(lht.address)
+  await comptrollerv2._supportMarket(zeroAddress, lht.address)
   // let listed = await comptroller.markets(lht.address)
   // console.log('listed:', listed.isListed)
 
   let lercFactoryDeployed = await _deploy('LErc20DelegatorFactory', {
     from: deployer,
     // 
-    args: [lerc20Implement.address, unitroller.address, interest.address],
+    args: [], // [lerc20Implement.address, unitroller.address, interest.address],
     log: log,
   }, verify);
+  let ctokenFactoryc = new ethers.Contract(lercFactoryDeployed.address, lercFactoryDeployed.abi, namedSigners[0])
+  // await ()
 
   let wht = await _deployWHT(deployer, log, verify)
   wETH = new ethers.Contract(wht.address, wht.abi, namedSigners[0])
@@ -519,7 +536,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     console.log('deploy comptroller at: ', comp.address)
     console.log('deploy unitroller at: ', uni.address)
     console.log('deploy interest at: ', interest.address)
-    console.log('deploy priceOrace at: ', priceOrace.address)
+    console.log('deploy priceOrace at: ', '')
     console.log('deploy mdexFactory at: ', mdexFactory.address)
     console.log('deploy lerc20Implement at: ', lerc20Implement.address)
     console.log('deploy lerc20DelegatorFactory at: ', lercFactoryDeployed.address)
@@ -534,7 +551,7 @@ export async function deployAll(opts: DeployParams = {}, verify = false): Promis
     comptroller: { address: comp.address, abi: await getAbiByContractName('Comptroller') },
     unitroller: { address: uni.address, abi: await getAbiByContractName('Unitroller') },
     interest: { address: interest.address, abi: await getAbiByContractName('WhitePaperInterestRateModel') },
-    priceOracle: { address: priceOrace.address, abi: await getAbiByContractName('SimplePriceOracle') },
+    priceOracle: { address: zeroAddress, abi: await getAbiByContractName('SimplePriceOracle') },
     mdexFactory: { address: mdexFactory.address, abi: await getAbiByContractName('DeBankFactory') },
     lErc20Delegate: { address: lerc20Implement.address, abi: await getAbiByContractName('LErc20Delegate') },
     WHT: wht,

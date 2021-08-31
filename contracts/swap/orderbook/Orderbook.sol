@@ -359,6 +359,10 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       return _pairFor(_getETokenAddress(srcToken), _getETokenAddress(destToken));
     }
 
+    function pairForEToken(address srcEToken, address destEToken) public pure returns(uint pair) {
+      return _pairFor(srcEToken, destEToken);
+    }
+
     // 调用前需要确保 srcToken destToken 都是 etoken
     // 交易对hash 区分方向 eth->usdt 与 usdt->eth 是不同的交易对
     function _pairFor(address srcToken, address destToken) private pure returns(uint pair) {
@@ -576,7 +580,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
         require(orderIds.length == amtToTakens.length, "invalid param");
 
         for (uint i = 0; i < orderIds.length; i ++) {
-          fulfilOrder(orderIds[i], amtToTakens[i], to, isToken, partialFill, data);
+            fulfilOrder(orderIds[i], amtToTakens[i], to, isToken, partialFill, data);
         }
     }
 
@@ -588,13 +592,13 @@ contract OrderBook is IOrderBook, OBStorageV1 {
     /// @return fulfiled 对于挂单者来说, srcEToken 已成交的数量
     /// @return amtOut 对于挂单者来说, 要得到的 etoken 数量(未扣除挂单手续费)
     function getOrderTokens(uint id) public view returns (address srcEToken, address destEToken, uint amtIn, uint fulfiled, uint amtOut) {
-      DataTypes.OrderItem memory order = orders[id];
+        DataTypes.OrderItem memory order = orders[id];
 
-      srcEToken = order.tokenAmt.srcEToken;
-      destEToken = order.tokenAmt.destEToken;
-      amtIn = order.tokenAmt.amountInMint;
-      fulfiled = order.tokenAmt.fulfiled;
-      amtOut = order.tokenAmt.guaranteeAmountOut;
+        srcEToken = order.tokenAmt.srcEToken;
+        destEToken = order.tokenAmt.destEToken;
+        amtIn = order.tokenAmt.amountInMint;
+        fulfiled = order.tokenAmt.fulfiled;
+        amtOut = order.tokenAmt.guaranteeAmountOut;
     }
 
     /// @dev fulfilOrder orderbook order, etoken in and etoken out
@@ -627,7 +631,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
 
       DataTypes.TokenAmount memory tokenAmt = order.tokenAmt;
       if (to == address(0)) {
-        to = msg.sender;
+          to = msg.sender;
       }
 
       fulFilAmt.isToken = isToken;
