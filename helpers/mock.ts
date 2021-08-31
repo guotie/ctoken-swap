@@ -289,32 +289,70 @@ export async function addLiquidityUnderlying(
                         router: Contract,
                         token0: IToken,
                         token1: IToken,
-                        amt0: BigNumberish,
-                        amt1: BigNumberish,
+                        _amt0: BigNumberish,
+                        _amt1: BigNumberish,
                         to: string
                     ) {
+    let amt0 = readableTokenAmount(token0, _amt0)
+        , amt1 = readableTokenAmount(token1, _amt1)
+
     if (token0.address !== zeroAddress) {
-        await token0.contract!.approve(router.address, '1000000000000000000000000000000000')
+        await token0.contract!.approve(router.address, amt0)
     }
     if (token1.address !== zeroAddress) {
-        await token1.contract!.approve(router.address, '1000000000000000000000000000000000')
+        await token1.contract!.approve(router.address, amt1)
     }
 
-    if (token0.address === zeroAddress || token1.address === zeroAddress) {
-        throw new Error('todo: not support ht add liquidity')
-    }
+    // if (token0.address === zeroAddress || token1.address === zeroAddress) {
+    //     throw new Error('todo: not support ht add liquidity')
+    // }
 
+    if (token0.address === zeroAddress) {
+        // await callWithEstimateGas(router,
+        //     'addLiquidityETHUnderlying',
+        //     [
+        //         token1.address,
+        //         amt1,
+        //         0,
+        //         0,
+        //         to,
+        //         deadlineTs(100),
+        //         { value: amt0 }
+        //     ],
+        //     true)
+            await router.addLiquidityETHUnderlying(
+                    token1.address,
+                    amt1,
+                    0,
+                    0,
+                    to,
+                    deadlineTs(100),
+                    { value: amt0 }
+            )
+    } else if (token1.address === zeroAddress) {
+        // await callWithEstimateGas(router,
+        await router.addLiquidityETHUnderlying(
+                token0.address,
+                amt0,
+                0,
+                0,
+                to,
+                deadlineTs(100),
+                { value: amt1 }
+        )
+    } else {
     await callWithEstimateGas(router,
         'addLiquidityUnderlying',
         [
             token0.address,
             token1.address,
-            readableTokenAmount(token0, amt0),
-            readableTokenAmount(token1, amt1),
+            amt0,
+            amt1,
             0,
             0,
             to,
             deadlineTs(100)
         ],
         true)
+    }
 }

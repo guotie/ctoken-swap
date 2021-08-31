@@ -1078,12 +1078,12 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         // amounts[idx] = amountOut;
     }
 
-    struct SwapLocalVars {
-        uint rate0;
-        uint rate1;
-        uint amountIn;
-        uint amountOut;
-    }
+    // struct SwapLocalVars {
+    //     uint rate0;
+    //     uint rate1;
+    //     uint amountIn;
+    //     uint amountOut;
+    // }
 
     /*
     function _swapTokensForExactTokensUnderlying(
