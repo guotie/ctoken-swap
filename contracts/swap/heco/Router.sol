@@ -27,7 +27,7 @@ import "../../ebe/IEBEToken.sol";
 
 // import "../../compound/LHT.sol";
 // import "./PairStorage.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 interface ILHT {
     function mint() external payable returns (uint, uint);
@@ -1037,11 +1037,11 @@ contract DeBankRouter is IDeBankRouter, Ownable {
         amounts = new uint[](path.length);
         amounts[0] = amountIn;
         amounts[idx] = amtOut; //_camount2Amount(camtOut, vars.rate1);
-        if (amtOut < amountOutMin) {
-            console.log("!!!!!!!!!!! camtOut=%s", camtOut);
-            console.log("!!!!!!!!!!! amtOut=%s", amtOut);
-            console.log("!!!!!!!!!!! amountOutMin=%d", amountOutMin);
-        }
+        // if (amtOut < amountOutMin) {
+        //     console.log("!!!!!!!!!!! camtOut=%s", camtOut);
+        //     console.log("!!!!!!!!!!! amtOut=%s", amtOut);
+        //     console.log("!!!!!!!!!!! amountOutMin=%d", amountOutMin);
+        // }
         require(amtOut >= amountOutMin, 'Router: INSUFFICIENT_OUTPUT_AMOUNT2');
     }
 
