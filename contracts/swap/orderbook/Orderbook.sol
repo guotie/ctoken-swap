@@ -23,6 +23,10 @@ import "./OBPriceLogic.sol";
 import "./OBPairConfig.sol";
 import "./SafeMath.sol";
 
+import "../../proxy/Initializable.sol";
+
+// import "../../compound/ErrorReporter.sol";
+
 // import "hardhat/console.sol";
 
 interface IERC20 {
@@ -113,22 +117,32 @@ interface IOrderBook {
 }
 
 // 挂单合约
-contract OrderBook is IOrderBook, OBStorageV1 {
+contract OrderBook is Initializable, IOrderBook, OBStorageV1 {
     using SafeMath for uint;
     using SafeMath for uint256;
     using OBPairConfig for DataTypes.OBPairConfigMap;
 
-    // _ctokenFactory: ctoken 工厂
-    // _wETH: eth/bnb/ht
-    // _margin: 代持合约地址
-    // 这个地址必须是 payable !!!
-    constructor(address _ctokenFactory, address _cETH, address _wETH, address _margin) public payable {
+    constructor(address _ctokenFactory, address _cETH, address _wETH, address _margin) public {
       cETH = _cETH;
       wETH = _wETH;
       marginAddr    = _margin;
       ctokenFactory = _ctokenFactory;
-      feeTo = msg.sender;
+      _notEntered = true;
     }
+
+    // _ctokenFactory: ctoken 工厂
+    // _wETH: eth/bnb/ht
+    // _margin: 代持合约地址
+    function initialize(address _ctokenFactory, address _cETH, address _wETH, address _margin) public initializer {
+      cETH = _cETH;
+      wETH = _wETH;
+      marginAddr    = _margin;
+      ctokenFactory = _ctokenFactory;
+      _notEntered = true;
+    }
+    // function initialize() public initializer {
+    //   _notEntered = true;
+    // }
 
     modifier whenOpen() {
         require(closed == false, "order book closed");
@@ -140,6 +154,8 @@ contract OrderBook is IOrderBook, OBStorageV1 {
         // assert(msg.sender == cWHT);
         // only accept HT via fallback from the WHT contract
     }
+
+    uint public constant VERSION = 0x1;
 
     function _putOrder(DataTypes.OrderItem storage order) internal {
       uint orderId = order.orderId;
@@ -168,8 +184,8 @@ contract OrderBook is IOrderBook, OBStorageV1 {
           order.tokenAmt.srcToken,
           order.tokenAmt.destToken,
           orderId,
-          order.tokenAmt.amountIn,
-          order.tokenAmt.guaranteeAmountOut,
+          order.tokenAmt.amountOut,
+          order.tokenAmt.guaranteeAmountIn,
           flag);
     }
 
@@ -231,6 +247,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       return etoken;
     }
 
+    // 根据 token 地址获取 etoken 地址
     function _getETokenAddress(address addr) internal view returns (address) {
       if (addr == address(0) || addr == wETH) {
         return cETH;
@@ -240,6 +257,16 @@ contract OrderBook is IOrderBook, OBStorageV1 {
         return addr;
       }
       return etoken;
+    }
+
+    // 根据 etoken 地址获取 token 地址
+    function  _getTokenAddress(address addr) internal view returns (address) {
+      if (addr == cETH) {
+        return address(0);
+      }
+      address token = ICTokenFactory(ctokenFactory).getTokenAddress(addr);
+      require(token != address(0), "invalid etoken");
+      return token;
     }
 
     // 判断订单是否是 杠杆订单, 是否是close状态
@@ -257,8 +284,8 @@ contract OrderBook is IOrderBook, OBStorageV1 {
               address srcToken,
               address destToken,
               address to,             // 兑换得到的 token 发送地址, 杠杆传用户地址
-              uint amountIn,
-              uint guaranteeAmountOut,       // 
+              uint amountOut,
+              uint guaranteeAmountIn,       // 
               uint flag
           )
           public
@@ -280,20 +307,22 @@ contract OrderBook is IOrderBook, OBStorageV1 {
 
       if (srcToken == address(0)) {
         // 转入 wETH
-        require(msg.value >= amountIn, "not enough amountIn");
+        require(msg.value >= amountOut, "not enough amountIn");
         // IWHT(wETH).deposit{value: msg.value}();
         // srcToken = wETH;
       } else {
         // should approve outside
-        TransferHelper.safeTransferFrom(srcToken, msg.sender, address(this), amountIn);
+        TransferHelper.safeTransferFrom(srcToken, msg.sender, address(this), amountOut);
       }
 
       address etoken = _getOrCreateETokenAddress(srcToken);
       {
         order.tokenAmt.srcToken = srcToken;
         order.tokenAmt.srcEToken = etoken;
-        order.tokenAmt.amountIn = amountIn;
+        order.tokenAmt.amountOut = amountOut;
         if (srcToken != etoken) {
+          order.tokenAmt.amountOutMint = _mintEToken(srcToken, etoken, amountOut);
+          /*
           // order.isEToken = true;
           // mint to etoken
           if (srcToken == address(0)) {
@@ -309,20 +338,21 @@ contract OrderBook is IOrderBook, OBStorageV1 {
             require(err == 0, "mint failed");
             order.tokenAmt.amountInMint = amt; // IERC20(etoken).balanceOf(address(this)).sub(balanceBefore);
           }
+          */
         } else {
-          order.tokenAmt.amountInMint = amountIn;
+          order.tokenAmt.amountOutMint = amountOut;
         }
       }
 
       {
         // 最低挂单量限制
-        require(order.tokenAmt.amountInMint > minAmounts[etoken], "less than min amount");
+        require(order.tokenAmt.amountOutMint > minAmounts[etoken], "less than min amount");
       }
 
       order.tokenAmt.destToken = destToken;
       address destEToken = _getOrCreateETokenAddress(destToken);
       order.tokenAmt.destEToken = destEToken;
-      order.tokenAmt.guaranteeAmountOut = guaranteeAmountOut;
+      order.tokenAmt.guaranteeAmountIn = guaranteeAmountIn;
 
       // src dest 必须同时为 token 或者 etoken
       require((srcToken == etoken) == (destToken == destEToken), "both token or etoken");
@@ -404,7 +434,24 @@ contract OrderBook is IOrderBook, OBStorageV1 {
     function _orderClosed(uint flag) private pure returns (bool) {
       return (flag & _ORDER_CLOSED) != 0;
     }
-    
+
+
+    // 
+    function _mintEToken(address token, address etoken, uint256 tokenAmt) private returns (uint mintAmt) {
+      uint err;
+      require(token != etoken, "token equal etoken");
+
+      if (token == address(0)) {
+        // uint balanceBefore = IERC20(cETH).balanceOf(address(this));
+        (err, mintAmt) = ICETH(cETH).mint{value: tokenAmt}();
+      } else {
+        // uint balanceBefore = IERC20(etoken).balanceOf(address(this));
+        IERC20(token).approve(etoken, tokenAmt);
+        (err, mintAmt) = ICToken(etoken).mint(tokenAmt);
+      }
+      require(err == 0, "mint failed");
+    }
+
     /// @dev 赎回 etoken
     function _redeemTransfer(
                     address token,
@@ -412,9 +459,18 @@ contract OrderBook is IOrderBook, OBStorageV1 {
                     address to,
                     uint256 redeemAmt
                 ) private {
+        require(token != etoken, "token should not equal etoken");
         // console.log("redeemAmt:", redeemAmt);
+
         (uint ret, , uint amt) = ICToken(etoken).redeem(redeemAmt);
-        require(ret == 0, "redeem failed");
+        // 当没有足够的 token 可以赎回时, 转 etoken 给 to
+        // TokenErrorReporter Error.TOKEN_INSUFFICIENT_CASH
+        require(ret == 0 || ret == 14, "redeem failed");
+        if (ret == 14) {
+          // not enough token
+          TransferHelper.safeTransfer(etoken, to, redeemAmt);
+          return;
+        }
 
         if (token == address(0)) {
             TransferHelper.safeTransferETH(to, amt); // address(this).balance);
@@ -446,12 +502,12 @@ contract OrderBook is IOrderBook, OBStorageV1 {
         DataTypes.OrderItem storage order = orders[orderIds[i]];
         uint _pair = order.pair;
         if (_pair == pairA) {
-          totalA += order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+          totalA += order.tokenAmt.amountOutMint.sub(order.tokenAmt.fulfiled);
           // totalA += amt;
           order.flag |= _ORDER_CLOSED;
           _removeOrder(order);
         } else if (_pair == pairB) {
-          totalB += order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+          totalB += order.tokenAmt.amountOutMint.sub(order.tokenAmt.fulfiled);
           order.flag |= _ORDER_CLOSED;
           _removeOrder(order);
         }
@@ -490,7 +546,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       // 退回未成交部分
       address srcToken = order.tokenAmt.srcToken;
       address srcEToken = order.tokenAmt.srcEToken;
-      uint amt = order.tokenAmt.amountInMint.sub(order.tokenAmt.fulfiled);
+      uint amt = order.tokenAmt.amountOutMint.sub(order.tokenAmt.fulfiled);
       // console.log("cancel order: srcEToken amt=%d", amt);
 
       if (amt > 0) {
@@ -571,8 +627,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
                 uint[] memory amtToTakens,
                 address to,
                 bool isToken,
-                bool partialFill,
-                bytes calldata data
+                bool partialFill
               )
               external
               payable
@@ -580,7 +635,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
         require(orderIds.length == amtToTakens.length, "invalid param");
 
         for (uint i = 0; i < orderIds.length; i ++) {
-            fulfilOrder(orderIds[i], amtToTakens[i], to, isToken, partialFill, data);
+            fulfilOrder(orderIds[i], amtToTakens[i], to, isToken, partialFill, new bytes(0));
         }
     }
 
@@ -588,17 +643,20 @@ contract OrderBook is IOrderBook, OBStorageV1 {
     /// @param id order id
     /// @return srcEToken 对于挂单者来说, 卖出币种; 对于吃单者来说, 买入币种
     /// @return destEToken 对于挂单者来说, 买入币种; 对于吃单者来说, 卖出币种
-    /// @return amtIn 对于挂单者来说, 卖出的 etoken 数量
+    /// @return amtOut 对于挂单者来说, 卖出的 etoken 数量
     /// @return fulfiled 对于挂单者来说, srcEToken 已成交的数量
-    /// @return amtOut 对于挂单者来说, 要得到的 etoken 数量(未扣除挂单手续费)
-    function getOrderTokens(uint id) public view returns (address srcEToken, address destEToken, uint amtIn, uint fulfiled, uint amtOut) {
+    /// @return guaranteeAmountIn 对于挂单者来说, 要得到的 etoken 数量(未扣除挂单手续费)
+    function getOrderTokens(uint id)
+            public
+            view
+            returns (address srcEToken, address destEToken, uint amtOut, uint fulfiled, uint guaranteeAmountIn) {
         DataTypes.OrderItem memory order = orders[id];
 
         srcEToken = order.tokenAmt.srcEToken;
         destEToken = order.tokenAmt.destEToken;
-        amtIn = order.tokenAmt.amountInMint;
+        amtOut = order.tokenAmt.amountOutMint;
         fulfiled = order.tokenAmt.fulfiled;
-        amtOut = order.tokenAmt.guaranteeAmountOut;
+        guaranteeAmountIn = order.tokenAmt.guaranteeAmountIn;
     }
 
     /// @dev fulfilOrder orderbook order, etoken in and etoken out
@@ -616,7 +674,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
                 address to,
                 bool isToken,
                 bool partialFill,
-                bytes calldata data
+                bytes memory data
               )
               public
               payable
@@ -624,7 +682,9 @@ contract OrderBook is IOrderBook, OBStorageV1 {
               nonReentrant
               returns (FulFilAmt memory fulFilAmt) {
       DataTypes.OrderItem storage order = orders[orderId];
-      
+
+      require(amtToTaken > 0, "zero amount");
+
       if ((order.flag & _ORDER_CLOSED) > 0) {
           return fulFilAmt;
       }
@@ -639,7 +699,7 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       fulFilAmt.srcEToken = order.tokenAmt.srcEToken;
       fulFilAmt.destEToken = order.tokenAmt.destEToken;
       {
-        uint left = tokenAmt.amountInMint.sub(tokenAmt.fulfiled);
+        uint left = tokenAmt.amountOutMint.sub(tokenAmt.fulfiled);
         if (amtToTaken > left) {
           require(partialFill, "not enough to fulfil");
           
@@ -648,8 +708,6 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       }
       _getFulfiledAmt(tokenAmt, fulFilAmt, order.pair);
 
-      // console.log("takerAmt=%d makerAmt=%d filled=%d", fulFilAmt.takerAmt, fulFilAmt.makerAmt, fulFilAmt.filled);
-      
       // 验证转入 taker 的币
       address destEToken = tokenAmt.destEToken;
       address srcEToken = tokenAmt.srcEToken;
@@ -661,7 +719,11 @@ contract OrderBook is IOrderBook, OBStorageV1 {
           // uint ret = ICToken(srcEToken).redeem(fulFilAmt.takerAmt);
           // require(ret == 0, "redeem failed");
           // TransferHelper.safeTransfer(tokenAmt.srcToken, to, fulFilAmt.takerAmtToken);
-          _redeemTransfer(tokenAmt.srcToken, srcEToken, to, fulFilAmt.takerAmt);
+          address srcToken = tokenAmt.srcToken;
+          if (srcEToken == srcToken) {
+              srcToken = _getTokenAddress(srcEToken);
+          }
+          _redeemTransfer(srcToken, srcEToken, to, fulFilAmt.takerAmt);
       } else {
           TransferHelper.safeTransfer(srcEToken, to, fulFilAmt.takerAmt);
       }
@@ -676,11 +738,25 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       } else {
           if (isToken) {
             address destToken = tokenAmt.destToken;
-            TransferHelper.safeTransferFrom(destToken, msg.sender, address(this), fulFilAmt.amtDestToken);
-            // mint
-            IERC20(destToken).approve(destEToken, fulFilAmt.amtDestToken);
-            (uint ret, ) = ICToken(destEToken).mint(fulFilAmt.amtDestToken);
-            require(ret == 0, "mint failed");
+            if (destEToken == destToken) {
+              destToken = _getTokenAddress(destEToken);
+            }
+            if (destToken == address(0)) {
+              // console.log("input eth: %d need: %d", msg.value, fulFilAmt.amtDestToken);
+              if (msg.value >= fulFilAmt.amtDestToken) {
+                // 将多余的 eth 退回
+                uint left = msg.value.sub(fulFilAmt.amtDestToken);
+                if (left > 0) {
+                  TransferHelper.safeTransferETH(msg.sender, left);
+                }
+              } else {
+                revert("not enough eth in");
+              }
+              // require(msg.value >= , "not enough eth");
+            } else {
+              TransferHelper.safeTransferFrom(destToken, msg.sender, address(this), fulFilAmt.amtDestToken);
+            }
+            _mintEToken(destToken, destEToken, fulFilAmt.amtDestToken);
           } else {
             // taker 得到 srcEToken, maker 得到的 destEToken, 暂存在 合约中
             TransferHelper.safeTransferFrom(destEToken, msg.sender, address(this), fulFilAmt.amtDest);
@@ -688,10 +764,10 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       }
 
       // 将手续费转给 feeTo
-      if (fulFilAmt.takerFee > 0) {
+      if (fulFilAmt.takerFee > 0 && feeTo != address(0)) {
         TransferHelper.safeTransfer(srcEToken, feeTo, fulFilAmt.takerFee);
       }
-      if (fulFilAmt.makerFee > 0) {
+      if (fulFilAmt.makerFee > 0 && feeTo != address(0)) {
         TransferHelper.safeTransfer(destEToken, feeTo, fulFilAmt.makerFee);
       }
 
@@ -732,11 +808,28 @@ contract OrderBook is IOrderBook, OBStorageV1 {
         order.tokenAmt.fulfiled = order.tokenAmt.fulfiled.add(filled);
         order.tokenAmt.destFulfiled = order.tokenAmt.destFulfiled.add(makerGot);
 
-        if (order.tokenAmt.fulfiled >= order.tokenAmt.amountInMint) {
+        if (order.tokenAmt.fulfiled >= order.tokenAmt.amountOutMint) {
           //
           order.flag |= _ORDER_CLOSED;
           _removeOrder(order);
         }
+    }
+
+    /// @dev 计算成交这些订单需要支付的 destEToken destToken 数量
+    function calcTakerAmounts(uint[] memory orderIds) public view returns (uint totalEAmt, uint totalAmt) {
+      for (uint i = 0;i < orderIds.length; i ++) {
+        DataTypes.OrderItem memory order = orders[orderId];
+        DataTypes.TokenAmount memory tokenAmt = order.tokenAmt;
+        (uint eamt, uint amt) = OBPriceLogic.calcTakerAmount(
+                                    tokenAmt.destToken,
+                                    tokenAmt.destEToken,
+                                    tokenAmt.amountOutMint,
+                                    tokenAmt.guaranteeAmountIn,
+                                    tokenAmt.amountOutMint.sub(tokenAmt.fulfiled)
+                                );
+        totalEAmt = totalEAmt.add(eamt);
+        totalAmt = totalAmt.add(amt);
+      }
     }
 
     /// @dev 根据order的兑换比例, 手续费, 计算兑换得到的dest token的兑换数量. 如果 是 token, 则调用 EToken 的接口更新 exchangeRate, 因此，这个方法不是只读方法
@@ -751,8 +844,13 @@ contract OrderBook is IOrderBook, OBStorageV1 {
       // 挂单者在不扣除手续费的情况下得到的币的数量
       fulFilAmt.amtDest = OBPriceLogic.convertBuyAmountByETokenIn(tokenAmt, amtToTaken);
 
-      fulFilAmt.takerFee = amtToTaken.mul(getTakerFeeRate(pair)).div(DENOMINATOR);
-      fulFilAmt.makerFee = amtToTaken.mul(getMakerFeeRate(pair)).div(DENOMINATOR);
+      if (feeTo != address(0)) {
+        fulFilAmt.takerFee = amtToTaken.mul(getTakerFeeRate(pair)).div(DENOMINATOR);
+        fulFilAmt.makerFee = amtToTaken.mul(getMakerFeeRate(pair)).div(DENOMINATOR);
+      } else {
+        fulFilAmt.takerFee = 0; // amtToTaken.mul(getTakerFeeRate(pair)).div(DENOMINATOR);
+        fulFilAmt.makerFee = 0; // amtToTaken.mul(getMakerFeeRate(pair)).div(DENOMINATOR);
+      }
       // taker得到的币，扣除手续费
       fulFilAmt.takerAmt = amtToTaken.sub(fulFilAmt.takerFee);
       // maker 得到的币数量，扣除手续费
@@ -762,8 +860,8 @@ contract OrderBook is IOrderBook, OBStorageV1 {
         // address srcEToken = tokenAmt.srcEToken;
         uint256 srcRate = OBPriceLogic.refreshTokenExchangeRate(ICToken(tokenAmt.srcEToken));
         uint256 destRate = OBPriceLogic.refreshTokenExchangeRate(ICToken(tokenAmt.destEToken));
-        fulFilAmt.takerAmtToken = fulFilAmt.takerAmt.mul(srcRate).div(1e18);
-        fulFilAmt.amtDestToken = fulFilAmt.amtDest.mul(destRate).div(1e18);
+        fulFilAmt.takerAmtToken = fulFilAmt.takerAmt.mul(srcRate).div(1e18);   // taker 得到的
+        fulFilAmt.amtDestToken = fulFilAmt.amtDest.mul(destRate).div(1e18);    // taker 需要支付的
       }
     }
 
@@ -820,6 +918,8 @@ contract OrderBook is IOrderBook, OBStorageV1 {
 
     // 设置某个 token 的最低挂单量, 参数为 etoken, 非 token
     function setMinOrderAmount(address etoken, uint amt) external onlyOwner {
+      // 确保输入的是 etoken 地址
+      _getTokenAddress(etoken);
       minAmounts[etoken] = amt;
     }
 

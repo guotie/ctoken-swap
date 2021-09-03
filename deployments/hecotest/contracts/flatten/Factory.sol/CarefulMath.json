@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CarefulMath",
+  "sourceName": "contracts/flatten/Factory.sol",
+  "abi": [],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea265627a7a723158205c1ce41338ed36bfab95f8a27a7030f82c7de78c4d5e39bf70e0301323d89a8d64736f6c63430005100032",
+  "deployedBytecode": "0x6080604052600080fdfea265627a7a723158205c1ce41338ed36bfab95f8a27a7030f82c7de78c4d5e39bf70e0301323d89a8d64736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

@@ -26,7 +26,7 @@ export interface OrderItem {
   destToken: string
   amountIn: BigNumber
   fulfiled: BigNumber
-  guaranteeAmountOut: BigNumber
+  guaranteeAmountIn: BigNumber
 }
 
 @Provide()
@@ -133,7 +133,7 @@ export class OrderBookService {
         destToken: destToken,
         amountIn: amtIn,
         fulfiled: BigNumber.from(0),
-        guaranteeAmountOut: amtOut
+        guaranteeAmountIn: amtOut
       }
     
     this._insertOrder(pair, BigNumberKey.from(price), order)
@@ -143,7 +143,7 @@ export class OrderBookService {
     let order = await this.getOrderById(orderId.toString())
     let pair = this.pairFor(order.srcToken, order.destToken)
 
-    this._updateOrder(pair, this.price(order.amountIn, order.guaranteeAmountOut), order)
+    this._updateOrder(pair, this.price(order.amountIn, order.guaranteeAmountIn), order)
   }
 
   async onCancelOrder(owner: string, src: string, dest: string, orderId: BigNumber) {
@@ -151,7 +151,7 @@ export class OrderBookService {
     //: 根据 orderId 查找 order
     let order = await this.getOrderById(orderId.toString())
 
-    this._removeOrder(pair, this.price(order.amountIn, order.guaranteeAmountOut), orderId.toString())
+    this._removeOrder(pair, this.price(order.amountIn, order.guaranteeAmountIn), orderId.toString())
   }
 
   // 订单是否已经取消, 如果订单被取消, 最后一位被置为1
@@ -165,7 +165,7 @@ export class OrderBookService {
       , dst = o.tokenAmt.destToken
       , amtIn = o.tokenAmt.amountIn
       , fulfiled = o.tokenAmt.fulfiled
-      , amtOut = o.tokenAmt.guaranteeAmountOut
+      , amtOut = o.tokenAmt.guaranteeAmountIn
 
     if (o.owner === '0x0000000000000000000000000000000000000000') {
       // todo 如果是 000000 zero address 说明订单不存在
@@ -187,7 +187,7 @@ export class OrderBookService {
       destToken: dst,
       amountIn: amtIn,
       fulfiled: fulfiled,
-      guaranteeAmountOut: amtOut
+      guaranteeAmountIn: amtOut
     }
   }
 
@@ -197,7 +197,7 @@ export class OrderBookService {
     for (let order of orders) {
       // 订单
       let pair = this.pairFor(order.srcToken, order.destToken)
-        , price = this.price(order.amountIn, order.guaranteeAmountOut)
+        , price = this.price(order.amountIn, order.guaranteeAmountIn)
         , key = new BigNumberKey(price)
 
       this._insertOrder(pair, key, order)
@@ -217,11 +217,11 @@ export class OrderBookService {
       , dst = o.tokenAmt.destToken
       , amtIn = o.tokenAmt.amountIn
       , fulfiled = o.tokenAmt.fulfiled
-      , guaranteeAmountOut = o.tokenAmt.guaranteeAmountOut
+      , guaranteeAmountIn = o.tokenAmt.guaranteeAmountIn
       , flag: BigNumber = o.flag
       , orderId = o.orderId.toString()
       , pair = this.pairFor(src, dst)
-      // , price = this.price(amtIn, guaranteeAmountOut)
+      // , price = this.price(amtIn, guaranteeAmountIn)
 
       let order: OrderItem = {
         orderId: orderId,
@@ -237,7 +237,7 @@ export class OrderBookService {
         destToken: dst,
         amountIn: amtIn,
         fulfiled: fulfiled,
-        guaranteeAmountOut: guaranteeAmountOut
+        guaranteeAmountIn: guaranteeAmountIn
       }
 
       orders.push(order)
@@ -252,7 +252,7 @@ export class OrderBookService {
   // 如果存在，更新order
   _updateOrderItem(order: OrderItem) {
     let pair = this.pairFor(order.srcToken, order.destToken)
-      , price = this.price(order.amountIn, order.guaranteeAmountOut)
+      , price = this.price(order.amountIn, order.guaranteeAmountIn)
 
     if (this._updateOrder(pair, price, order) === false) {
       this._insertOrder(pair, new BigNumberKey(price), order)
@@ -288,7 +288,7 @@ export class OrderBookService {
   
   _removeOrderItem(order: OrderItem) {
     let pair = this.pairFor(order.srcToken, order.destToken)
-      , price = this.price(order.amountIn, order.guaranteeAmountOut)
+      , price = this.price(order.amountIn, order.guaranteeAmountIn)
 
     this._removeOrder(pair, price, order.orderId)
   }
@@ -405,7 +405,7 @@ export class OrderBookService {
       destToken: item.destToken,
       amountIn: item.amountIn,
       fulfiled: item.fulfiled,
-      guaranteeAmountOut: item.guaranteeAmountOut
+      guaranteeAmountIn: item.guaranteeAmountIn
     }
   }
 

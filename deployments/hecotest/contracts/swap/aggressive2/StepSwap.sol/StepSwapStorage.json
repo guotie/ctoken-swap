@@ -1,0 +1,87 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "StepSwapStorage",
+  "sourceName": "contracts/swap/aggressive2/StepSwap.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ceth",
+      "outputs": [
+        {
+          "internalType": "contract ILHT",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ctokenFactory",
+      "outputs": [
+        {
+          "internalType": "contract ICTokenFactory",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "exchangeCount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "swaps",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "exFlag",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "contractAddr",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "weth",
+      "outputs": [
+        {
+          "internalType": "contract IWETH",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b506101a7806100206000396000f3fe608060405234801561001057600080fd5b50600436106100675760003560e01c806368972e501161005057806368972e5014610092578063d1d367ba146100a7578063f09c5829146100af57610067565b806325c9e2761461006c5780633fc8cef31461008a575b600080fd5b6100746100d0565b604051610081919061013d565b60405180910390f35b6100746100df565b61009a6100ee565b6040516100819190610151565b6100746100f4565b6100c26100bd366004610125565b610103565b60405161008192919061015a565b6004546001600160a01b031681565b6002546001600160a01b031681565b60015481565b6003546001600160a01b031681565b600060208190529081526040902080546001909101546001600160a01b031682565b600060208284031215610136578081fd5b5035919050565b6001600160a01b0391909116815260200190565b90815260200190565b9182526001600160a01b031660208201526040019056fea26469706673582212200e50d76f0d9f29864f69fba20a40ab035331985eedee38e8b351fbc8bedd13c464736f6c634300060c0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100675760003560e01c806368972e501161005057806368972e5014610092578063d1d367ba146100a7578063f09c5829146100af57610067565b806325c9e2761461006c5780633fc8cef31461008a575b600080fd5b6100746100d0565b604051610081919061013d565b60405180910390f35b6100746100df565b61009a6100ee565b6040516100819190610151565b6100746100f4565b6100c26100bd366004610125565b610103565b60405161008192919061015a565b6004546001600160a01b031681565b6002546001600160a01b031681565b60015481565b6003546001600160a01b031681565b600060208190529081526040902080546001909101546001600160a01b031682565b600060208284031215610136578081fd5b5035919050565b6001600160a01b0391909116815260200190565b90815260200190565b9182526001600160a01b031660208201526040019056fea26469706673582212200e50d76f0d9f29864f69fba20a40ab035331985eedee38e8b351fbc8bedd13c464736f6c634300060c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

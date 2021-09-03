@@ -1,0 +1,26 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CErc20Storage",
+  "sourceName": "contracts/compound/CTokenInterfaces.sol",
+  "abi": [
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "underlying",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052348015600f57600080fd5b5060938061001e6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c80636f307dc314602d575b600080fd5b6033604f565b604080516001600160a01b039092168252519081900360200190f35b6000546001600160a01b03168156fea265627a7a723158207a2fbcafa9b68ed9af2b4df53f0f3e306e88de74545731a11d94b15ba06d6f9d64736f6c63430005100032",
+  "deployedBytecode": "0x6080604052348015600f57600080fd5b506004361060285760003560e01c80636f307dc314602d575b600080fd5b6033604f565b604080516001600160a01b039092168252519081900360200190f35b6000546001600160a01b03168156fea265627a7a723158207a2fbcafa9b68ed9af2b4df53f0f3e306e88de74545731a11d94b15ba06d6f9d64736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

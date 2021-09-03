@@ -189,12 +189,12 @@ async function main() {
     const sea = addressOf('SEA')
         , usdt = addressOf('USDT')
         , srcAmt = BigNumber.from('10000000000000000000') // 10
-        , guaranteeAmountOut = BigNumber.from('5000000') // 
+        , guaranteeAmountIn = BigNumber.from('5000000') // 
         , dealAmt            = BigNumber.from('200000')
         , maker = getSigner()
         , taker = await getTakerSigner()
 
-    // const orderId = await createLimitOrder(maker, sea, usdt, srcAmt, guaranteeAmountOut)
+    // const orderId = await createLimitOrder(maker, sea, usdt, srcAmt, guaranteeAmountIn)
     // fulfil order about 2000000
     let orderId = 13
     await fufilOrder(taker, orderId, usdt, sea, dealAmt)

@@ -1,0 +1,36 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ComptrollerErrorReporter",
+  "sourceName": "contracts/flatten/Factory.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "error",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "info",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "detail",
+          "type": "uint256"
+        }
+      ],
+      "name": "Failure",
+      "type": "event"
+    }
+  ],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea265627a7a72315820b0d2c2c9d312ff4512b656ef3e0b7e8c7c575084a5b775996565ccacfb923c8164736f6c63430005100032",
+  "deployedBytecode": "0x6080604052600080fdfea265627a7a72315820b0d2c2c9d312ff4512b656ef3e0b7e8c7c575084a5b775996565ccacfb923c8164736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

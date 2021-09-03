@@ -4,5 +4,5 @@ import { deployOrderBook, deployOrderBookProxy } from '../../helpers/heco'
     const hre = require('hardhat')
 
     await deployOrderBook()
-    await deployOrderBookProxy()
+    // await deployOrderBookProxy()
 })()

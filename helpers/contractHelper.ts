@@ -14,6 +14,7 @@ import { abi as mdexFactoryABI } from './abi/MdexFactory.json'
 import { abi as mdexRouterABI } from './abi/MdexRouter.json'
 import { abi as stepSwapABI } from './abi/StepSwap.json'
 import { abi as rateABI } from './abi/SwapExchangeRate.json'
+import { abi as obPriceABI } from './abi/OBPriceLogic.json'
 import { abi as ctokenFactoryABI } from './abi/LErc20DelegatorFactory.json'
 import { zeroAddress } from '../deployments/deploys';
 import { IToken } from './token';
@@ -44,6 +45,7 @@ type TokenContractName = 'USDT'
                     | 'HecoPool'
                     | 'SwapExchangeRate'
                     | 'OrderBookProxy'
+                    | 'OBPriceLogic'
 
 let contractAddress: { [index: string]: { [index: string]: string } } = {
     'hecotest': {
@@ -73,7 +75,8 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'OrderBook': '0x6749081F8B8EF7cE65E6b411b3EA1901E18eD5Ab', // '0x549442f42A18BFeA9cF4Cf68a0D8005483A6BdBc', // '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
         'StepSwap': '0xaAdB5B32B22786507A38137d085a357f959248d4', // '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
         'SwapExchangeRate': '0xbDD1489cEf6272cfd0eC5E0430B4600A87686D8c',
-        'OrderBookProxy': ''
+        'OrderBookProxy': '',
+        'OBPriceLogic': '',
     },
     'hardhat' : {
         'USDT': '',
@@ -97,7 +100,8 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'SwapMining': '',
         'StepSwap': '',
         'SwapExchangeRate': '',
-        'OrderBookProxy': ''
+        'OrderBookProxy': '',
+        'OBPriceLogic': '',
     }
 }
 
@@ -228,6 +232,10 @@ function getSwapExchangeRateContract(address?: string, signer?: Signer | Provide
     return new Contract(address ? address : contractAddress[NETWORK]['SwapExchangeRate'], rateABI, signer ?? getProvider())
 }
 
+function getOBPriceLogicContract(address?: string, signer?: Signer | Provider) {
+    return new Contract(address ? address : contractAddress[NETWORK]['OBPriceLogic'], obPriceABI, signer ?? getProvider())
+}
+
 // 根据 abi 地址获取 Contract
 function getContractByAddressABI(addr: string, abi: string, signer?: Signer | Provider) {
     return new Contract(addr, abi, signer ?? getProvider())
@@ -257,7 +265,7 @@ async function getBalance(token: IToken | string, owner: string): Promise<BigNum
     if (typeof token === 'string') {
         addr = token
         if (addr === zeroAddress || addr === '' || addr === '0x') {
-            balance = await provider.getBalance(owner)
+            return provider.getBalance(owner)
         }
         let c = getTokenContract(addr)
         return c.balanceOf(owner)
@@ -274,19 +282,11 @@ async function getBalance(token: IToken | string, owner: string): Promise<BigNum
     return balance
 }
 
-async function getBalances(tokens: IToken[], owner: string): Promise<BigNumber[]> {
+async function getBalances(tokens: IToken[] | string[], owner: string): Promise<BigNumber[]> {
     let balances: BigNumber[] = []
-        , provider = getProvider()
 
     for (let token of tokens) {
-        let balance: BigNumber
-
-        if (token.address === zeroAddress) {
-            balance = await provider.getBalance(owner)
-        } else {
-            balance = await token.contract!.balanceOf(owner)
-        }
-        balances.push(balance)
+        balances.push(await getBalance(token, owner))
     }
     return balances
 }
@@ -317,6 +317,7 @@ export {
     getCTokenContract,
     getStepSwapContract,
     getOrderbookContract,
+    getOBPriceLogicContract,
     getCTokenFactoryContract,
     getSwapExchangeRateContract,
     getContractByAddressABI,

@@ -1,0 +1,236 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CTokenStorage",
+  "sourceName": "contracts/compound/CTokenInterfaces.sol",
+  "abi": [
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "accrualBlockNumber",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "admin",
+      "outputs": [
+        {
+          "internalType": "address payable",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "borrowIndex",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "comptroller",
+      "outputs": [
+        {
+          "internalType": "contract ComptrollerInterface",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "comptrollerV2",
+      "outputs": [
+        {
+          "internalType": "contract ComptrollerInterfaceV2",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "decimals",
+      "outputs": [
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "interestRateModel",
+      "outputs": [
+        {
+          "internalType": "contract InterestRateModel",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "leverageSupply",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "name",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "pendingAdmin",
+      "outputs": [
+        {
+          "internalType": "address payable",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "reserveFactorMantissa",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "symbol",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "totalBorrows",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "totalReserves",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "totalSupply",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b506103c8806100206000396000f3fe608060405234801561001057600080fd5b50600436106100f55760003560e01c80635fe3b56711610097578063aa5af0fd11610066578063aa5af0fd1461020b578063ab317fd914610213578063f3fdb15a1461021b578063f851a44014610223576100f5565b80635fe3b567146101eb5780636c540baf146101f35780638f840ddd146101fb57806395d89b4114610203576100f5565b806318160ddd116100d357806318160ddd146101b557806326782247146101bd578063313ce567146101c557806347bd3718146101e3576100f5565b806306fdde03146100fa578063106d378614610177578063173b99041461019b575b600080fd5b61010261022b565b6040805160208082528351818301528351919283929083019185019080838360005b8381101561013c578181015183820152602001610124565b50505050905090810190601f1680156101695780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b61017f6102b8565b604080516001600160a01b039092168252519081900360200190f35b6101a36102c7565b60408051918252519081900360200190f35b6101a36102cd565b61017f6102d3565b6101cd6102e2565b6040805160ff9092168252519081900360200190f35b6101a36102eb565b61017f6102f1565b6101a3610300565b6101a3610306565b61010261030c565b6101a3610364565b6101a361036a565b61017f610370565b61017f61037f565b60018054604080516020600284861615610100026000190190941693909304601f810184900484028201840190925281815292918301828280156102b05780601f10610285576101008083540402835291602001916102b0565b820191906000526020600020905b81548152906001019060200180831161029357829003601f168201915b505050505081565b6006546001600160a01b031681565b60095481565b600e5481565b6004546001600160a01b031681565b60035460ff1681565b600c5481565b6005546001600160a01b031681565b600a5481565b600d5481565b6002805460408051602060018416156101000260001901909316849004601f810184900484028201840190925281815292918301828280156102b05780601f10610285576101008083540402835291602001916102b0565b600b5481565b600f5481565b6007546001600160a01b031681565b60035461010090046001600160a01b03168156fea265627a7a72315820a95fda98f79d6b5593042c7356f9084143f853482210d824e519387352ca05c464736f6c63430005100032",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100f55760003560e01c80635fe3b56711610097578063aa5af0fd11610066578063aa5af0fd1461020b578063ab317fd914610213578063f3fdb15a1461021b578063f851a44014610223576100f5565b80635fe3b567146101eb5780636c540baf146101f35780638f840ddd146101fb57806395d89b4114610203576100f5565b806318160ddd116100d357806318160ddd146101b557806326782247146101bd578063313ce567146101c557806347bd3718146101e3576100f5565b806306fdde03146100fa578063106d378614610177578063173b99041461019b575b600080fd5b61010261022b565b6040805160208082528351818301528351919283929083019185019080838360005b8381101561013c578181015183820152602001610124565b50505050905090810190601f1680156101695780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b61017f6102b8565b604080516001600160a01b039092168252519081900360200190f35b6101a36102c7565b60408051918252519081900360200190f35b6101a36102cd565b61017f6102d3565b6101cd6102e2565b6040805160ff9092168252519081900360200190f35b6101a36102eb565b61017f6102f1565b6101a3610300565b6101a3610306565b61010261030c565b6101a3610364565b6101a361036a565b61017f610370565b61017f61037f565b60018054604080516020600284861615610100026000190190941693909304601f810184900484028201840190925281815292918301828280156102b05780601f10610285576101008083540402835291602001916102b0565b820191906000526020600020905b81548152906001019060200180831161029357829003601f168201915b505050505081565b6006546001600160a01b031681565b60095481565b600e5481565b6004546001600160a01b031681565b60035460ff1681565b600c5481565b6005546001600160a01b031681565b600a5481565b600d5481565b6002805460408051602060018416156101000260001901909316849004601f810184900484028201840190925281815292918301828280156102b05780601f10610285576101008083540402835291602001916102b0565b600b5481565b600f5481565b6007546001600160a01b031681565b60035461010090046001600160a01b03168156fea265627a7a72315820a95fda98f79d6b5593042c7356f9084143f853482210d824e519387352ca05c464736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

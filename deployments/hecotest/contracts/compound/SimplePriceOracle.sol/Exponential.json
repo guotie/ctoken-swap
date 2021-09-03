@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "Exponential",
+  "sourceName": "contracts/compound/SimplePriceOracle.sol",
+  "abi": [],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea265627a7a723158205ce60270029cca461022af4418371721e12f109a06a3badc935c72ccdd62a7ce64736f6c63430005100032",
+  "deployedBytecode": "0x6080604052600080fdfea265627a7a723158205ce60270029cca461022af4418371721e12f109a06a3badc935c72ccdd62a7ce64736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

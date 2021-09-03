@@ -16,7 +16,7 @@ pragma experimental ABIEncoderV2;
 
 
 contract ReentrancyGuard {
-    bool private _notEntered;
+    bool internal _notEntered;
 
     constructor () internal {
         // Storing an initial non-zero value makes deployment a bit more

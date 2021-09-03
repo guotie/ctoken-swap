@@ -1,0 +1,56 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "LeverageHoldingUnitrollerStorage",
+  "sourceName": "contracts/compound/LeverageHoldingInterface.sol",
+  "abi": [
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "admin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "comptrollerImplementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "pendingAdmin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052670de0b6b3a764000060005534801561001c57600080fd5b5060d18061002b6000396000f3fe6080604052348015600f57600080fd5b5060043610603c5760003560e01c806326782247146041578063bb82aa5e146063578063f851a440146069575b600080fd5b6047606f565b604080516001600160a01b039092168252519081900360200190f35b6047607e565b6047608d565b6002546001600160a01b031681565b6003546001600160a01b031681565b6001546001600160a01b03168156fea265627a7a72315820c76a19aafd7606917b030aa57db824b06c3b1910f3b9f4c7ded4a3e2cd7f853264736f6c63430005100032",
+  "deployedBytecode": "0x6080604052348015600f57600080fd5b5060043610603c5760003560e01c806326782247146041578063bb82aa5e146063578063f851a440146069575b600080fd5b6047606f565b604080516001600160a01b039092168252519081900360200190f35b6047607e565b6047608d565b6002546001600160a01b031681565b6003546001600160a01b031681565b6001546001600160a01b03168156fea265627a7a72315820c76a19aafd7606917b030aa57db824b06c3b1910f3b9f4c7ded4a3e2cd7f853264736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

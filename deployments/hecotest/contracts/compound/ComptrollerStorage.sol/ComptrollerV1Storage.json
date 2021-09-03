@@ -1,0 +1,199 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "ComptrollerV1Storage",
+  "sourceName": "contracts/compound/ComptrollerStorage.sol",
+  "abi": [
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "accountAssets",
+      "outputs": [
+        {
+          "internalType": "contract CToken",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "admin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "closeFactorMantissa",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "delegateFactoryAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "implementsMapping",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "liquidationIncentiveMantissa",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "maxAssets",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "name": "methodImplements",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "oracle",
+      "outputs": [
+        {
+          "internalType": "contract PriceOracle",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "pendingAdmin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "pendingComptrollerImplementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b5061030a806100206000396000f3fe608060405234801561001057600080fd5b50600436106100a95760003560e01c8063a2c7ca4d11610071578063a2c7ca4d146101a2578063d0b0630f146101aa578063dce15449146101c7578063dcfbc0c7146101f3578063e8755446146101fb578063f851a44014610203576100a9565b806326782247146100ae5780634ada90af146100d257806372fdfcae146100ec5780637dc0d1d01461019257806394b2294b1461019a575b600080fd5b6100b661020b565b604080516001600160a01b039092168252519081900360200190f35b6100da61021a565b60408051918252519081900360200190f35b6100da6004803603602081101561010257600080fd5b81019060208101813564010000000081111561011d57600080fd5b82018360208201111561012f57600080fd5b8035906020019184600183028401116401000000008311171561015157600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250929550610220945050505050565b6100b661023d565b6100da61024c565b6100b6610252565b6100b6600480360360208110156101c057600080fd5b5035610261565b6100b6600480360360408110156101dd57600080fd5b506001600160a01b03813516906020013561027c565b6100b66102b1565b6100da6102c0565b6100b66102c6565b6002546001600160a01b031681565b60085481565b805160208183018101805160048252928201919093012091525481565b6006546001600160a01b031681565b60095481565b6001546001600160a01b031681565b6005602052600090815260409020546001600160a01b031681565b600a602052816000526040600020818154811061029557fe5b6000918252602090912001546001600160a01b03169150829050565b6003546001600160a01b031681565b60075481565b6000546001600160a01b03168156fea265627a7a72315820426ac1df78075de66bbba455faaf8b2370e15e15c2625f88f89fbfb4d766e92d64736f6c63430005100032",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100a95760003560e01c8063a2c7ca4d11610071578063a2c7ca4d146101a2578063d0b0630f146101aa578063dce15449146101c7578063dcfbc0c7146101f3578063e8755446146101fb578063f851a44014610203576100a9565b806326782247146100ae5780634ada90af146100d257806372fdfcae146100ec5780637dc0d1d01461019257806394b2294b1461019a575b600080fd5b6100b661020b565b604080516001600160a01b039092168252519081900360200190f35b6100da61021a565b60408051918252519081900360200190f35b6100da6004803603602081101561010257600080fd5b81019060208101813564010000000081111561011d57600080fd5b82018360208201111561012f57600080fd5b8035906020019184600183028401116401000000008311171561015157600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250929550610220945050505050565b6100b661023d565b6100da61024c565b6100b6610252565b6100b6600480360360208110156101c057600080fd5b5035610261565b6100b6600480360360408110156101dd57600080fd5b506001600160a01b03813516906020013561027c565b6100b66102b1565b6100da6102c0565b6100b66102c6565b6002546001600160a01b031681565b60085481565b805160208183018101805160048252928201919093012091525481565b6006546001600160a01b031681565b60095481565b6001546001600160a01b031681565b6005602052600090815260409020546001600160a01b031681565b600a602052816000526040600020818154811061029557fe5b6000918252602090912001546001600160a01b03169150829050565b6003546001600160a01b031681565b60075481565b6000546001600160a01b03168156fea265627a7a72315820426ac1df78075de66bbba455faaf8b2370e15e15c2625f88f89fbfb4d766e92d64736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

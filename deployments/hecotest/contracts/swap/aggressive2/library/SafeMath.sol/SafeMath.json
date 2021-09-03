@@ -1,0 +1,37 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "SafeMath",
+  "sourceName": "contracts/swap/aggressive2/library/SafeMath.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ray",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "wad",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60b2610025600b82828239805160001a60731461001857fe5b30600052607381538281f3fe7300000000000000000000000000000000000000003014608060405260043610603d5760003560e01c8063416a8b201460425780637df38c5b14605a575b600080fd5b60486060565b60408051918252519081900360200190f35b60486070565b6b033b2e3c9fd0803ce800000090565b670de0b6b3a76400009056fea2646970667358221220ab26a3939dbfc3a335f2c4a3c3cfd7447dbf2a6e20a062941ebc2fc85a0a379a64736f6c63430007060033",
+  "deployedBytecode": "0x7300000000000000000000000000000000000000003014608060405260043610603d5760003560e01c8063416a8b201460425780637df38c5b14605a575b600080fd5b60486060565b60408051918252519081900360200190f35b60486070565b6b033b2e3c9fd0803ce800000090565b670de0b6b3a76400009056fea2646970667358221220ab26a3939dbfc3a335f2c4a3c3cfd7447dbf2a6e20a062941ebc2fc85a0a379a64736f6c63430007060033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

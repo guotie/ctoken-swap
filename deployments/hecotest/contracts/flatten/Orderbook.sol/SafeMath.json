@@ -1,0 +1,37 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "SafeMath",
+  "sourceName": "contracts/flatten/Orderbook.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ray",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "wad",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60bd610025600b82828239805160001a60731461001857fe5b30600052607381538281f3fe7300000000000000000000000000000000000000003014608060405260043610603d5760003560e01c8063416a8b201460425780637df38c5b14605c575b600080fd5b60486062565b60405160539190607e565b60405180910390f35b60486072565b6b033b2e3c9fd0803ce800000090565b670de0b6b3a764000090565b9081526020019056fea2646970667358221220c505212448afbf393fd6cbaa140ae0b2d286c4edb1e4b2535f33dd87f38a1de064736f6c634300060c0033",
+  "deployedBytecode": "0x7300000000000000000000000000000000000000003014608060405260043610603d5760003560e01c8063416a8b201460425780637df38c5b14605c575b600080fd5b60486062565b60405160539190607e565b60405180910390f35b60486072565b6b033b2e3c9fd0803ce800000090565b670de0b6b3a764000090565b9081526020019056fea2646970667358221220c505212448afbf393fd6cbaa140ae0b2d286c4edb1e4b2535f33dd87f38a1de064736f6c634300060c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

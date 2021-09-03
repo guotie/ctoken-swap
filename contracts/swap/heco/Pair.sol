@@ -28,7 +28,7 @@ import "./PairStorage.sol";
 
 interface IUnitroller {
     function compAccrued(address addr) external view returns (uint);
-    function claimComp(address holder, CToken[] calldata cTokens) external;
+    function claimComp(address holder, CToken[] calldata cTokens) external returns(uint);
 }
 
 interface IHswapV2Callee {

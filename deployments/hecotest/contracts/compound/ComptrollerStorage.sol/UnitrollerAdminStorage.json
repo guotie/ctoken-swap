@@ -1,0 +1,113 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "UnitrollerAdminStorage",
+  "sourceName": "contracts/compound/ComptrollerStorage.sol",
+  "abi": [
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "admin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "delegateFactoryAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "implementsMapping",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "name": "methodImplements",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "pendingAdmin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "pendingComptrollerImplementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b50610221806100206000396000f3fe608060405234801561001057600080fd5b50600436106100625760003560e01c8063267822471461006757806372fdfcae1461008b578063a2c7ca4d14610143578063d0b0630f1461014b578063dcfbc0c714610168578063f851a44014610170575b600080fd5b61006f610178565b604080516001600160a01b039092168252519081900360200190f35b610131600480360360208110156100a157600080fd5b8101906020810181356401000000008111156100bc57600080fd5b8201836020820111156100ce57600080fd5b803590602001918460018302840111640100000000831117156100f057600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250929550610187945050505050565b60408051918252519081900360200190f35b61006f6101a4565b61006f6004803603602081101561016157600080fd5b50356101b3565b61006f6101ce565b61006f6101dd565b6002546001600160a01b031681565b805160208183018101805160048252928201919093012091525481565b6001546001600160a01b031681565b6005602052600090815260409020546001600160a01b031681565b6003546001600160a01b031681565b6000546001600160a01b03168156fea265627a7a72315820f5ff21e980ee9aa0b94eec979cdfaa163a479d91dc82c4cec4d1169ce49649ab64736f6c63430005100032",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100625760003560e01c8063267822471461006757806372fdfcae1461008b578063a2c7ca4d14610143578063d0b0630f1461014b578063dcfbc0c714610168578063f851a44014610170575b600080fd5b61006f610178565b604080516001600160a01b039092168252519081900360200190f35b610131600480360360208110156100a157600080fd5b8101906020810181356401000000008111156100bc57600080fd5b8201836020820111156100ce57600080fd5b803590602001918460018302840111640100000000831117156100f057600080fd5b91908080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250929550610187945050505050565b60408051918252519081900360200190f35b61006f6101a4565b61006f6004803603602081101561016157600080fd5b50356101b3565b61006f6101ce565b61006f6101dd565b6002546001600160a01b031681565b805160208183018101805160048252928201919093012091525481565b6001546001600160a01b031681565b6005602052600090815260409020546001600160a01b031681565b6003546001600160a01b031681565b6000546001600160a01b03168156fea265627a7a72315820f5ff21e980ee9aa0b94eec979cdfaa163a479d91dc82c4cec4d1169ce49649ab64736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

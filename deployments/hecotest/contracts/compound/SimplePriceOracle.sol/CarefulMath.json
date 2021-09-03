@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "CarefulMath",
+  "sourceName": "contracts/compound/SimplePriceOracle.sol",
+  "abi": [],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea265627a7a72315820a366cd70acc90c38d42aa2c2cf12d8978ab095fa60b50bb95e19bca6bff6d08a64736f6c63430005100032",
+  "deployedBytecode": "0x6080604052600080fdfea265627a7a72315820a366cd70acc90c38d42aa2c2cf12d8978ab095fa60b50bb95e19bca6bff6d08a64736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

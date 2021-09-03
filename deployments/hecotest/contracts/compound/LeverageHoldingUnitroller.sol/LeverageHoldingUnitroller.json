@@ -1,0 +1,225 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "LeverageHoldingUnitroller",
+  "sourceName": "contracts/compound/LeverageHoldingUnitroller.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "error",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "info",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "detail",
+          "type": "uint256"
+        }
+      ],
+      "name": "Failure",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "oldAdmin",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "newAdmin",
+          "type": "address"
+        }
+      ],
+      "name": "NewAdmin",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "oldImplementation",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "newImplementation",
+          "type": "address"
+        }
+      ],
+      "name": "NewImplementation",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "oldPendingAdmin",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "newPendingAdmin",
+          "type": "address"
+        }
+      ],
+      "name": "NewPendingAdmin",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "oldPendingImplementation",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "newPendingImplementation",
+          "type": "address"
+        }
+      ],
+      "name": "NewPendingImplementation",
+      "type": "event"
+    },
+    {
+      "payable": true,
+      "stateMutability": "payable",
+      "type": "fallback"
+    },
+    {
+      "constant": false,
+      "inputs": [],
+      "name": "_acceptAdmin",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newPendingImplementation",
+          "type": "address"
+        }
+      ],
+      "name": "_setImplementation",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newPendingAdmin",
+          "type": "address"
+        }
+      ],
+      "name": "_setPendingAdmin",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "admin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "comptrollerImplementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "pendingAdmin",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6080604052670de0b6b3a764000060005534801561001c57600080fd5b50600180546001600160a01b031916331790556104988061003e6000396000f3fe6080604052600436106100555760003560e01c806326782247146100d8578063b71d1a0c14610109578063bb82aa5e1461014e578063bb913f4114610163578063e9c714f214610196578063f851a440146101ab575b6003546040516000916001600160a01b031690829036908083838082843760405192019450600093509091505080830381855af49150503d80600081146100b8576040519150601f19603f3d011682016040523d82523d6000602084013e6100bd565b606091505b505090506040513d6000823e8180156100d4573d82f35b3d82fd5b3480156100e457600080fd5b506100ed6101c0565b604080516001600160a01b039092168252519081900360200190f35b34801561011557600080fd5b5061013c6004803603602081101561012c57600080fd5b50356001600160a01b03166101cf565b60408051918252519081900360200190f35b34801561015a57600080fd5b506100ed610262565b34801561016f57600080fd5b5061013c6004803603602081101561018657600080fd5b50356001600160a01b0316610271565b3480156101a257600080fd5b5061013c6102f7565b3480156101b757600080fd5b506100ed6103e7565b6002546001600160a01b031681565b6001546000906001600160a01b031633146101f7576101f0600160226103f6565b905061025d565b600280546001600160a01b038481166001600160a01b0319831681179093556040805191909216808252602082019390935281517fca4f2f25d0898edd99413412fb94012f9e54ec8142f9b093e7720646a95b16a9929181900390910190a160005b9150505b919050565b6003546001600160a01b031681565b6001546000906001600160a01b03163314610292576101f0600160206103f6565b600380546001600160a01b038481166001600160a01b0319831617928390556040805192821680845293909116602083015280517fd604de94d45953f9138079ec1b82d533cb2160c906d1076d1f7ed54befbca97a9281900390910190a16000610259565b6002546000906001600160a01b031633141580610312575033155b1561032a57610323600160236103f6565b90506103e4565b60018054600280546001600160a01b038082166001600160a01b031980861682179687905590921690925560408051938316808552949092166020840152815190927ff9ffabca9c8276e99321725bcb43fb076a6c66a54b7f21c4e8146d8519b417dc92908290030190a1600254604080516001600160a01b038085168252909216602083015280517fca4f2f25d0898edd99413412fb94012f9e54ec8142f9b093e7720646a95b16a99281900390910190a16000925050505b90565b6001546001600160a01b031681565b60007f45b96fe442630264581b197e84bbada861235052c5a1aadfff9ea4e40a969aa083602581111561042557fe5b83602581111561043157fe5b604080519283526020830191909152600082820152519081900360600190a182602581111561045c57fe5b939250505056fea265627a7a7231582063ba0b11425f8a374fb540cba4bebbbdfbbb8085c93591998a54a9c4fda08df864736f6c63430005100032",
+  "deployedBytecode": "0x6080604052600436106100555760003560e01c806326782247146100d8578063b71d1a0c14610109578063bb82aa5e1461014e578063bb913f4114610163578063e9c714f214610196578063f851a440146101ab575b6003546040516000916001600160a01b031690829036908083838082843760405192019450600093509091505080830381855af49150503d80600081146100b8576040519150601f19603f3d011682016040523d82523d6000602084013e6100bd565b606091505b505090506040513d6000823e8180156100d4573d82f35b3d82fd5b3480156100e457600080fd5b506100ed6101c0565b604080516001600160a01b039092168252519081900360200190f35b34801561011557600080fd5b5061013c6004803603602081101561012c57600080fd5b50356001600160a01b03166101cf565b60408051918252519081900360200190f35b34801561015a57600080fd5b506100ed610262565b34801561016f57600080fd5b5061013c6004803603602081101561018657600080fd5b50356001600160a01b0316610271565b3480156101a257600080fd5b5061013c6102f7565b3480156101b757600080fd5b506100ed6103e7565b6002546001600160a01b031681565b6001546000906001600160a01b031633146101f7576101f0600160226103f6565b905061025d565b600280546001600160a01b038481166001600160a01b0319831681179093556040805191909216808252602082019390935281517fca4f2f25d0898edd99413412fb94012f9e54ec8142f9b093e7720646a95b16a9929181900390910190a160005b9150505b919050565b6003546001600160a01b031681565b6001546000906001600160a01b03163314610292576101f0600160206103f6565b600380546001600160a01b038481166001600160a01b0319831617928390556040805192821680845293909116602083015280517fd604de94d45953f9138079ec1b82d533cb2160c906d1076d1f7ed54befbca97a9281900390910190a16000610259565b6002546000906001600160a01b031633141580610312575033155b1561032a57610323600160236103f6565b90506103e4565b60018054600280546001600160a01b038082166001600160a01b031980861682179687905590921690925560408051938316808552949092166020840152815190927ff9ffabca9c8276e99321725bcb43fb076a6c66a54b7f21c4e8146d8519b417dc92908290030190a1600254604080516001600160a01b038085168252909216602083015280517fca4f2f25d0898edd99413412fb94012f9e54ec8142f9b093e7720646a95b16a99281900390910190a16000925050505b90565b6001546001600160a01b031681565b60007f45b96fe442630264581b197e84bbada861235052c5a1aadfff9ea4e40a969aa083602581111561042557fe5b83602581111561043157fe5b604080519283526020830191909152600082820152519081900360600190a182602581111561045c57fe5b939250505056fea265627a7a7231582063ba0b11425f8a374fb540cba4bebbbdfbbb8085c93591998a54a9c4fda08df864736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

@@ -1,0 +1,10 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "Context",
+  "sourceName": "contracts/swap/heco/Context.sol",
+  "abi": [],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea265627a7a72315820177d060e14918fc74abe8fb835becb7bdc9b0c0b731baa1d40757a9a76fd91d564736f6c63430005100032",
+  "deployedBytecode": "0x6080604052600080fdfea265627a7a72315820177d060e14918fc74abe8fb835becb7bdc9b0c0b731baa1d40757a9a76fd91d564736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

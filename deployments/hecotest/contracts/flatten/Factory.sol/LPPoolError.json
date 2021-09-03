@@ -1,0 +1,36 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "LPPoolError",
+  "sourceName": "contracts/flatten/Factory.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "error",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "info",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "detail",
+          "type": "uint256"
+        }
+      ],
+      "name": "Failure",
+      "type": "event"
+    }
+  ],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea265627a7a72315820a3a62a6bd3b1cb35e5b3da2958010661f5cdeeac3fd841dd560b80ad9585ca5064736f6c63430005100032",
+  "deployedBytecode": "0x6080604052600080fdfea265627a7a72315820a3a62a6bd3b1cb35e5b3da2958010661f5cdeeac3fd841dd560b80ad9585ca5064736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

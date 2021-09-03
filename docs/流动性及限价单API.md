@@ -125,8 +125,8 @@ pair是ERC20合约，根据pair地址查询用户在这个balance即可。
         address destToken;
         uint amountIn;           // 初始挂单数量
         uint fulfiled;         // 部分成交时 剩余待成交金额
-        uint guaranteeAmountOut;       // 最低兑换后要求得到的数量
-        // uint guaranteeAmountOutLeft;   // 兑换一部分后, 剩下的需要兑换得到的数量
+        uint guaranteeAmountIn;       // 最低兑换后要求得到的数量
+        // uint guaranteeAmountInLeft;   // 兑换一部分后, 剩下的需要兑换得到的数量
     }
 
     struct OrderItem {
@@ -150,7 +150,7 @@ pair是ERC20合约，根据pair地址查询用户在这个balance即可。
         address destToken,      // 用户得到的币
         address to,             // 兑换得到的token发送地址 
         uint amountIn,          // 用户卖出币的数量
-        uint guaranteeAmountOut,       // 用户预期得到的币的数量
+        uint guaranteeAmountIn,       // 用户预期得到的币的数量
         uint expiredAt,          // 订单过期时间, 0 为不过期
         uint flag                // 暂未使用
         ) public payable whenOpen nonReentrant returns (uint)  // 返回order id, 可使用 order id来查询该订单

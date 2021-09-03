@@ -53,7 +53,7 @@ library OBPriceLogic {
         return ctoken.exchangeRateCurrent();
     }
 
-    /// @dev 根据价格计算 amtToTaken 对应的 amtOut. 如果挂单时 destToken 是 ctoken, 则直接计算比例; 否则, 需要将挂单设置的guaranteeAmountOut转换为 etoken 数量, 再计算
+    /// @dev 根据价格计算 amtToTaken 对应的 amtOut. 如果挂单时 destToken 是 ctoken, 则直接计算比例; 否则, 需要将挂单设置的guaranteeAmountIn转换为 etoken 数量, 再计算
     /// @param data OBPrice to calcutation
     /// @param amtToTaken amount to taken, in etoken
     /// @return maker 得到的币数量; 单位 etoken 
@@ -73,12 +73,44 @@ library OBPriceLogic {
 
         if (dst == dstEToken) {
             // 挂单就是以 etoken 来挂的
-            return amtToTaken.mul(data.guaranteeAmountOut).div(data.amountInMint);
+            return amtToTaken.mul(data.guaranteeAmountIn).div(data.amountOutMint).add(1);
         }
         uint destRate = getCurrentExchangeRate(ICToken(dstEToken));
-        uint destEAmt = data.guaranteeAmountOut.mul(1e18).div(destRate);
-        return amtToTaken.mul(destEAmt).div(data.amountInMint);
+        uint destEAmt = data.guaranteeAmountIn.mul(1e18).div(destRate);
+        return amtToTaken.mul(destEAmt).div(data.amountOutMint).add(1);
     }
 
-
+    /// @dev 计算买入 amtToTaken 数量的 srcEToken, 需要支付多少 dstToken
+    /// @param destToken 挂单者待买入的 token = order.tokenAmt.destToken
+    /// @param destEToken 挂单者待买入的 etoken = order.tokenAmt.destEToken
+    /// @param amountOutMint 挂单者待卖出的 srcEToken 数量 = order.tokenAmt.amountOutMint
+    /// @param guaranteeAmountIn 挂单者待买入的 destEToken 数量 = order.tokenAmt.guaranteeAmountIn
+    /// @param amtToTaken 吃单者待买入的 srcEToken 数量
+    /// @return takerEAmt 吃单者需要支付的 srcEToken 数量;，takerAmt 吃单者需要支付的 srcToken 数量
+    function calcTakerAmount(
+                    // address srcEToken,
+                    address destToken,
+                    address destEToken,
+                    uint amountOutMint,
+                    uint guaranteeAmountIn,
+                    uint amtToTaken
+                )
+                public
+                view
+                returns (uint takerEAmt, uint takerAmt) {
+        // address src = data.srcToken;
+        // address srcEToken = data.srcEToken;
+        // // uint256 feeTaker = DENOMINATOR - data.feeTaker;
+        // // uint256 feeMaker = DENOMINATOR - data.feeMaker;
+        uint destRate = getCurrentExchangeRate(ICToken(destEToken));
+        if (destToken == destEToken) {
+            // 挂单就是以 etoken 来挂的
+            takerEAmt = amtToTaken.mul(guaranteeAmountIn).div(amountOutMint).add(1);
+        } else {
+            uint destEAmt = guaranteeAmountIn.mul(1e18).div(destRate);
+            takerEAmt = amtToTaken.mul(destEAmt).div(amountOutMint).add(1);
+        }
+        // uint srcRate = getCurrentExchangeRate(ICToken(srcEToken));
+        takerAmt = takerEAmt.mul(destRate).div(1e18);
+    }
 }

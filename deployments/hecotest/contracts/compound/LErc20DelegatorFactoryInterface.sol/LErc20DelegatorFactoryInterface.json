@@ -1,0 +1,53 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "LErc20DelegatorFactoryInterface",
+  "sourceName": "contracts/compound/LErc20DelegatorFactoryInterface.sol",
+  "abi": [
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "getCTokenAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "cToken",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "cToken",
+          "type": "address"
+        }
+      ],
+      "name": "getTokenAddress",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608060405234801561001057600080fd5b5060b18061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c806326c7bd93146037578063b8d7b669146037575b600080fd5b605a60048036036020811015604b57600080fd5b50356001600160a01b03166076565b604080516001600160a01b039092168252519081900360200190f35b5060009056fea265627a7a723158201cb6983cc1475bd6b178f48a53fce83d899dbadcee316e08f138fc8f3f37976b64736f6c63430005100032",
+  "deployedBytecode": "0x6080604052348015600f57600080fd5b506004361060325760003560e01c806326c7bd93146037578063b8d7b669146037575b600080fd5b605a60048036036020811015604b57600080fd5b50356001600160a01b03166076565b604080516001600160a01b039092168252519081900360200190f35b5060009056fea265627a7a723158201cb6983cc1475bd6b178f48a53fce83d899dbadcee316e08f138fc8f3f37976b64736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

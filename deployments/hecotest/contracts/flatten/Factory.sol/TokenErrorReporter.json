@@ -1,0 +1,36 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "TokenErrorReporter",
+  "sourceName": "contracts/flatten/Factory.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "error",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "info",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "detail",
+          "type": "uint256"
+        }
+      ],
+      "name": "Failure",
+      "type": "event"
+    }
+  ],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603e80601d6000396000f3fe6080604052600080fdfea265627a7a723158203770385aca4f4c15030e47ce9ee9eb38c2ad2b6835f691820e6b90d44e076c0f64736f6c63430005100032",
+  "deployedBytecode": "0x6080604052600080fdfea265627a7a723158203770385aca4f4c15030e47ce9ee9eb38c2ad2b6835f691820e6b90d44e076c0f64736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

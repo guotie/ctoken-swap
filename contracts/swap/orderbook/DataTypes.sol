@@ -16,13 +16,13 @@ pragma solidity 0.6.12;
 library DataTypes {
     struct TokenAmount {
         address srcToken;
-        address destToken;
+        address destToken;             // 挂单者待买入的 token 或 etoken
         address srcEToken;             // srcToken 对应的 eToken
-        address destEToken;            // destToken 对应的 eToken
-        uint amountIn;                 // 初始挂单数量
-        uint amountInMint;             // 如果 srcToken 不是 eToken, mint 成为 etoken 的数量
-        uint fulfiled;                 // 已经成交部分, 单位 etoken
-        uint guaranteeAmountOut;       // 最低兑换后要求得到的数量
+        address destEToken;            // destToken 对应的 eToken, 有可能与 destToken 相同, 此时订单成交后, 挂单者将得到 etoken
+        uint amountOut;                // 挂单者卖出的 token/etoken 数量 初始挂单数量
+        uint amountOutMint;            // 如果 srcToken 不是 eToken, mint 成为 etoken 的数量
+        uint fulfiled;                 // 挂单者已经成交的 srcEToken 数量, 注意是 srcEToken
+        uint guaranteeAmountIn;       // 最低兑换后要求得到的数量, 单位是 destToken, destToken 可以与 destEToken 相同
         uint destFulfiled;             // destEToken 已经得到的 destEToken
     }
 

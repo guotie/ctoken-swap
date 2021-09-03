@@ -8,6 +8,7 @@ import { Contract } from 'ethers'
 import { zeroAddress } from '../deployments/deploys'
 import { BigNumberish } from 'ethers'
 import { callWithEstimateGas } from './estimateGas';
+import { AbiCoder, id } from 'ethers/lib/utils';
 
 const hre = require('hardhat')
 // const ethers = hre.ethers
@@ -175,23 +176,54 @@ export async function deployTokens() {
     // await getMockToken()
 }
 
-async function deployOrderBook() {
+async function deployOrderBook(proxy = false) {
+    let namedSigners = await ethers.getSigners()
+        , admin = namedSigners[1].address
     let l = await _deployMock('OBPriceLogic', { args: [] })
     let c = await _deployMock('OBPairConfig', { args: [] })
     let ctokenFactory = addressOf('CtokenFactory')
         , ceth = addressOf('CETH')
         , weth = addressOf('WHT')
         , margin = zeroAddress
+        , args: any[] = []
 
+    if (!proxy) {
+        args = [ctokenFactory, ceth, weth, margin]
+    }
     let ob = await _deployMock('OrderBook', {
-        args: [ctokenFactory, ceth, weth, margin],
+        args: args,
         libraries: {
             OBPriceLogic: l.address,
             OBPairConfig: c.address
         },
     });
 
+    setContractAddress('OBPriceLogic', l.address)
     setContractAddress('OrderBook', ob.address)
+    if (!proxy) {
+        // let obc = new ethers.Contract(ob.address, ob.abi, namedSigners[0])
+        // await (await obc.initialize(ctokenFactory, ceth, weth, margin)).wait()
+        setContractAddress('OrderBookProxy', ob.address)
+    } else {
+        
+        const abiCoder = new AbiCoder()
+        let args = abiCoder.encode(['address', 'address', 'address', 'address'], [ctokenFactory, ceth, weth, margin])
+        // initialize(address _ctokenFactory, address _cETH, address _wETH, address _margin)
+        let func = id('initialize(address _ctokenFactory, address _cETH, address _wETH, address _margin)')
+        let param = func.slice(0, 10) + args.slice(2)
+
+        console.log('initialize(): %s', id('initialize()'))
+        console.log('func: %s\nparam: %s\nargs:%s', func, args, param)
+
+        let proxyAdmin = await _deployMock('ProxyAdmin', { args: [] })
+        // param = '0x8129fc1c' // initialize()
+        let proxy = await _deployMock('TransparentUpgradeableProxy', {
+            args: [ ob.address, proxyAdmin.address, param]
+        })
+        setContractAddress('OrderBookProxy', proxy.address)
+        
+    }
+
     return ob
 }
 
@@ -265,7 +297,7 @@ async function deployStepSwap() {
 }
 
 // deploy javascript vm env
-export async function deployMockContracts() {
+export async function deployMockContracts(proxy = false) {
     await deployTokens()
     await _deployWHT()
     if (NETWORK !== 'hardhat') {
@@ -276,7 +308,7 @@ export async function deployMockContracts() {
 
     await deployCompound()
     await deploySwap()
-    await deployOrderBook()
+    await deployOrderBook(proxy)
     await deployEbeHecoPool()
     await deployStepSwap()
 

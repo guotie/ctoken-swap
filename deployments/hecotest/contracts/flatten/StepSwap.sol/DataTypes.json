@@ -1,0 +1,245 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "DataTypes",
+  "sourceName": "contracts/flatten/StepSwap.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "ADDRESS_MASK",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "REVERSE_SWAP_MASK",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_AAVE_DEPOSIT_ATOKEN",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_AAVE_DEPOSIT_WETH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_AAVE_WITHDRAW_ETH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_AAVE_WITHDRAW_TOKEN",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_COMPOUND_MINT_CETH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_COMPOUND_MINT_CTOKEN",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_COMPOUND_REDEEM_TOKEN",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_DEPOSIT_ETH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_EBANK_ROUTER_CTOKENS_CTOKENS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_EBANK_ROUTER_ETH_TOKENS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_EBANK_ROUTER_TOKENS_ETH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_EBANK_ROUTER_TOKENS_TOKENS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_UNISWAP_ROUTER_ETH_TOKENS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_UNISWAP_ROUTER_TOKENS_ETH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_UNISWAP_ROUTER_TOKENS_TOKENS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STEP_WITHDRAW_WETH",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x6102b6610026600b82828239805160001a60731461001957fe5b30600052607381538281f3fe73000000000000000000000000000000000000000030146080604052600436106101405760003560e01c806376379f6f116100bc578063965bd6281161008b578063b6103be111610070578063b6103be1146101d3578063d5473ea0146101db578063ec73b53c146101e357610140565b8063965bd628146101c3578063a35de9fa146101cb57610140565b806376379f6f146101a3578063785ef0a4146101ab578063798c75ae146101b357806390489a41146101bb57610140565b806318e191aa116101135780635508fb42116100f85780635508fb421461018b5780635df972691461019357806361677ca41461019b57610140565b806318e191aa1461017b5780632d5a4acb1461018357610140565b8063040ef86a146101455780631311c5cf14610163578063144bc98c1461016b57806318ce2beb14610173575b600080fd5b61014d6101eb565b60405161015a9190610277565b60405180910390f35b61014d6101f0565b61014d6101f5565b61014d6101fa565b61014d61021e565b61014d610223565b61014d610228565b61014d61022d565b61014d610232565b61014d610237565b61014d61024f565b61014d610254565b61014d610259565b61014d61025e565b61014d610263565b61014d610268565b61014d61026d565b61014d610272565b601381565b601781565b600a81565b7f800000000000000000000000000000000000000000000000000000000000000081565b600581565b600481565b601281565b600881565b601681565b73ffffffffffffffffffffffffffffffffffffffff81565b601181565b600981565b600181565b600781565b600381565b601581565b600281565b601481565b9081526020019056fea26469706673582212208fb973927d5892f9c2e22368a74f8e16a3fa1ce4375b2aeac8b9c2365ca58a2264736f6c63430007060033",
+  "deployedBytecode": "0x73000000000000000000000000000000000000000030146080604052600436106101405760003560e01c806376379f6f116100bc578063965bd6281161008b578063b6103be111610070578063b6103be1146101d3578063d5473ea0146101db578063ec73b53c146101e357610140565b8063965bd628146101c3578063a35de9fa146101cb57610140565b806376379f6f146101a3578063785ef0a4146101ab578063798c75ae146101b357806390489a41146101bb57610140565b806318e191aa116101135780635508fb42116100f85780635508fb421461018b5780635df972691461019357806361677ca41461019b57610140565b806318e191aa1461017b5780632d5a4acb1461018357610140565b8063040ef86a146101455780631311c5cf14610163578063144bc98c1461016b57806318ce2beb14610173575b600080fd5b61014d6101eb565b60405161015a9190610277565b60405180910390f35b61014d6101f0565b61014d6101f5565b61014d6101fa565b61014d61021e565b61014d610223565b61014d610228565b61014d61022d565b61014d610232565b61014d610237565b61014d61024f565b61014d610254565b61014d610259565b61014d61025e565b61014d610263565b61014d610268565b61014d61026d565b61014d610272565b601381565b601781565b600a81565b7f800000000000000000000000000000000000000000000000000000000000000081565b600581565b600481565b601281565b600881565b601681565b73ffffffffffffffffffffffffffffffffffffffff81565b601181565b600981565b600181565b600781565b600381565b601581565b600281565b601481565b9081526020019056fea26469706673582212208fb973927d5892f9c2e22368a74f8e16a3fa1ce4375b2aeac8b9c2365ca58a2264736f6c63430007060033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

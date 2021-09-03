@@ -1,0 +1,41 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "SafeMath",
+  "sourceName": "contracts/flatten/SwapMining.sol",
+  "abi": [
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "ray",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "constant": true,
+      "inputs": [],
+      "name": "wad",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "payable": false,
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x60b1610025600b82828239805160001a60731461001857fe5b30600052607381538281f3fe7300000000000000000000000000000000000000003014608060405260043610603d5760003560e01c8063416a8b201460425780637df38c5b14605a575b600080fd5b60486060565b60408051918252519081900360200190f35b60486070565b6b033b2e3c9fd0803ce800000090565b670de0b6b3a76400009056fea265627a7a72315820073d3fde98f55acb7de5734b0c8d1017fb95175f4f65f9d99edd1de49c98d53564736f6c63430005100032",
+  "deployedBytecode": "0x7300000000000000000000000000000000000000003014608060405260043610603d5760003560e01c8063416a8b201460425780637df38c5b14605a575b600080fd5b60486060565b60408051918252519081900360200190f35b60486070565b6b033b2e3c9fd0803ce800000090565b670de0b6b3a76400009056fea265627a7a72315820073d3fde98f55acb7de5734b0c8d1017fb95175f4f65f9d99edd1de49c98d53564736f6c63430005100032",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

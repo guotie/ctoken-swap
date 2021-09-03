@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "deploy:hecotest:all": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploy.ts",
-    "deploy:hecotest:orderbook": "hardhat --network hecotest compile && rimraf -rf deployments/hecotest/contracts && cpr artifacts/contracts/ deployments/hecotest/contracts -od && hardhat run --network hecotest scripts/deploys/orderbook.ts",
+    "deploy:hecotest:orderbook": "hardhat --network hecotest compile && rimraf -rf deployments/artifacts/hecotest/contracts && cpr artifacts/contracts/ deployments/artifacts/hecotest/contracts -od && hardhat run --network hecotest scripts/deploys/orderbook.ts",
     "deploy:ebe": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/ebe.ts",
     "deploy:router": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/router.ts",
     "deploy:stepswap": "hardhat --network hecotest compile && hardhat run --network hecotest scripts/deploys/stepswap.ts",
