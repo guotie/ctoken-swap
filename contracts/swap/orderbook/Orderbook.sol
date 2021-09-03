@@ -322,23 +322,6 @@ contract OrderBook is Initializable, IOrderBook, OBStorageV1 {
         order.tokenAmt.amountOut = amountOut;
         if (srcToken != etoken) {
           order.tokenAmt.amountOutMint = _mintEToken(srcToken, etoken, amountOut);
-          /*
-          // order.isEToken = true;
-          // mint to etoken
-          if (srcToken == address(0)) {
-            // uint balanceBefore = IERC20(cETH).balanceOf(address(this));
-            (uint err, uint amt) = ICETH(cETH).mint{value: msg.value}();
-            require(err == 0, "mint failed");
-            order.tokenAmt.amountInMint = amt; // IERC20(cETH).balanceOf(address(this)).sub(balanceBefore);
-          } else {
-            // uint balanceBefore = IERC20(etoken).balanceOf(address(this));
-            IERC20(srcToken).approve(etoken, amountIn);
-            (uint err, uint amt) = ICToken(etoken).mint(amountIn);
-            ICToken(etoken).approve(etoken, 0);
-            require(err == 0, "mint failed");
-            order.tokenAmt.amountInMint = amt; // IERC20(etoken).balanceOf(address(this)).sub(balanceBefore);
-          }
-          */
         } else {
           order.tokenAmt.amountOutMint = amountOut;
         }
@@ -830,6 +813,19 @@ contract OrderBook is Initializable, IOrderBook, OBStorageV1 {
         totalEAmt = totalEAmt.add(eamt);
         totalAmt = totalAmt.add(amt);
       }
+    }
+
+    /// @dev 计算成交一个订单的给定amt, 需要支付的 destEToken destToken 数量
+    function calcTakerAmount(uint id, uint amtToTaken) public view returns (uint takerEAmt, uint takerAmt) {
+      DataTypes.OrderItem memory order = orders[id];
+      DataTypes.TokenAmount memory tokenAmt = order.tokenAmt;
+      return OBPriceLogic.calcTakerAmount(
+                                  tokenAmt.destToken,
+                                  tokenAmt.destEToken,
+                                  tokenAmt.amountOutMint,
+                                  tokenAmt.guaranteeAmountIn,
+                                  amtToTaken
+                              );
     }
 
     /// @dev 根据order的兑换比例, 手续费, 计算兑换得到的dest token的兑换数量. 如果 是 token, 则调用 EToken 的接口更新 exchangeRate, 因此，这个方法不是只读方法
