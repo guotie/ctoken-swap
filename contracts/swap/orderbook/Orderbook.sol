@@ -596,11 +596,11 @@ contract OrderBook is Initializable, IOrderBook, OBStorageV1 {
       uint256 filled;      // 成交的 srcEToken
       uint256 takerFee;    // taker 手续费
       uint256 makerFee;    // maker 手续费
-      uint256 takerAmt;    // taker 得到的 srcEToken = amtDest - fee
-      uint256 takerAmtToken; // taker 得到的 srcToken = amtDestToken - fee
+      uint256 takerAmt;    // taker 得到的 srcEToken = amtToTaken - fee
+      uint256 takerAmtToken; // taker 得到的 srcToken = takerAmt * srcEToken.exchangeRate
       uint256 makerAmt;      // maker 得到的 destEToken
-      uint256 amtDest;       // taker 付出 srcEToken
-      uint256 amtDestToken;  // taker 付出的 srcToken
+      uint256 amtDest;       // taker 付出 destEToken
+      uint256 amtDestToken;  // taker 付出的 destToken
     }
 
     // todo 限制最大交易的订单数量
