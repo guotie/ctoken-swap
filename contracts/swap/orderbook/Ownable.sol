@@ -39,6 +39,12 @@ abstract contract Ownable is Context {
         emit OwnershipTransferred(address(0), msgSender);
     }
 
+    function _upgradeableOwnable() internal {
+        address msgSender = _msgSender();
+        _owner = msgSender;
+        emit OwnershipTransferred(address(0), msgSender);
+    }
+
     /**
      * @dev Returns the address of the current owner.
      */

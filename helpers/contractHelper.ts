@@ -45,6 +45,7 @@ type TokenContractName = 'USDT'
                     | 'HecoPool'
                     | 'SwapExchangeRate'
                     | 'OrderBookProxy'
+                    | 'OrderBookProxyAdmin'
                     | 'OBPriceLogic'
 
 let contractAddress: { [index: string]: { [index: string]: string } } = {
@@ -76,6 +77,7 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'StepSwap': '0xaAdB5B32B22786507A38137d085a357f959248d4', // '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
         'SwapExchangeRate': '0xbDD1489cEf6272cfd0eC5E0430B4600A87686D8c',
         'OrderBookProxy': '',
+        'OrderBookProxyAdmin': '',
         'OBPriceLogic': '',
     },
     'hardhat' : {

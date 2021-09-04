@@ -47,6 +47,8 @@ import {
     printContrct('HecoPool')
     printContrct('SwapMining')
     printContrct('OrderBook')
+    printContrct('OrderBookProxy')
+    printContrct('OrderBookProxyAdmin')
     printContrct('StepSwap')
 
     console.info('\n--------------------------------compelete--------------------------------\n')

@@ -122,13 +122,13 @@ contract OrderBook is Initializable, IOrderBook, OBStorageV1 {
     using SafeMath for uint256;
     using OBPairConfig for DataTypes.OBPairConfigMap;
 
-    constructor(address _ctokenFactory, address _cETH, address _wETH, address _margin) public {
-      cETH = _cETH;
-      wETH = _wETH;
-      marginAddr    = _margin;
-      ctokenFactory = _ctokenFactory;
-      _notEntered = true;
-    }
+    // constructor(address _ctokenFactory, address _cETH, address _wETH, address _margin) public {
+    //   cETH = _cETH;
+    //   wETH = _wETH;
+    //   marginAddr    = _margin;
+    //   ctokenFactory = _ctokenFactory;
+    //   _notEntered = true;
+    // }
 
     // _ctokenFactory: ctoken 工厂
     // _wETH: eth/bnb/ht
@@ -139,6 +139,7 @@ contract OrderBook is Initializable, IOrderBook, OBStorageV1 {
       marginAddr    = _margin;
       ctokenFactory = _ctokenFactory;
       _notEntered = true;
+      _upgradeableOwnable();
     }
     // function initialize() public initializer {
     //   _notEntered = true;

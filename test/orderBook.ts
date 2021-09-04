@@ -55,7 +55,7 @@ describe("orderbook 测试", function() {
 
     console.log('deployer: %s buyer: %s', deployer, buyer.address)
 
-    await deployMockContracts(false)
+    await deployMockContracts(true)
     // create ctoken
     usdt = await getMockToken('USDT', '100000000000000000000', 6) // tokens.addresses.get('USDT')!
     sea = await getMockToken('SEA', '20000000000000000000000000000000') // tokens.addresses.get('SEA')!
@@ -198,7 +198,7 @@ describe("orderbook 测试", function() {
       // console.log('order to take tokenAmt:', tokenAmt)
       console.log('token %s, balance: %s', 'HT', (await getBalance(tokenIn, deployer)).toString())
       let pricec = getOBPriceLogicContract()
-      let takerAmt = await pricec.calcTakerAmount(tokenAmt.destToken, tokenAmt.destEToken, tokenAmt.amountInMint, tokenAmt.guaranteeAmountOut, amt)
+      let takerAmt = await pricec.calcTakerAmount(tokenAmt.destToken, tokenAmt.destEToken, tokenAmt.amountOutMint, tokenAmt.guaranteeAmountIn, amt)
       console.log('taker pay amt: ', takerAmt.takerEAmt.toString(), takerAmt.takerAmt.toString())
       await orderBookC.fulfilOrder(orderId, amt, deployer, true, true, [], {value: takerAmt.takerAmt})
     } else {

@@ -208,20 +208,24 @@ async function deployOrderBook(proxy = false) {
         
         const abiCoder = new AbiCoder()
         let args = abiCoder.encode(['address', 'address', 'address', 'address'], [ctokenFactory, ceth, weth, margin])
+        // 0xf8c8765e
         // initialize(address _ctokenFactory, address _cETH, address _wETH, address _margin)
-        let func = id('initialize(address _ctokenFactory, address _cETH, address _wETH, address _margin)')
-        let param = func.slice(0, 10) + args.slice(2)
+        let func = id('initialize(address,address,address,address)')
+        let selector = '0xf8c8765e' // func.slice(0, 10)
+        let param = selector + args.slice(2)
 
-        console.log('initialize(): %s', id('initialize()'))
-        console.log('func: %s\nparam: %s\nargs:%s', func, args, param)
+        // console.log('initialize(): %s', id('initialize()'))
+        // console.log('initialize(address,address,address,address): %s', id('initialize(address,address,address,address)'))
+        // console.log('func: %s\nparam: %s\nargs:%s', func, args, param)
 
         let proxyAdmin = await _deployMock('ProxyAdmin', { args: [] })
+        setContractAddress('OrderBookProxyAdmin', proxyAdmin.address)
         // param = '0x8129fc1c' // initialize()
         let proxy = await _deployMock('TransparentUpgradeableProxy', {
             args: [ ob.address, proxyAdmin.address, param]
         })
         setContractAddress('OrderBookProxy', proxy.address)
-        
+        // setContractAddress('OrderBook', proxy.address)
     }
 
     return ob

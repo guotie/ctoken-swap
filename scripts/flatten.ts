@@ -15,6 +15,7 @@ flattenContract('StepSwap', './contracts/flatten/StepSwap.sol')
 flattenContract('EBEToken', './contracts/flatten/EBEToken.sol')
 flattenContract('HecoPool', './contracts/flatten/HecoPool.sol')
 flattenContract('SwapMining', './contracts/flatten/SwapMining.sol')
+flattenContract('ProxyAdmin', './contracts/flatten/ProxyAdmin.sol')
 flattenContract('TransparentUpgradeableProxy', './contracts/flatten/TransparentUpgradeableProxy.sol')
 
 

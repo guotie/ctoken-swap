@@ -4,6 +4,7 @@ const ethers = hre.ethers
 
 import deploy from './deploy'
 import { BigNumberish, BigNumber } from 'ethers'
+import { AbiCoder, id } from 'ethers/lib/utils';
 import { e18, addressOf, setContractAddress, getEbeTokenContract } from './contractHelper'
 import { zeroAddress } from '../deployments/deploys'
 
@@ -138,16 +139,21 @@ async function doSettings() {
 }
 
 // 挂单合约
-async function deployOrderBook() {
+async function deployOrderBook(proxy = true) {
     let l = await _deploy('contracts/flatten/Orderbook.sol:OBPriceLogic', { args: [] })
     let c = await _deploy('contracts/flatten/Orderbook.sol:OBPairConfig', { args: [] })
     let ctokenFactory = addressOf('CtokenFactory')
         , ceth = addressOf('CETH')
         , weth = addressOf('WHT')
         , margin = zeroAddress
+        , args: any[] = []
+
+    if (!proxy) {
+        args = [ctokenFactory, ceth, weth, margin]
+    }
 
     let ob = await _deploy('contracts/flatten/Orderbook.sol:OrderBook', {
-        args: [ctokenFactory, ceth, weth, margin],
+        args: args,
         libraries: {
             OBPriceLogic: l.address,
             OBPairConfig: c.address
@@ -161,12 +167,30 @@ async function deployOrderBook() {
 async function deployOrderBookProxy() {
     const namedSigners = await ethers.getSigners()
         , ob = addressOf('OrderBook')
-        , admin = namedSigners[0].address
+        // , admin = namedSigners[0].address
+        , ctokenFactory = addressOf('CtokenFactory')
+        , ceth = addressOf('CETH')
+        , weth = addressOf('WHT')
+        , margin = zeroAddress
 
-    let result = await _deploy('contracts/proxy/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy', {
-        args: [ob, admin, []]
+    let proxyAdmin = await _deploy('contracts/flatten/ProxyAdmin.sol:ProxyAdmin', {
+        args: []
+    })
+    setContractAddress('OrderBookProxyAdmin', proxyAdmin.address)
+
+    const abiCoder = new AbiCoder()
+    let args = abiCoder.encode(['address', 'address', 'address', 'address'], [ctokenFactory, ceth, weth, margin])
+    // 0xf8c8765e
+    // initialize(address _ctokenFactory, address _cETH, address _wETH, address _margin)
+    let func = id('initialize(address,address,address,address)')
+    let selector = '0xf8c8765e' // func.slice(0, 10)
+    let param = selector + args.slice(2)
+
+    let result = await _deploy('contracts/flatten/TransparentUpgradeableProxy.sol:TransparentUpgradeableProxy', {
+        args: [ob, proxyAdmin.address, param]
     })
     console.info('deploy orderbook proxy at: %s', result.address)
+    setContractAddress('OrderBookProxy', result.address)
 }
 
 export {
