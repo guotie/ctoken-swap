@@ -46,7 +46,7 @@ describe("限价单 cancel order 测试", function() {
         let namedSigners = await ethers.getSigners()
         maker = namedSigners[0]
         taker = namedSigners[1]
-        orderbookc = getOrderbookContract('', maker)
+        orderbookc = getOrderbookContract(addressOf('OrderBookProxy'), maker)
         console.log('maker address: %s taker address: %s orderbook: %s', maker.address, taker.address, orderbookc.address)
     })
 
@@ -93,6 +93,7 @@ describe("限价单 cancel order 测试", function() {
     }
 
     it('cancel', async () => {
+        // await cancelOrder(0)
         await cancelOrder(2)
     })
 

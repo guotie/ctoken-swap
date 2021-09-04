@@ -59,7 +59,7 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'HBTC': '0x1d8684e6cdd65383affd3d5cf8263fcda5001f13',
         // 0xa5142692F4B9ffa9FcC328aB92cFAb06C889f89F 不限制 router 地址
         // compound
-        'CETH': '0x93dc4caE4D440b0b76d1A3eA81ea168b3bD02466', // '0x042f1249297EF180f33d166828AC43e401E0FecA',
+        'CETH': '0x1D420BbbbB7157a212463D9f1B159ffaCA9394B8', // '0x042f1249297EF180f33d166828AC43e401E0FecA',
         'CtokenFactory': '0x14b0530ddD4C33b73F56a5184fdB967806086433', // '0xF4CfC260cA8F68f3069FbEc534afbA21E0903b4b', // '0xbf7c839DFf6e849C742b33c676B2BfAF11a6a36c',
         'Comptroller': '0x69282D85701B09Af1cE73eD4456268b413a33A06', // '0xc16BB0ea6817BdC592a525208c19a9Aa43FdC0d1',
         'ComptrollerV2': '0xAEe0fa0F01db1baf019A05CF022A743650F8e7EF', // '0x36a20ae2C88Fe9A946C61Cbf78Ec4be102558E57',
@@ -73,12 +73,17 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         'SwapMining': '0xb919835f3B373392bEB1DE86CbDe862fb037B604',
         'HecoPool': '0xbdF11AE094f35f08c97a15E214a0aeCe621f8CEF',
         'EBEToken': '0xd66E77799cECa9702C2A478d8aB65397713b8236',
-        'OrderBook': '0xaDe0B0181F0704F0d6Eb8F8cBfDf0836D8370662', // '0x549442f42A18BFeA9cF4Cf68a0D8005483A6BdBc', // '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
+        // 'OrderBook': '0xaDe0B0181F0704F0d6Eb8F8cBfDf0836D8370662', // '0x549442f42A18BFeA9cF4Cf68a0D8005483A6BdBc', // '0x4639F9a380D37E491a84D751F086a70FBC6D395E',
         'StepSwap': '0xaAdB5B32B22786507A38137d085a357f959248d4', // '0xDe95a996c3f8Cc48E9F73A5efcBA8026D1585ae6',
         'SwapExchangeRate': '0xbDD1489cEf6272cfd0eC5E0430B4600A87686D8c',
-        'OrderBookProxy': '',
-        'OrderBookProxyAdmin': '',
+        // 'OrderBookProxy': '',
+        // 'OrderBookProxyAdmin': '',
         'OBPriceLogic': '',
+        
+        // 2021-09-04
+        'OrderBook': '0xC4dAfe40b66d6216f562d6a0ACDEB981Bbf8FEb9',
+        'OrderBookProxy': '0x488C39ac3002d77499CBd09aA2529182f606cb87',
+        'OrderBookProxyAdmin': '0xc95F1F3828e675aeF4186fcC2b92923f0a96Bed3',
     },
     'hardhat' : {
         'USDT': '',
