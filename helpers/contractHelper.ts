@@ -85,10 +85,12 @@ let contractAddress: { [index: string]: { [index: string]: string } } = {
         // 'OrderBookProxy': '0x488C39ac3002d77499CBd09aA2529182f606cb87',
         // 'OrderBookProxyAdmin': '0xc95F1F3828e675aeF4186fcC2b92923f0a96Bed3',
         // 2021-09-04 again
-        'OrderBook': '0x206ecc703153D7aB46f371Da8046006567BB1194',
-        'OrderBookProxy': '0xADea9264280f42173a38c67E902a39399af5d537',
-        'OrderBookProxyAdmin': '0x02D2a143915cD6930852a056943ac0620b2E1003',
-
+        // 'OrderBook': '0x206ecc703153D7aB46f371Da8046006567BB1194',
+        // 'OrderBookProxy': '0xADea9264280f42173a38c67E902a39399af5d537',
+        // 'OrderBookProxyAdmin': '0x02D2a143915cD6930852a056943ac0620b2E1003',
+        'OrderBook': '0x6848b6eE9C2d593346B6025B4591577169c5e461',
+        'OrderBookProxy': '0x6F35D16afd6440f814F42Ed6Bb75D50322dFa642',
+        'OrderBookProxyAdmin': '0xb723f73C0E0b912abccd5465eD7eA59a8C0115D9',
     },
     'hardhat' : {
         'USDT': '',
