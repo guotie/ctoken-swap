@@ -54,9 +54,9 @@ describe("限价单 fulfil 测试", function() {
         let namedSigners = await ethers.getSigners()
         maker = namedSigners[0]
         taker = namedSigners[1]
-        console.log('maker address: %s taker address: %s', maker.address, taker.address)
-
+        
         orderbookc = getOrderbookContract('', maker)
+        console.log('maker address: %s taker address: %s orderbook: %s', maker.address, taker.address, orderbookc.address)
     })
 
     const printBalances = async (title: string, owner: string, tokens: IToken[] | string[]) => {
@@ -76,10 +76,12 @@ describe("限价单 fulfil 测试", function() {
 
     const printOrder = (order: any) => {
         let tokenAmt = order.tokenAmt
+        // console.log('tokenAmt:', tokenAmt)
         console.info('    orderId=%d srcToken=%s dstToken=%s srcEToken=%s dstEToken=%s\n    amountIn=%s amountInMinted=%s fulfiled=%s expectOut=%s\n',
             order.orderId, tokenAmt.srcToken, tokenAmt.destToken, tokenAmt.srcEToken, tokenAmt.destEToken,
-            tokenAmt.amountIn.toString(), tokenAmt.amountInMint.toString(), tokenAmt.fulfiled.toString(), tokenAmt.guaranteeAmountIn.toString())
+            tokenAmt.amountOut.toString(), tokenAmt.amountOutMint.toString(), tokenAmt.fulfiled.toString(), tokenAmt.guaranteeAmountIn.toString())
     }
+
     const fulfilOrder = async (orderId: number, amtIn: BigNumberish) => {
         let order = await orderbookc.orders(orderId)
             , dstToken = order.tokenAmt.destToken  // 我付出的币

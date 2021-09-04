@@ -293,6 +293,12 @@ describe("orderbook 测试", function() {
   })
   */
 
+  it('create HT order, then cancel', async () => {
+    logHr('create HT order, then cancel')
+    let o1 = await putOrder(ht, sea, 100000000, 3000000000)
+    await cancelOrder(o1)
+  })
+
   it('fulfil sell HT order, then withdraw', async () => {
     logHr('fulfil sell HT order, then withdraw')
     let o1 = await putOrder(ht, sea, 10000000, 300000000)

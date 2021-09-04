@@ -445,7 +445,7 @@ contract OrderBook is Initializable, IOrderBook, OBStorageV1 {
         require(token != etoken, "token should not equal etoken");
         // console.log("redeemAmt:", redeemAmt);
 
-        (uint ret, , uint amt) = ICToken(etoken).redeem(redeemAmt);
+        (uint ret, uint amt, ) = ICToken(etoken).redeem(redeemAmt);
         // 当没有足够的 token 可以赎回时, 转 etoken 给 to
         // TokenErrorReporter Error.TOKEN_INSUFFICIENT_CASH
         require(ret == 0 || ret == 14, "redeem failed");

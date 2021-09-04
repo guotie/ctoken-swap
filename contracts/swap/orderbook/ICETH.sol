@@ -17,6 +17,9 @@ pragma solidity ^0.6.12;
 interface ICETH {
 
     function mint() external payable returns (uint, uint);
+    // 第一个返回值是错误码
+    // 第二个返回值是 token 数量
+    // 第三个返回值是 etoken 数量
     function redeem(uint redeemTokens) external returns (uint, uint, uint);
 
     function transfer(address dst, uint amount) external returns (bool);
