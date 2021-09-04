@@ -62,7 +62,7 @@ describe("orderbook 测试", function() {
 
     delegatorFactory = getCTokenFactoryContract(undefined, namedSigners[0]) // await getContractAt(deployContracts.lErc20DelegatorFactory)
 
-    orderBookC = getOrderbookContract(addressOf('OrderBookProxy'), namedSigners[0]) //new ethers.Contract(rr.address, rr.abi, namedSigners[0])
+    orderBookC = getOrderbookContract(addressOf('OrderBook'), namedSigners[0]) //new ethers.Contract(rr.address, rr.abi, namedSigners[0])
     orderBook = orderBookC.address
 
     console.info('USDT:', usdt.address, 'SEA:', sea.address, 'orderBook:', orderBook)

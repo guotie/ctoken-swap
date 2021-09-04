@@ -5,7 +5,7 @@ import { BigNumber, BigNumberish, Contract } from 'ethers'
 
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import sleep from '../utils/sleep';
-import { addressOf, getBalance, getBalances, getOrderbookContract, getTokenContract } from '../helpers/contractHelper'
+import { addressOf, getBalance, getBalances, getOrderbookContract, getProvider, getTokenContract } from '../helpers/contractHelper'
 import { IToken, getMockToken, HTToken, readableTokenAmount, deadlineTs, getPairToken } from '../helpers/token';
 import { callWithEstimateGas } from '../helpers/estimateGas';
 import { deployMockContracts } from '../helpers/mock';
@@ -96,6 +96,12 @@ describe("限价单 cancel order 测试", function() {
         // await cancelOrder(0)
         await cancelOrder(2)
     })
+
+    // 
+    // it('send ht to orderbook proxy', async () => {
+    //     console.log('send ht to %s', orderbookc.address)
+    //     await getProvider().sendTransaction({from: maker.address, to: orderbookc.address, value: 1000000})
+    // })
 
 })
 

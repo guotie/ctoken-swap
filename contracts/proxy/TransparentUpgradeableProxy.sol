@@ -58,6 +58,12 @@ contract TransparentUpgradeableProxy is UpgradeableProxy {
         }
     }
 
+    receive() external payable override {
+        //  cETH 中赎回
+        // assert(msg.sender == cWHT);
+        // only accept HT via fallback from the WHT contract
+    }
+    
     /**
      * @dev Returns the current admin.
      *
