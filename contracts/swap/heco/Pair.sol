@@ -24,7 +24,7 @@ import "../../compound/CToken.sol";
 
 import "./PairStorage.sol";
 
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 interface IUnitroller {
     function compAccrued(address addr) external view returns (uint);
@@ -491,7 +491,7 @@ contract DeBankPair is IDeBankPair, PairStorage {
         // LP 抵押需要使用专门的方法
         // address lpDepositAddr;
         // require(msg.sender != lpDepositAddr, "burn");
-        // console.log("burn start");
+        console.log("burn start");
         (uint112 _reserve0, uint112 _reserve1,) = getReserves();
         // gas savings
         address _token0 = cToken0;

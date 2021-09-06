@@ -1,5 +1,5 @@
 import deploy from './deploy'
-import { e18, addressOf, dumpAddresses, NETWORK, setContractAddress } from './contractHelper'
+import { e18, addressOf, dumpAddresses, NETWORK, setContractAddress, getEbeTokenContract, getEbankRouter } from './contractHelper'
 import { getMockToken, IToken, readableTokenAmount, deadlineTs } from './token'
 
 import { BigNumber } from '@ethersproject/bignumber'
@@ -228,6 +228,7 @@ async function deployOrderBook(proxy = false) {
         // setContractAddress('OrderBook', proxy.address)
     }
 
+    console.info('orderbook deploy success')
     return ob
 }
 
@@ -261,19 +262,22 @@ async function deploySwapMining(perBlock: BigNumberish) {
 }
 
 async function deployEbeHecoPool() {
-    let namedSigners = await ethers.getSigners()
+    // let namedSigners = await ethers.getSigners()
         // , deployer = namedSigners[0].address
     
-    let ebe = await deployEbe()
-    let pool = await deployHecoPool(ebe.address, 10, 0)
-    let ebec = new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
-    await ebec.setMinter(pool.address, true)
+    const ebe = await deployEbe()
+    // let pool = 
+    await deployHecoPool(ebe.address, 10, 0)
+    // let ebec = new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
+    // await ebec.setMinter(pool.address, true)
 
     // 每个块 80 个
     await deploySwapMining(BigNumber.from(80).mul(e18))
 
-    await ebec.setMinter(addressOf('Router'), true)
-    await ebec.setMinter(addressOf('SwapMining'), true)
+    // await ebec.setMinter(addressOf('Router'), true)
+    // await ebec.setMinter(addressOf('SwapMining'), true)
+
+    console.log('deploy EBE, heco pool success')
 }
 
 async function deployStepSwap() {
@@ -298,7 +302,26 @@ async function deployStepSwap() {
     })
 
     setContractAddress('StepSwap', result.address)
+    console.log('deploy step swap success')
 }
+
+// todo: 完成一些设置
+async function doSettings() {
+    const namedSigners = await ethers.getSigners()
+    // factory mintFreeAddress
+
+
+    // ebe 设置
+    const ebec = getEbeTokenContract('', namedSigners[0]) // new ethers.Contract(ebe.address, ebe.abi, namedSigners[0])
+    await (await ebec.setMinter(addressOf('HecoPool'), true)).wait()
+    await (await ebec.setMinter(addressOf('Router'), true)).wait()
+    await (await ebec.setMinter(addressOf('SwapMining'), true)).wait()
+    
+    const routerc = getEbankRouter(addressOf('Router'), namedSigners[0])
+    await (await routerc.setRewardToken(ebec.address)).wait()
+    console.log('do setting success')
+}
+
 
 // deploy javascript vm env
 export async function deployMockContracts(proxy = false) {
@@ -315,6 +338,8 @@ export async function deployMockContracts(proxy = false) {
     await deployOrderBook(proxy)
     await deployEbeHecoPool()
     await deployStepSwap()
+
+    await doSettings()
 
     console.log('contracts:', dumpAddresses())
 }
@@ -342,21 +367,9 @@ export async function addLiquidityUnderlying(
     // if (token0.address === zeroAddress || token1.address === zeroAddress) {
     //     throw new Error('todo: not support ht add liquidity')
     // }
-
+    let tx
     if (token0.address === zeroAddress) {
-        // await callWithEstimateGas(router,
-        //     'addLiquidityETHUnderlying',
-        //     [
-        //         token1.address,
-        //         amt1,
-        //         0,
-        //         0,
-        //         to,
-        //         deadlineTs(100),
-        //         { value: amt0 }
-        //     ],
-        //     true)
-            await router.addLiquidityETHUnderlying(
+        tx = await router.addLiquidityETHUnderlying(
                     token1.address,
                     amt1,
                     0,
@@ -365,9 +378,10 @@ export async function addLiquidityUnderlying(
                     deadlineTs(100),
                     { value: amt0 }
             )
+        await tx.wait()
     } else if (token1.address === zeroAddress) {
         // await callWithEstimateGas(router,
-        await router.addLiquidityETHUnderlying(
+        tx = await router.addLiquidityETHUnderlying(
                 token0.address,
                 amt0,
                 0,
@@ -376,19 +390,20 @@ export async function addLiquidityUnderlying(
                 deadlineTs(100),
                 { value: amt1 }
         )
+        await tx.wait()
     } else {
-    await callWithEstimateGas(router,
-        'addLiquidityUnderlying',
-        [
-            token0.address,
-            token1.address,
-            amt0,
-            amt1,
-            0,
-            0,
-            to,
-            deadlineTs(100)
-        ],
-        true)
+        await callWithEstimateGas(router,
+            'addLiquidityUnderlying',
+            [
+                token0.address,
+                token1.address,
+                amt0,
+                amt1,
+                0,
+                0,
+                to,
+                deadlineTs(100)
+            ],
+            true)
     }
 }

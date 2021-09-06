@@ -5,10 +5,11 @@ const network = hre.network
 
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { BigNumber, Contract } from 'ethers'
-import { getEbankFactory, getEbankRouter, getCTokenFactoryContract, getSwapExchangeRateContract, addressOf, getCTokenContract, getTokenContract, getBalance } from '../helpers/contractHelper';
+import { getEbankFactory, getEbankRouter, getCTokenFactoryContract, getSwapExchangeRateContract, addressOf, getCTokenContract, getTokenContract, getBalance, getEbankPair } from '../helpers/contractHelper';
 import { deployMockContracts, addLiquidityUnderlying } from '../helpers/mock';
 import { getCTokenRate } from '../helpers/exchangeRate'
 import { deadlineTs, getMockToken, HTToken, IToken } from '../helpers/token';
+import { logHr } from '../helpers/logHr';
 
 // 测试 swap pair
 describe("swap ht 测试", function() {
@@ -25,16 +26,30 @@ describe("swap ht 测试", function() {
         const namedSigners = await hre.ethers.getSigners()
         owner = namedSigners[0]
         if (hre.network.name === 'hardhat') {
-            await deployMockContracts()
-            let usdt = await getMockToken('USDT', '10000000000000000000000', 6)
-              , router = getEbankRouter(undefined, owner)
-            await addLiquidityUnderlying(router, ht, usdt, 1, 10, owner.address)
+            await deployMockContracts(true)
+            // let usdt = await getMockToken('USDT', '10000000000000000000000', 6)
+            //   , router = getEbankRouter(undefined, owner)
+            // await addLiquidityUnderlying(router, ht, usdt, 1, 10, owner.address)
         }
 
         fc = getEbankFactory(undefined, owner)
         rc = getEbankRouter(undefined, owner)
         hc = getSwapExchangeRateContract(undefined, owner)
         ctokenFc = getCTokenFactoryContract(undefined, owner)
+  })
+
+  it('add liquidity', async () => {
+    logHr('add liquidity')
+    let usdt = await getMockToken('USDT', '10000000000000000000000', 6)
+      , router = getEbankRouter(undefined, owner)
+      , wht = addressOf('WETH')
+      , usdtBalance = await getBalance(usdt, owner.address)
+    console.log('before addLiquidity, usdt balance of owner: %s', usdtBalance.toString())
+      // , paric = getEbankPair(pair)
+    await addLiquidityUnderlying(router, ht, usdt, 1, 10, owner.address)
+    let pair = await router.pairFor(wht, usdt.address)
+      , balance = await getBalance(pair, owner.address)
+    console.log('pair LP ht/usdt %s balance of owner: %s', pair, balance.toString())
   })
 
   it('exchange rate', async () => {
@@ -74,5 +89,26 @@ describe("swap ht 测试", function() {
         let b1 = await getBalance(usdt, owner.address)
 
         console.log('swap wht->usdt: %s -> %s', amtIn.toString(), b1.sub(b0).toString())
+  })
+
+  it('remove liquidity', async () => {
+    let router = getEbankRouter(undefined, owner)
+      , usdt = await getMockToken('USDT', '10000000000000000000000', 6)
+      , wht = addressOf('WETH')
+      , pair = await router.pairFor(wht, usdt.address)
+      , pairc = await getEbankPair(pair, owner)
+
+    let balance = await getBalance(pair, owner.address)
+      , usdtBalance = await getBalance(usdt, owner.address)
+    console.log('pair address:', pair)
+    console.log('before removeLiquidity, usdt balance of owner: %s', usdtBalance.toString())
+    
+    await pairc.approve(router.address, balance)
+    await router.removeLiquidityETHUnderlying(usdt.address, balance, 0, 0, owner.address, deadlineTs(100))
+
+    balance = await getBalance(pair, owner.address)
+    usdtBalance = await getBalance(usdt, owner.address)
+    console.log('after   removeLiquidity, usdt balance of owmer: %s', usdtBalance.toString())
+    console.log('after   removeLiquidity, pair ht/usdt balance of owmer: %s', balance.toString())
   })
 })
