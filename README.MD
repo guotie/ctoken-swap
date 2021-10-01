@@ -1,26 +1,38 @@
-# debankex protocol
+# ctoken swap protocol
 
-## compound 
-
-debankex protocol is like a bank, it reserve user's deposit, return interst to user, borrow coin to lenders.
+## why
+To prompt user's APY, they can deposit their token in compound/aave, and in the same time, provide liquidity to get swap fee.
 
 ## swap
 
-debankex tread all swap liqudation as deposit, and LP will get the deposit intersts.
+swap protocol is just like uniswap, AMM protocol. The most differece is in this swap, pair's token0 and token1 is cToken. so, the user can have 3 benefit:
+* first, as LP, they will get swap fee;
+* second, their token is deposit in compound/aave, so they can get interest and COMP/AAVE token;
+* the platform token
+
+### Add Liquidity
+
+when user add liquidity, their token will transfer to compound/aave pool to mint to cToken/aToken.
+
+### swap
+
+when some user swap, there are two sceno:
+
+* first, swap cToken/aToken direct
+In this sceno, it just like uniswap
+
+* second, swap tokens
+In this sceno, we will redeem token from compound/aave, then transfer to swaper
+
+### Remove Liquidity
+
+when LP remove their liquidity, they will get:
+* LP fee
+* interests from compound/aave
+* COMP/AAVE tokens
+* our platform tokens
 
 ## Token
 
 debankex will mint `dToken` for every parters, include LP, lender, depositor.
 
-
-## todo
-
-1. 手续费如何分?
-
-只能等到这个块结束才能知道占比，因此，怎么分?
-
-之前块的手续费累计起来，下一次集中发放
-
-2. 杠杆借贷
-
-totalCash, totalBorrow, totalSupply 均不变，只增加用户的代持合约的 balance
