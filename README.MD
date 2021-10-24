@@ -1,7 +1,7 @@
 # ctoken swap protocol
 
 # why
-To prompt user's APY, they can deposit their token in compound/aave, and in the same time, provide liquidity to get swap fee.
+In order to improve capital efficiency and increase user's APY, we have developed a dapp whic integrates lending and swap. 
 
 ## swap
 
